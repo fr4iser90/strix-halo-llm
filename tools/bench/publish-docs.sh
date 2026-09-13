@@ -24,6 +24,11 @@ copy_if() {
 
 echo "=== publish docs/ (GitHub Pages) ==="
 
+# Hardware snapshot (always refresh on publish host)
+if [[ -x "$ROOT/tools/bench/probe-host.sh" ]]; then
+  "$ROOT/tools/bench/probe-host.sh" || true
+fi
+
 # Rebuild index/planner if present
 if [[ -x "$ROOT/tools/bench/build-index.sh" ]]; then
   "$ROOT/tools/bench/build-index.sh" || true
@@ -32,6 +37,7 @@ if [[ -x "$ROOT/tools/bench/build-planner.sh" ]]; then
   "$ROOT/tools/bench/build-planner.sh" || true
 fi
 
+copy_if "$SRC/host.json" "$DST/host.json"
 copy_if "$SRC/index.html" "$DST/index.html"
 copy_if "$SRC/index.md" "$DST/index.md"
 copy_if "$SRC/planner.html" "$DST/planner.html"
@@ -79,17 +85,27 @@ if [[ ! -f "$DST/.nojekyll" ]]; then
 fi
 
 cat >"$DST/README.md" <<'EOF'
-# GitHub Pages
+# GitHub Pages (bench dashboard)
 
-This folder is the static site root (Settings → Pages → Deploy from branch → `/docs`).
+Static site root. Enable once per fork:
 
-Regenerate from Jarvis / the bench host:
+1. Repo **Settings → Pages → Build and deployment**
+2. Source: **Deploy from a branch**
+3. Branch: `main` → folder **`/docs`** → Save
+
+After benches on your machine:
 
 ```bash
-./bench index
 ./bench publish
-git add docs && git commit -m "docs: refresh bench dashboard"
+git add docs
+git commit -m "docs: refresh bench dashboard"
+git push
 ```
+
+`./bench publish` refreshes `host.json` (RAM, GTT, GPU, llama.cpp pin, image id)
+and rebuilds `index.html` so results stay comparable across forks.
+
+Workflow: `.github/workflows/pages.yml` deploys `docs/` on push (Actions must be allowed on the fork).
 EOF
 
 echo "✓ docs/ ready for GitHub Pages"

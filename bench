@@ -47,6 +47,7 @@ Commands:
   apply-ini                patch models-lab.ini from bench recommendations
   index                    rebuild output/bench/index.md + index.html
   publish                  copy curated dashboard → docs/ (GitHub Pages)
+  probe-host               refresh output/bench/host.json (hardware for Pages)
   help                     this help
 
 Throughput examples:
@@ -283,6 +284,11 @@ case "$cmd" in
   publish)
     [[ -x "$PUBLISH_DOCS" ]] || chmod +x "$PUBLISH_DOCS" 2>/dev/null || true
     exec "$PUBLISH_DOCS"
+    ;;
+  probe-host|host)
+    PROBE="$ROOT/tools/bench/probe-host.sh"
+    [[ -x "$PROBE" ]] || chmod +x "$PROBE" 2>/dev/null || true
+    exec "$PROBE"
     ;;
   throughput|thr|t)
     shift

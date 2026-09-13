@@ -12,15 +12,21 @@ THR="$OUT/throughput"
 SCH="$OUT/scheduling"
 INDEX_MD="$OUT/index.md"
 INDEX_HTML="$OUT/index.html"
+HOST_JSON="$OUT/host.json"
+
+# Refresh hardware snapshot when possible (non-fatal)
+if [[ -x "$SCRIPT_DIR/probe-host.sh" ]]; then
+  "$SCRIPT_DIR/probe-host.sh" >/dev/null 2>&1 || true
+fi
 
 mkdir -p "$OUT" "$THR/latest" "$SCH/latest"
 
-bench_python - "$OUT" "$THR" "$SCH" "$INDEX_MD" "$INDEX_HTML" <<'PY'
+bench_python - "$OUT" "$THR" "$SCH" "$INDEX_MD" "$INDEX_HTML" "$HOST_JSON" <<'PY'
 import csv, glob, html, json, os, re, sys
 from collections import defaultdict
 from datetime import datetime
 
-out_root, thr, sch, index_md, index_html = sys.argv[1:6]
+out_root, thr, sch, index_md, index_html, host_json = sys.argv[1:7]
 
 
 def fmt_stamp(s):
@@ -205,12 +211,106 @@ for model in sorted(model_status.keys()):
         "decode_ms": rec.get("decode_ms"),
     })
 
+# --- Host hardware (for Pages reproducibility) ---
+host = {}
+if os.path.isfile(host_json):
+    try:
+        with open(host_json, encoding="utf-8") as f:
+            host = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        host = {}
+
+def host_md_block(h):
+    if not h:
+        return [
+            "## Hardware",
+            "",
+            "*Noch kein `host.json` — auf dem Bench-Host: `./tools/bench/probe-host.sh` "
+            "oder `./bench publish`.*",
+            "",
+        ]
+    pin = h.get("llama_pin") or {}
+    commit = pin.get("commit") or "—"
+    if commit and len(commit) > 12:
+        commit_s = commit[:12]
+    else:
+        commit_s = commit
+    rows = [
+        ("Host", h.get("hostname") or "—"),
+        ("OS", h.get("os") or "—"),
+        ("Kernel", h.get("kernel") or "—"),
+        ("CPU", f"{h.get('cpu') or '—'} ({h.get('nproc') or '?'} threads)"),
+        ("RAM", f"{h.get('ram_gib') or '—'} GiB" + (f" (avail ~{round((h.get('ram_available_mib') or 0)/1024, 1)} GiB)" if h.get("ram_available_mib") else "")),
+        ("Swap", f"{h.get('swap_gib') or '—'} GiB"),
+        ("GTT (UMA)", f"{h.get('gtt_total_gib') or '—'} GiB" + (f" (used ~{round((h.get('gtt_used_mib') or 0)/1024, 1)} GiB)" if h.get("gtt_used_mib") else "")),
+        ("Visible VRAM", f"{h.get('vram_total_mib') or '—'} MiB"),
+        ("GPU", h.get("gpu") or "—"),
+        ("Backend", h.get("backend_default") or "—"),
+        ("Image", f"{h.get('docker_image') or '—'} (`{h.get('docker_image_id_short') or '—'}`)"),
+        ("llama.cpp", f"{pin.get('ref') or '—'} @ `{commit_s}`"),
+        ("Probed", h.get("collected_at") or "—"),
+    ]
+    lines_h = [
+        "## Hardware",
+        "",
+        "Compare results only across similar RAM/GTT/backends. "
+        f"[host.json]({rel('host.json')})",
+        "",
+        "| | |",
+        "|---|---|",
+    ]
+    for k, v in rows:
+        lines_h.append(f"| {k} | {v} |")
+    if h.get("notes"):
+        lines_h += ["", f"> {h['notes']}", ""]
+    else:
+        lines_h.append("")
+    return lines_h
+
+
+def host_html_card(h):
+    if not h:
+        return (
+            '<div class="card"><h2>Hardware</h2>'
+            '<p class="meta">Noch kein <code>host.json</code> — '
+            '<code>./bench publish</code> auf dem Bench-Host.</p></div>'
+        )
+    pin = h.get("llama_pin") or {}
+    commit = pin.get("commit") or "—"
+    commit_s = commit[:12] if isinstance(commit, str) and len(commit) > 12 else commit
+    def row(k, v):
+        return f"<tr><th>{esc(k)}</th><td>{esc(v)}</td></tr>"
+    rows = [
+        row("Host", h.get("hostname") or "—"),
+        row("OS", h.get("os") or "—"),
+        row("Kernel", h.get("kernel") or "—"),
+        row("CPU", f"{h.get('cpu') or '—'} ({h.get('nproc') or '?'} threads)"),
+        row("RAM", f"{h.get('ram_gib') or '—'} GiB"),
+        row("GTT (UMA)", f"{h.get('gtt_total_gib') or '—'} GiB"),
+        row("Visible VRAM", f"{h.get('vram_total_mib') or '—'} MiB"),
+        row("GPU", h.get("gpu") or "—"),
+        row("Backend", h.get("backend_default") or "—"),
+        row("Image", f"{h.get('docker_image') or '—'} ({h.get('docker_image_id_short') or '—'})"),
+        row("llama.cpp", f"{pin.get('ref') or '—'} @ {commit_s}"),
+        row("Probed", h.get("collected_at") or "—"),
+    ]
+    note = f'<p class="meta">{esc(h.get("notes") or "")}</p>' if h.get("notes") else ""
+    return (
+        '<div class="card" id="hardware"><h2>Hardware <span class="meta">'
+        '<a href="host.json">host.json</a></span></h2>'
+        f"{note}"
+        '<table><tbody>' + "".join(rows) + "</tbody></table></div>"
+    )
+
 # --- Markdown ---
 lines = [
     "# Bench — Dashboard",
     "",
-    "**Start hier.** Oben die Empfehlungen, unten die Run-Historie.",
+    "**Start hier.** Hardware zuerst (Vergleichbarkeit), dann Empfehlungen, unten Historie.",
     "",
+]
+lines += host_md_block(host)
+lines += [
     "## Scheduling — welches `ub`? (np=2, Decode niedrig halten)",
     "",
     "Decode-Latenz + Prefill-Durchsatz **unter Last**. "
@@ -524,6 +624,8 @@ summary {{ cursor: pointer; color: #9aa0a6; font-weight: 600; }}
 <h1>Bench Dashboard</h1>
 <p class="meta">★ = recommended sweep value · Prefill/TG tok/s = under load / idle</p>
 <p class="more"><a href="planner.html"><strong>→ Recommendation planner</strong></a> (pick models, tweak np/c, dual GTT estimate)</p>
+
+{host_html_card(host)}
 
 <div class="card" id="apply">
 <h2>Settings anwenden</h2>

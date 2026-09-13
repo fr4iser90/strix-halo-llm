@@ -294,6 +294,10 @@ run_matrix() {
   fi
   mkdir -p "$OUT"
   write_progress "start" "$PROFILE_NAME"
+  # Capture hardware for Pages / compareability
+  if [[ -x "$ROOT/tools/bench/probe-host.sh" ]]; then
+    "$ROOT/tools/bench/probe-host.sh" || true
+  fi
   run_capacity
   run_sched
   run_throughput
@@ -303,6 +307,7 @@ run_matrix() {
   "$CAPACITY" compare || true
   write_progress "done" "$PROFILE_NAME"
   log "matrix done — see $PROGRESS and ./bench index"
+  log "Pages: ./bench publish && git add docs && git commit && git push"
 }
 
 show_status() {

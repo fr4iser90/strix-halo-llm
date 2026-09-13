@@ -1,10 +1,9 @@
-# GitHub Pages via /docs on main
-# Enable: Settings → Pages → Deploy from a branch → main → /docs
+# pages: deploy docs/ (forks: enable Pages + allow Actions)
 name: pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - "docs/**"
       - ".github/workflows/pages.yml"
