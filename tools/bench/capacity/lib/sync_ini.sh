@@ -144,7 +144,6 @@ list_bench_models() {
   bench_python - "$CAPACITY_INI_A" <<'PY'
 import sys
 path = sys.argv[1]
-cur = None
 try:
     with open(path, encoding="utf-8") as f:
         for raw in f:
@@ -153,5 +152,92 @@ try:
                 print(line[1:-1].strip())
 except FileNotFoundError:
     pass
+PY
+}
+
+# Resolve models for capacity/matrix runs.
+# Env:
+#   CAPACITY_MODELS=A,B,C   preferred filter (exact or unique substring)
+#   CAPACITY_MODEL=A[,B]    legacy / also accepts comma list if MODELS empty
+#   CAPACITY_NO_VL=1        drop sections ending in -VL
+# Prints one section name per line. Dies if filter matches nothing / ambiguous.
+resolve_bench_models() {
+  local filter="${CAPACITY_MODELS:-${CAPACITY_MODEL:-}}"
+  local no_vl="${CAPACITY_NO_VL:-0}"
+  bench_python - "$CAPACITY_INI_A" "$filter" "$no_vl" <<'PY'
+import sys
+from pathlib import Path
+
+path, filt, no_vl = sys.argv[1], sys.argv[2].strip(), sys.argv[3] == "1"
+available = []
+try:
+    text = Path(path).read_text(encoding="utf-8")
+except FileNotFoundError:
+    text = ""
+for raw in text.splitlines():
+    line = raw.strip()
+    if line.startswith("[") and line.endswith("]") and not line.startswith(";"):
+        available.append(line[1:-1].strip())
+
+if no_vl:
+    available = [m for m in available if not m.endswith("-VL")]
+
+if not filt:
+    for m in available:
+        print(m)
+    raise SystemExit(0)
+
+want = [x.strip() for x in filt.split(",") if x.strip()]
+chosen = []
+errors = []
+
+def resolve_one(w: str):
+    if w in available:
+        return w, None
+    # Prefer prefix matches (avoids Cyber-* matching bare Tiel-*)
+    prefixes = [m for m in available if m.startswith(w)]
+    pool = prefixes if prefixes else [m for m in available if w in m]
+    if not w.endswith("-VL"):
+        non_vl = [m for m in pool if not m.endswith("-VL")]
+        if non_vl:
+            pool = non_vl
+    if len(pool) == 1:
+        return pool[0], None
+    if len(pool) == 0:
+        return None, f"no match for {w!r}"
+    preview = ", ".join(pool[:8])
+    more = "" if len(pool) <= 8 else f" (+{len(pool) - 8})"
+    tip = " (add --no-vl or use a longer / exact name)" if any(m.endswith("-VL") for m in available) else ""
+    return None, f"ambiguous {w!r} → {preview}{more}{tip}"
+
+for w in want:
+    name, err = resolve_one(w)
+    if err:
+        errors.append(err)
+    else:
+        chosen.append(name)
+
+# de-dupe preserve order
+seen = set()
+out = []
+for m in chosen:
+    if m not in seen:
+        seen.add(m)
+        out.append(m)
+
+if errors:
+    avail = ", ".join(available) if available else "(none — sync / GGUFs?)"
+    print(
+        "error: model filter failed:\n  - "
+        + "\n  - ".join(errors)
+        + f"\navailable ({len(available)}): {avail}",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+if not out:
+    print("error: model filter matched nothing", file=sys.stderr)
+    raise SystemExit(2)
+for m in out:
+    print(m)
 PY
 }

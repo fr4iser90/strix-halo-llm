@@ -284,7 +284,7 @@ for run_dir in sorted(glob.glob(os.path.join(out_root, "20*"))):
 pp_map, tg_map = load_throughput()
 
 if not models:
-    empty = "# Scheduling — Vergleich\n\nNoch keine Runs. Start: `./bench sched --auto`\n"
+    empty = "# Scheduling — compare\n\nNo runs yet. Start: `./bench sched --auto`\n"
     with open(latest_md, "w", encoding="utf-8") as f:
         f.write(empty)
     with open(latest_html, "w", encoding="utf-8") as f:
@@ -379,11 +379,11 @@ for model in sorted(models.keys()):
     md += [
         "### Interleaving — lohnt sich np=2?",
         "",
-        "| Szenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |",
+        "| Scenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |",
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for key, label in [
-        ("01_baseline_solo", "01 solo (Referenz)"),
+        ("01_baseline_solo", "01 solo (reference)"),
         ("02_blocked_np1", "02 blocked (np=1, schlecht)"),
         ("03_interleave_np2", "03 interleave (np=2)"),
     ]:
@@ -400,16 +400,16 @@ for model in sorted(models.keys()):
         )
     if interleave_gain and interleave_gain > 2:
         md.append("")
-        md.append(f"→ **Interleaving:** Prefill-TTFT **{interleave_gain:.0f}× schneller** als blocked "
+        md.append(f"→ **Interleaving:** Prefill-TTFT **{interleave_gain:.0f}× faster** than blocked "
                   f"({fmt_num(blocked_ttft)} ms → {fmt_num(inter_ttft)} ms). Decode bleibt ~{fmt_num(inter.get('decode_ms'))} ms.")
     md.append("")
 
     if ranked_ub:
         md += [
-            "### ub-Sweep — beste Batch-Größe unter Last",
+            "### ub-sweep — best batch size under load",
             "",
-            "Getestet mit Szenario 03 (Decode + 4k-Prefill parallel). "
-            "**Ziel:** niedrige Decode-Latenz + hoher Prefill-Durchsatz + niedrige TTFT.",
+            "Tested with scenario 03 (decode + 4k prefill in parallel). "
+            "**Goal:** low decode latency + high prefill throughput + low TTFT.",
             "",
             "| ub | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |",
             "| --- | ---: | ---: | ---: | ---: | --- |",
@@ -419,7 +419,7 @@ for model in sorted(models.keys()):
             if r.get("best"):
                 flag = "**★ best**"
             elif not r.get("valid"):
-                flag = "⚠ ungültig"
+                flag = "⚠ invalid"
             ttft_s = fmt_num(r.get("prefill_ttft"))
             md.append(
                 f"| {r.get('ub')} | {fmt_num(r.get('decode_ms'))} | {fmt_num(r.get('decode_tps'))} | "
@@ -427,17 +427,17 @@ for model in sorted(models.keys()):
             )
         if best_ub:
             md.append("")
-            md.append(f"→ **Empfehlung:** `ub = {best_ub}`")
+            md.append(f"→ **Recommendation:** `ub = {best_ub}`")
 
     for title, param, ranked, best, note in [
-        ("np-Sweep — parallele Slots (ub=128 fix)", "np", ranked_np, best_np, "np"),
+        ("np-sweep — parallel slots (ub=128 fixed)", "np", ranked_np, best_np, "np"),
         ("b-Sweep — n_batch (np=2, ub=128 fix)", "b", ranked_b, best_b, "b"),
         ("ctx-Sweep — Kontext vs VRAM", "c", ranked_c, best_c, "c"),
     ]:
         if not ranked:
             continue
         if param == "c":
-            md += ["", f"### {title}", "", "Szenario 01 solo pro ctx.", "",
+            md += ["", f"### {title}", "", "Scenario 01 solo per ctx.", "",
                    "| c | Decode ms | Decode tok/s | VRAM MB | |",
                    "| --- | ---: | ---: | ---: | --- |"]
             for r in ranked:
@@ -447,23 +447,23 @@ for model in sorted(models.keys()):
                     f"{fmt_num(r.get('vram_mb'))} | {flag} |"
                 )
         else:
-            md += ["", f"### {title}", "", "Szenario 03 unter Last.", "",
+            md += ["", f"### {title}", "", "Scenario 03 under load.", "",
                    f"| {param} | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |",
                    "| --- | ---: | ---: | ---: | ---: | --- |"]
             for r in ranked:
-                flag = "**★ best**" if r.get("best") else ("⚠ ungültig" if not r.get("valid") else "")
+                flag = "**★ best**" if r.get("best") else ("⚠ invalid" if not r.get("valid") else "")
                 md.append(
                     f"| {r.get(param)} | {fmt_num(r.get('decode_ms'))} | {fmt_num(r.get('decode_tps'))} | "
                     f"{fmt_num(r.get('prefill_tps'))} | {fmt_num(r.get('prefill_ttft'))} | {flag} |"
                 )
         if best:
             md.append("")
-            md.append(f"→ **Empfehlung:** `{param} = {best}`")
+            md.append(f"→ **Recommendation:** `{param} = {best}`")
 
     if cb_detail.get("on") or cb_detail.get("off"):
         md += [
             "",
-            "### cont-batching — an vs. aus",
+            "### cont-batching — on vs off",
             "",
             "| Modus | PP tok/s | TG tok/s | Decode ms | Prefill tok/s | Prefill TTFT |",
             "| --- | ---: | ---: | ---: | ---: | ---: |",
@@ -477,7 +477,7 @@ for model in sorted(models.keys()):
             )
         if cb_detail.get("recommended"):
             md.append("")
-            md.append(f"→ **Empfehlung:** cont-batching **{cb_detail['recommended']}**")
+            md.append(f"→ **Recommendation:** cont-batching **{cb_detail['recommended']}**")
 
     if mtp.get("runs"):
         md += [
@@ -495,7 +495,7 @@ for model in sorted(models.keys()):
             )
         if mtp_rec:
             md.append("")
-            md.append(f"→ **Empfehlung:** `spec-draft-n-max = {mtp_rec}`" if mtp_rec != "off" else "→ **Empfehlung:** MTP **off** (`spec-type = none`)")
+            md.append(f"→ **Recommendation:** `spec-draft-n-max = {mtp_rec}`" if mtp_rec != "off" else "→ **Recommendation:** MTP **off** (`spec-type = none`)")
 
     md.append("")
     model_sections_md.extend(md)
@@ -504,7 +504,7 @@ for model in sorted(models.keys()):
     gain_html = ""
     if interleave_gain and interleave_gain > 2:
         gain_html = (
-            f'<p class="gain">Interleaving: Prefill-TTFT <strong>{interleave_gain:.0f}× schneller</strong> '
+            f'<p class="gain">Interleaving: Prefill-TTFT <strong>{interleave_gain:.0f}× faster</strong> '
             f"({fmt_num(blocked_ttft)} → {fmt_num(inter_ttft)} ms), Decode ~{fmt_num(inter.get('decode_ms'))} ms</p>"
         )
     tp_html = ""
@@ -546,7 +546,7 @@ for model in sorted(models.keys()):
             )
         rec_ub = f'<p class="rec">Empfohlen: <code>ub = {best_ub}</code></p>' if best_ub else ""
         ub_html = f"""
-<h4>ub-Sweep (Interleave unter Last)</h4>
+<h4>ub-sweep (interleave under load)</h4>
 {rec_ub}
 <table><thead><tr>
 <th>ub</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
@@ -593,7 +593,7 @@ for model in sorted(models.keys()):
 {gain_html}
 <h4>Interleaving np=2</h4>
 <table><thead><tr>
-<th>Szenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
+<th>Scenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
 </tr></thead><tbody>{rows_html}</tbody></table>
 {ub_html}
@@ -603,23 +603,23 @@ for model in sorted(models.keys()):
 
 # --- Write compare.md ---
 lines = [
-    "# Scheduling — Vergleich & Empfehlungen",
+    "# Scheduling — compare & recommendations",
     "",
-    "Decode-Latenz und Prefill-Durchsatz **unter Last** (2 Slots, rolling prefill). "
+    "Decode latency and prefill throughput **under load** (2 slots, rolling prefill). "
     "Lab-Router `:11537`, `np=2`.",
     "",
-    "## Metriken",
+    "## Metrics",
     "",
-    "| Metrik | Bedeutung | Ziel |",
+    "| Metric | Meaning | Target |",
     "| --- | --- | --- |",
-    "| **Decode ms** | Zeit pro generiertem Token (Slot A, unter Last) | niedrig (~33 ms) |",
-    "| **Prefill tok/s** | Prompt-Durchsatz während Decode läuft (≈ PP unter Last) | hoch |",
-    "| **Prefill TTFT** | ms bis erster Prefill-Token (4k Prompt) | niedrig |",
-    "| **PP idle** | Prompt-tok/s ohne Last (aus Throughput-Bench) | Referenz |",
+    "| **Decode ms** | time per generated token (slot A, under load) | low (~33 ms) |",
+    "| **Prefill tok/s** | prompt throughput while decode runs (≈ PP under load) | high |",
+    "| **Prefill TTFT** | ms until first prefill token (4k prompt) | low |",
+    "| **PP idle** | prompt tok/s idle (from throughput bench) | reference |",
     "",
-    "## Empfehlung pro Modell",
+    "## Recommendation per model",
     "",
-    "| Modell | np ★ | ub ★ | b ★ | c ★ | cont-batch | PP an | PP aus | Decode ms | Prefill tok/s |",
+    "| Model | np ★ | ub ★ | b ★ | c ★ | cont-batch | PP on | PP off | Decode ms | Prefill tok/s |",
     "| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: |",
 ]
 for r in recommendations:
@@ -665,7 +665,7 @@ for r in recommendations:
     )
 
 page = f"""<!DOCTYPE html>
-<html lang="de"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <title>Scheduling compare</title>
 <style>
 :root {{ color-scheme: dark; }}
@@ -694,25 +694,25 @@ section.model {{ margin: 2rem 0; padding: 1rem 0; border-top: 1px solid #2a2e37;
 .legend div {{ background: #1a1d24; padding: .65rem .85rem; border-radius: 6px; }}
 .legend strong {{ display: block; margin-bottom: .2rem; }}
 </style></head><body>
-<h1>Scheduling — Vergleich & Empfehlungen</h1>
-<p class="meta">Decode-Latenz + Prefill-Durchsatz unter Last · np=2 · ★ = empfohlenes ub</p>
+<h1>Scheduling — compare & recommendations</h1>
+<p class="meta">Decode latency + prefill throughput under load · np=2 · ★ = recommended ub</p>
 
 <div class="legend">
-  <div><strong>Decode ms</strong>Niedrig = Tokens kommen flüssig beim Generieren</div>
-  <div><strong>Prefill tok/s</strong>Hoch = lange Prompts blockieren weniger (≈ PP unter Last)</div>
-  <div><strong>Prefill TTFT</strong>Niedrig = Prefill startet schnell neben Decode</div>
-  <div><strong>PP an/aus</strong>Prompt-tok/s solo (4k) mit cont-batching an vs. aus</div>
+  <div><strong>Decode ms</strong>Low = tokens stream smoothly while generating</div>
+  <div><strong>Prefill tok/s</strong>High = long prompts block less (≈ PP under load)</div>
+  <div><strong>Prefill TTFT</strong>Low = prefill starts quickly alongside decode</div>
+  <div><strong>PP on/off</strong>prompt tok/s solo (4k) with cont-batching on vs off</div>
 </div>
 
-<h2>Empfehlung pro Modell</h2>
+<h2>Recommendation per model</h2>
 <table><thead><tr>
-<th>Modell</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">c ★</th>
-<th>cont-batch</th><th class="n">PP an</th><th class="n">PP aus</th>
+<th>Model</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">c ★</th>
+<th>cont-batch</th><th class="n">PP on</th><th class="n">PP off</th>
 <th class="n">Decode ms</th><th class="n">Prefill tok/s</th>
 <th class="n">Interleave</th>
 </tr></thead><tbody>{rec_rows}</tbody></table>
 
-<h2>Details pro Modell</h2>
+<h2>Details per model</h2>
 {"".join(model_sections_html)}
 
 <p class="foot">Markdown: output/bench/scheduling/latest/compare.md · Rebuild: ./bench compare-sched</p>

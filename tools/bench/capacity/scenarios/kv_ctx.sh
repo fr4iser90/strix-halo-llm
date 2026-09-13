@@ -27,17 +27,14 @@ trap cleanup_kv_ctx EXIT
 
 ensure_synced
 
-# Resolve model list
+# Resolve model list (--model / CAPACITY_MODELS / --no-vl)
 MODELS=()
-if [[ -n "${CAPACITY_MODEL:-}" ]]; then
-  MODELS=("$CAPACITY_MODEL")
-else
-  mapfile -t MODELS < <(list_bench_models)
-fi
-[[ ${#MODELS[@]} -gt 0 ]] || die "no models in models-bench.ini — check sync sources / GGUFs"
+mapfile -t MODELS < <(resolve_bench_models)
+[[ ${#MODELS[@]} -gt 0 ]] || die "no models in models-bench.ini — check sync sources / GGUFs / --model"
 
 export CAPACITY_MODEL_LIST
 CAPACITY_MODEL_LIST="$(IFS=,; echo "${MODELS[*]}")"
+log "models (${#MODELS[@]}): $CAPACITY_MODEL_LIST"
 
 prepare_capacity_gpu
 start_bench_a

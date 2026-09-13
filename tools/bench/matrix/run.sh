@@ -20,6 +20,9 @@ BUILD_INDEX="$ROOT/tools/bench/build-index.sh"
 
 # shellcheck source=../lib/python.sh
 source "$ROOT/tools/bench/lib/python.sh"
+# shellcheck source=../capacity/lib/sync_ini.sh
+CAPACITY_INI_A="${CAPACITY_INI_A:-$ROOT/models-bench.ini}"
+source "$ROOT/tools/bench/capacity/lib/sync_ini.sh"
 
 die() { printf '[bench matrix] error: %s\n' "$*" >&2; exit 1; }
 log() { printf '[bench matrix] %s\n' "$*"; }
@@ -37,6 +40,8 @@ Commands:
 Options:
   --profile NAME|FILE      default | full | path/to.json  (default: default)
   --from LIST              override sync_from (coder,chat,lab)
+  --model NAME[,NAME…]     only these models (exact or unique substring; repeatable)
+  --no-vl                  drop *-VL twins (capacity/sched/quality)
   --only SUITE             capacity|sched|throughput|quality (repeatable)
   --skip-suite SUITE       disable a suite for this run
   --dry-run                print plan only
@@ -47,8 +52,9 @@ Full profile is multi-day; safe to Ctrl+C and re-run (capacity/sched skip done c
 Examples:
   ./bench matrix --profile full
   ./bench matrix --profile full --only capacity
-  ./bench matrix --profile default --from coder
-  tmux new -s bench './bench matrix --profile full'
+  ./bench matrix --profile full --no-vl
+  ./bench matrix --profile full --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel,Qwen3.6-35B
+  tmux new -s bench './bench matrix --profile full --model Tiel-Coder,Cyber-Tiel,Qwen3.6-35B'
 EOF
 }
 
@@ -57,6 +63,8 @@ DRY=0
 FROM_OVERRIDE=""
 ONLY=()
 SKIP_SUITE=()
+MATRIX_MODELS="${MATRIX_MODELS:-}"
+MATRIX_NO_VL="${MATRIX_NO_VL:-0}"
 
 resolve_profile() {
   local p="$1"
@@ -192,18 +200,9 @@ suite_wanted() {
 }
 
 models_from_bench_ini() {
-  bench_python - "$ROOT/models-bench.ini" <<'PY'
-import sys
-path = sys.argv[1]
-try:
-    with open(path, encoding="utf-8") as f:
-        for raw in f:
-            line = raw.strip()
-            if line.startswith("[") and line.endswith("]") and not line.startswith(";"):
-                print(line[1:-1].strip())
-except FileNotFoundError:
-    pass
-PY
+  # Apply matrix --model / --no-vl via capacity resolver
+  CAPACITY_MODELS="${MATRIX_MODELS:-}" CAPACITY_NO_VL="${MATRIX_NO_VL:-0}" \
+    resolve_bench_models
 }
 
 run_capacity() {
@@ -211,15 +210,23 @@ run_capacity() {
   suite_wanted capacity || { log "skip suite capacity (--only/--skip-suite)"; return 0; }
   write_progress "capacity" "kv-ctx"
   log "=== capacity kv-ctx ==="
+  local cap_extra=()
+  if [[ -n "${MATRIX_MODELS:-}" ]]; then
+    cap_extra+=(--model "$MATRIX_MODELS")
+  fi
+  if [[ "${MATRIX_NO_VL:-0}" == "1" ]]; then
+    cap_extra+=(--no-vl)
+  fi
   "$CAPACITY" kv-ctx \
     --from "$SYNC_FROM" \
     --kv "$CAP_KV" \
-    --c "$CAP_C"
+    --c "$CAP_C" \
+    "${cap_extra[@]}"
   if [[ "${CAP_DUAL_ENABLED:-0}" == "1" ]]; then
     write_progress "capacity" "dual"
     log "=== capacity dual (c=$CAP_DUAL_C) ==="
     CAPACITY_DUAL_KV_LIST="$CAP_DUAL_KV" CAPACITY_DUAL_C="$CAP_DUAL_C" \
-      "$CAPACITY" dual --from "$SYNC_FROM" --kv "$CAP_DUAL_KV"
+      "$CAPACITY" dual --from "$SYNC_FROM" --kv "$CAP_DUAL_KV" "${cap_extra[@]}"
   fi
 }
 
@@ -322,9 +329,12 @@ run_quality() {
 }
 
 print_plan() {
+  local models_line="${MATRIX_MODELS:-all}"
+  [[ "${MATRIX_NO_VL:-0}" == "1" ]] && models_line+=" (--no-vl)"
   cat <<EOF
 Profile: $PROFILE_PATH
   sync_from:     $SYNC_FROM
+  models:        $models_line
   capacity:      enabled=$SUITE_CAPACITY_ENABLED kv=$CAP_KV c=$CAP_C dual=$CAP_DUAL_ENABLED ($CAP_DUAL_KV @ $CAP_DUAL_C)
   sched:         enabled=$SUITE_SCHED_ENABLED scenarios=$SCHED_SCENARIOS
   throughput:    enabled=$SUITE_THROUGHPUT_ENABLED $THR_SCOPE $THR_BACKENDS
@@ -335,6 +345,7 @@ EOF
 run_matrix() {
   eval "$(load_profile)"
   [[ -n "$FROM_OVERRIDE" ]] && SYNC_FROM="$FROM_OVERRIDE"
+  export MATRIX_MODELS MATRIX_NO_VL
   print_plan
   if [[ "$DRY" == "1" ]]; then
     log "dry-run — exiting"
@@ -413,6 +424,16 @@ while [[ $# -gt 0 ]]; do
     run) CMD=run; shift ;;
     --profile) shift; PROFILE="${1:?}"; shift ;;
     --from) shift; FROM_OVERRIDE="${1:?}"; shift ;;
+    --model|--models)
+      shift
+      if [[ -n "${MATRIX_MODELS:-}" ]]; then
+        MATRIX_MODELS="${MATRIX_MODELS},${1:?}"
+      else
+        MATRIX_MODELS="${1:?}"
+      fi
+      shift
+      ;;
+    --no-vl) MATRIX_NO_VL=1; shift ;;
     --only) shift; ONLY+=("${1:?}"); shift ;;
     --skip-suite) shift; SKIP_SUITE+=("${1:?}"); shift ;;
     --dry-run) DRY=1; shift ;;

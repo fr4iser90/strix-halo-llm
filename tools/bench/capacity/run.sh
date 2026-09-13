@@ -39,7 +39,8 @@ Auto (default):
   • skip cells already ok in cells.jsonl **with same server_version + image_id**
 
 Options:
-  --model NAME             only this model (default: all in bench ini)
+  --model NAME[,NAME…]     only these models (exact or unique substring; repeatable)
+  --no-vl                  drop *-VL twin sections
   --from LIST              sync sources: coder,chat,lab  (default coder,chat)
   --kv LIST                KV cache types (default q8_0,q5_0,q4_0; probed vs llama-server -h)
   --c LIST                 solo kv-ctx contexts (default 32k…256k)
@@ -55,6 +56,8 @@ Examples:
   ./bench capacity sync
   ./bench capacity kv-ctx
   ./bench capacity dual
+  ./bench capacity kv-ctx --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel,Qwen3.6-35B
+  ./bench capacity kv-ctx --no-vl
   CAPACITY_DUAL_C=65536 ./bench capacity dual --kv q5_0,q4_0
 EOF
 }
@@ -62,8 +65,20 @@ EOF
 parse_opts() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --model)
-        shift; CAPACITY_MODEL="${1:?}"; export CAPACITY_MODEL ;;
+      --model|--models)
+        shift
+        local add="${1:?}"
+        if [[ -n "${CAPACITY_MODELS:-}" ]]; then
+          CAPACITY_MODELS="${CAPACITY_MODELS},${add}"
+        else
+          CAPACITY_MODELS="$add"
+        fi
+        export CAPACITY_MODELS
+        CAPACITY_MODEL="$CAPACITY_MODELS"
+        export CAPACITY_MODEL
+        ;;
+      --no-vl)
+        CAPACITY_NO_VL=1; export CAPACITY_NO_VL ;;
       --from)
         shift; CAPACITY_SYNC_SOURCES="${1:?}"; export CAPACITY_SYNC_SOURCES ;;
       --kv)

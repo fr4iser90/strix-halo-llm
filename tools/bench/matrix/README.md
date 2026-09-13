@@ -9,6 +9,8 @@ Configurable multi-suite runs. Edit JSON profiles — no code changes needed for
 
 ```bash
 ./bench matrix --profile full --dry-run
+./bench matrix --profile full --model Tiel-Coder-35B,Cyber-Tiel,Qwen3.6-35B
+./bench matrix --profile full --no-vl
 tmux new -s bench './bench matrix --profile full'
 ./bench matrix status
 ./bench matrix --profile full --only capacity
@@ -18,4 +20,4 @@ tmux new -s bench './bench matrix --profile full'
 Progress: `output/bench/matrix/progress.json` + live capacity cells in
 `output/bench/capacity/progress.json` (`./bench matrix status`).
 
-See also [`../ROADMAP.md`](../ROADMAP.md).
+See also [`../ROADMAP.md`](../ROADMAP.md) and [`../README.md`](../README.md) (model filter).

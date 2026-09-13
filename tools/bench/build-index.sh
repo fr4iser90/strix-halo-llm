@@ -225,8 +225,8 @@ def host_md_block(h):
         return [
             "## Hardware",
             "",
-            "*Noch kein `host.json` — auf dem Bench-Host: `./tools/bench/probe-host.sh` "
-            "oder `./bench publish`.*",
+            "*No `host.json` yet — on the bench host run: `./tools/bench/probe-host.sh` "
+            "or `./bench publish`.*",
             "",
         ]
     pin = h.get("llama_pin") or {}
@@ -272,8 +272,8 @@ def host_html_card(h):
     if not h:
         return (
             '<div class="card"><h2>Hardware</h2>'
-            '<p class="meta">Noch kein <code>host.json</code> — '
-            '<code>./bench publish</code> auf dem Bench-Host.</p></div>'
+            '<p class="meta">No <code>host.json</code> yet — '
+            'run <code>./bench publish</code> on the bench host.</p></div>'
         )
     pin = h.get("llama_pin") or {}
     commit = pin.get("commit") or "—"
@@ -306,20 +306,20 @@ def host_html_card(h):
 lines = [
     "# Bench — Dashboard",
     "",
-    "**Start hier.** Hardware zuerst (Vergleichbarkeit), dann Empfehlungen, unten Historie.",
+    "**Start here.** Hardware first (comparability), then recommendations, history below.",
     "",
 ]
 lines += host_md_block(host)
 lines += [
-    "## Scheduling — welches `ub`? (np=2, Decode niedrig halten)",
+    "## Scheduling — which `ub`? (np=2, keep decode low)",
     "",
-    "Decode-Latenz + Prefill-Durchsatz **unter Last**. "
+    "Decode latency + prefill throughput **under load**. "
     f"[Details →]({rel('scheduling/latest/compare.html')})",
     "",
 ]
 if sch_recs:
     lines += [
-        "| Modell | np ★ | ub ★ | b ★ | c ★ | cont-batch | Prefill tok/s | TG tok/s | PP an | PP aus | Decode ms | Interleave |",
+        "| Model | np ★ | ub ★ | b ★ | c ★ | cont-batch | Prefill tok/s | TG tok/s | PP on | PP off | Decode ms | Interleave |",
         "| --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for r in sch_recs:
@@ -335,9 +335,9 @@ if sch_recs:
         )
     lines += [
         "",
-        "† `b` (n_batch): Sweep **06_b_sweep** noch offen — aktuell Bench-Default **64**.",
+        "† `b` (n_batch): sweep **06_b_sweep** still pending — currently bench default **64**.",
         "",
-        "## Settings anwenden",
+        "## Apply settings",
         "",
         "```bash",
         "./bench apply-ini --dry-run --lab   # Plan",
@@ -349,21 +349,21 @@ if sch_recs:
         "",
     ]
 else:
-    lines.append("*Noch keine Scheduling-Empfehlungen — `./bench sched --auto`*")
+    lines.append("*No scheduling recommendations yet — `./bench sched --auto`*")
 
 lines += [
     "",
-    "## Throughput — welches Modell ist am schnellsten?",
+    "## Throughput — which model is fastest?",
     "",
-    f"[Details →]({rel('throughput/latest/compare.html')}) · PP = Prompt tok/s · TG = Generation tok/s · **höher = besser**",
+    f"[Details →]({rel('throughput/latest/compare.html')}) · PP = Prompt tok/s · TG = Generation tok/s · **higher = better**",
     "",
 ]
 if thr_models:
-    lines += ["| Modell | PP (512 tok) | TG (128 tok) |", "| --- | ---: | ---: |"]
+    lines += ["| Model | PP (512 tok) | TG (128 tok) |", "| --- | ---: | ---: |"]
     for m in thr_models:
         lines.append(f"| {m['model']} | {m['pp']} | {m['tg']} |")
 else:
-    lines.append("*Noch kein Throughput-Bench — `./bench throughput --lab --vulkan`*")
+    lines.append("*No throughput bench yet — `./bench throughput --lab --vulkan`*")
 
 # Quality (HumanEval etc.)
 qual_root = os.path.join(out_root, "quality")
@@ -397,8 +397,8 @@ if qual_rows:
         )
 else:
     lines.append(
-        "*Noch keine Quality-Runs — "
-        "`./bench quality humaneval --setup` dann "
+        "*No quality runs yet — "
+        "`./bench quality humaneval --setup` then "
         "`./bench quality humaneval --model … --limit 10`*"
     )
 
@@ -423,8 +423,8 @@ if os.path.isfile(cap_cmp):
     ]
 else:
     lines.append(
-        "*Noch keine Capacity-Runs — "
-        "`./bench capacity kv-ctx` / `dual` oder `./bench matrix --profile full`*"
+        "*No capacity runs yet — "
+        "`./bench capacity kv-ctx` / `dual` or `./bench matrix --profile full`*"
     )
 
 # Matrix orchestrator progress
@@ -446,16 +446,16 @@ if os.path.isfile(mx_prog):
         lines.append("*progress.json unreadable*")
 else:
     lines.append(
-        "*Kein Matrix-Lauf — Profiles: `default` (empfohlen) / `full` (Mehrtage). "
+        "*No matrix run yet — profiles: `default` (recommended) / `full` (multi-day). "
         "`./bench matrix --profile full --dry-run`*"
     )
 
 if status_rows:
     lines += [
         "",
-        "## Matrix-Fortschritt",
+        "## Matrix progress",
         "",
-        "| Modell | Status | np ★ | ub ★ | b ★ | Decode ms |",
+        "| Model | Status | np ★ | ub ★ | b ★ | Decode ms |",
         "| --- | --- | ---: | ---: | ---: | ---: |",
     ]
     for r in status_rows:
@@ -469,11 +469,11 @@ lines += [
     "---",
     "",
     "<details>",
-    "<summary>Run-Historie (Rohdaten)</summary>",
+    "<summary>Run history (raw)</summary>",
     "",
-    "### Throughput-Läufe",
+    "### Throughput runs",
     "",
-    "| Zeit | Stamp | Suite | Backends |",
+    "| When | Stamp | Suite | Backends |",
     "| --- | --- | --- | --- |",
 ]
 for r in thr_rows:
@@ -483,9 +483,9 @@ if not thr_rows:
 
 lines += [
     "",
-    "### Scheduling-Läufe",
+    "### Scheduling runs",
     "",
-    "| Zeit | Modell | Szenarien | Ordner |",
+    "| When | Model | Scenarios | Folder |",
     "| --- | --- | --- | --- |",
 ]
 for r in sch_rows:
@@ -526,7 +526,7 @@ if sch_recs:
             f'<td class="n {gcls}">{gain}</td></tr>'
         )
 else:
-    sch_table = '<tr><td colspan="12" class="meta">Noch keine Daten — <code>./bench sched --auto</code></td></tr>'
+    sch_table = '<tr><td colspan="12" class="meta">No data yet — <code>./bench sched --auto</code></td></tr>'
 
 apply_plan_path = os.path.join(sch, "latest", "apply-plan.json")
 apply_table = ""
@@ -555,7 +555,7 @@ if thr_models:
             f'<td class="n">{esc(m["tg"])}</td></tr>'
         )
 else:
-    thr_table = '<tr><td colspan="3" class="meta">Noch keine Daten</td></tr>'
+    thr_table = '<tr><td colspan="3" class="meta">No data yet</td></tr>'
 
 status_table = ""
 for r in status_rows:
@@ -584,7 +584,7 @@ for r in sch_rows:
     )
 
 page = f"""<!DOCTYPE html>
-<html lang="de"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <title>Bench Dashboard</title>
 <style>
 :root {{ color-scheme: dark; }}
@@ -628,42 +628,42 @@ summary {{ cursor: pointer; color: #9aa0a6; font-weight: 600; }}
 {host_html_card(host)}
 
 <div class="card" id="apply">
-<h2>Settings anwenden</h2>
+<h2>Apply settings</h2>
 <p class="meta"><code>models-lab.ini</code> (np/ub/b/c) · cont-batch = advisory in apply-plan</p>
 <div class="cmd" id="apply-cmd">./bench apply-ini --lab</div>
-<button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('apply-cmd').textContent)">Apply-Befehl kopieren</button>
-<button type="button" class="btn secondary" onclick="navigator.clipboard.writeText('./bench apply-ini --dry-run --lab')">Dry-run kopieren</button>
-<p class="more"><a href="scheduling/latest/apply-plan.json">→ apply-plan.json</a> · cont-batching global: <strong>{'an' if global_cb == '1' else 'aus'}</strong></p>
+<button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('apply-cmd').textContent)">Copy apply command</button>
+<button type="button" class="btn secondary" onclick="navigator.clipboard.writeText('./bench apply-ini --dry-run --lab')">Copy dry-run</button>
+<p class="more"><a href="scheduling/latest/apply-plan.json">→ apply-plan.json</a> · cont-batching global: <strong>{'on' if global_cb == '1' else 'off'}</strong></p>
 <table><thead><tr>
-<th>Modell</th><th class="n">np</th><th class="n">ub</th><th class="n">b</th><th class="n">c</th><th>cont-batch</th>
-</tr></thead><tbody>{apply_table or '<tr><td colspan="6" class="meta">Kein Plan — zuerst <code>./bench apply-ini --dry-run --lab</code></td></tr>'}</tbody></table>
+<th>Model</th><th class="n">np</th><th class="n">ub</th><th class="n">b</th><th class="n">c</th><th>cont-batch</th>
+</tr></thead><tbody>{apply_table or '<tr><td colspan="6" class="meta">No plan yet — run <code>./bench apply-ini --dry-run --lab</code> first</td></tr>'}</tbody></table>
 </div>
 
 <div class="card">
-<h2>Scheduling — np / ub / b <span class="meta">Decode niedrig · Prefill schnell</span></h2>
-<p class="more"><a href="scheduling/latest/compare.html">→ Details &amp; Sweeps pro Modell</a></p>
+<h2>Scheduling — np / ub / b <span class="meta">low decode · fast prefill</span></h2>
+<p class="more"><a href="scheduling/latest/compare.html">→ Details &amp; sweeps per model</a></p>
 <div class="legend">
-  <span><strong>np ★</strong> parallele Slots (--parallel)</span>
+  <span><strong>np ★</strong> parallel slots (--parallel)</span>
   <span><strong>ub ★</strong> Micro-Batch / PP-Chunk (n_ubatch)</span>
-  <span><strong>b ★</strong> Max-Batch (n_batch) — † = Default 64, Sweep noch offen</span>
-  <span><strong>Prefill tok/s</strong> Prompt-Durchsatz unter Last (Interleave)</span>
+  <span><strong>b ★</strong> Max-Batch (n_batch) — † = default 64, sweep still pending</span>
+  <span><strong>Prefill tok/s</strong> prompt throughput under load (interleave)</span>
   <span><strong>TG tok/s</strong> Generation solo (Throughput-Bench)</span>
-  <span><strong>cont-batch</strong> continuous batching an/aus</span>
-  <span><strong>PP an/aus</strong> solo 4k-Prefill tok/s</span>
+  <span><strong>cont-batch</strong> continuous batching on/off</span>
+  <span><strong>PP on/off</strong> solo 4k prefill tok/s</span>
 </div>
 <table><thead><tr>
-<th>Modell</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">c ★</th>
+<th>Model</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">c ★</th>
 <th>cont-batch</th><th class="n">Prefill tok/s</th><th class="n">TG tok/s</th>
-<th class="n">PP an</th><th class="n">PP aus</th>
+<th class="n">PP on</th><th class="n">PP off</th>
 <th class="n">Decode ms</th><th class="n">Interleave</th>
 </tr></thead><tbody>{sch_table}</tbody></table>
 </div>
 
 <div class="card">
-<h2>Throughput — welches Modell ist am schnellsten?</h2>
-<p class="more"><a href="throughput/latest/compare.html">→ Details</a> · PP/TG tok/s · <strong>höher = besser</strong></p>
+<h2>Throughput — which model is fastest?</h2>
+<p class="more"><a href="throughput/latest/compare.html">→ Details</a> · PP/TG tok/s · <strong>higher = better</strong></p>
 <table><thead><tr>
-<th>Modell</th><th class="n">PP (512 tok)</th><th class="n">TG (128 tok)</th>
+<th>Model</th><th class="n">PP (512 tok)</th><th class="n">TG (128 tok)</th>
 </tr></thead><tbody>{thr_table}</tbody></table>
 </div>
 """
@@ -682,7 +682,7 @@ if qual_rows:
         )
 else:
     qual_table = (
-        '<tr><td colspan="5" class="meta">Noch keine Daten — '
+        '<tr><td colspan="5" class="meta">No data yet — '
         '<code>./bench quality humaneval --model …</code></td></tr>'
     )
 
@@ -699,21 +699,21 @@ page += f"""
 if status_table:
     page += f"""
 <div class="card">
-<h2>Matrix-Fortschritt</h2>
+<h2>Matrix progress</h2>
 <table><thead><tr>
-<th>Modell</th><th>Status</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">Decode ms</th>
+<th>Model</th><th>Status</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">Decode ms</th>
 </tr></thead><tbody>{status_table}</tbody></table>
 </div>
 """
 
 page += f"""
 <details>
-<summary>Run-Historie ({len(thr_rows)} throughput · {len(sch_rows)} scheduling)</summary>
-<h2>Throughput-Läufe</h2>
-<table><thead><tr><th>Zeit</th><th>Stamp</th><th>Suite</th><th>Backends</th></tr></thead>
+<summary>Run history ({len(thr_rows)} throughput · {len(sch_rows)} scheduling)</summary>
+<h2>Throughput runs</h2>
+<table><thead><tr><th>When</th><th>Stamp</th><th>Suite</th><th>Backends</th></tr></thead>
 <tbody>{hist_thr or '<tr><td colspan="4">—</td></tr>'}</tbody></table>
-<h2>Scheduling-Läufe</h2>
-<table><thead><tr><th>Zeit</th><th>Modell</th><th>Szenarien</th><th>Ordner</th></tr></thead>
+<h2>Scheduling runs</h2>
+<table><thead><tr><th>When</th><th>Model</th><th>Scenarios</th><th>Folder</th></tr></thead>
 <tbody>{hist_sch or '<tr><td colspan="4">—</td></tr>'}</tbody></table>
 </details>
 

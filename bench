@@ -39,7 +39,7 @@ Commands:
   sched | scheduling | s   rolling prefill / slot latency (lab only)
   quality | q              task correctness plugins (HumanEval, …)
   capacity | cap           KV×ctx memory + dual-256k (bench-a/b profile)
-  matrix | m               multi-suite matrix (--profile default|full)
+  matrix | m               multi-suite matrix (--profile default|full [--model …])
   sync-models              scan ./models → update models-lab/emb/extractor INIs
   list [opts]              list throughput models (shorthand → throughput --list)
   compare                  rebuild throughput compare table
@@ -78,6 +78,7 @@ Full matrix (edit tools/bench/matrix/profiles/*.json — multi-day OK):
   ./bench sync-models
   ./bench capacity sync --from coder,chat,lab
   ./bench matrix --profile full
+  ./bench matrix --profile full --model Tiel-Coder-35B,Cyber-Tiel,Qwen3.6-35B
   ./bench matrix status
   tmux new -s bench './bench matrix --profile full'
 

@@ -7,6 +7,7 @@ setup” decisions. Items below are polish — track here so they are not forgot
 
 - [x] Capacity cell progress `N/total` + honest ETA (`runs_left × session wall`; omit ETA until first real run)
 - [x] `./bench matrix status` shows capacity progress + ETA when available
+- [x] `--model A,B,C` / `--no-vl` filter for capacity + matrix (sched/quality)
 - [ ] Suite-level ETA for sched / throughput / quality (after first samples)
 - [ ] Live line on Pages dashboard (poll `matrix/progress.json`)
 
