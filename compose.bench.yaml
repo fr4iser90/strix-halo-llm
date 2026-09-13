@@ -1,21 +1,10 @@
-# Dedicated bench routers — Stickys (models.ini / models-coder.ini) stay untouched.
+# Dedicated bench routers — Stickys stay untouched.
 #
-# Solo KV×ctx:
 #   docker compose -f compose.yaml -f compose.bench.yaml --profile bench up -d llama-bench-a
 #
-# Dual 256k:
-#   docker compose -f compose.yaml -f compose.bench.yaml --profile bench up -d \
-#     llama-bench-a llama-bench-b
+# Web UI follows LLAMA_WEBUI from .env (same as compose.yaml).
 #
-# Cont-batching A/B (scheduling scenario 07) uses lab + an *ephemeral* overlay from
-# tools/bench/lib/compose_overlay.sh — no committed compose.*.nocb.yaml.
-# Same helper can wrap llama-bench-a/b if a capacity scenario needs --no-cont-batching.
-#
-# Stop:
-#   docker compose -f compose.yaml -f compose.bench.yaml --profile bench stop \
-#     llama-bench-a llama-bench-b
-#
-# Ports: :11601 (A) · :11602 (B) — outside sticky/lab range.
+# Ports: :11601 (A) · :11602 (B)
 
 services:
   llama-bench-a:
@@ -33,10 +22,14 @@ services:
     ipc: host
     shm_size: "16gb"
     restart: "no"
+    environment:
+      LLAMA_WEBUI: ${LLAMA_WEBUI:-true}
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
     volumes:
       - ./models:/models
       - ./models-bench.ini:/etc/llama-cpp/models.ini:ro
       - /dev/dri:/dev/dri
+      - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:
       - "11601:8080"
     command:
@@ -63,10 +56,14 @@ services:
     ipc: host
     shm_size: "16gb"
     restart: "no"
+    environment:
+      LLAMA_WEBUI: ${LLAMA_WEBUI:-true}
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
     volumes:
       - ./models:/models
       - ./models-bench-b.ini:/etc/llama-cpp/models.ini:ro
       - /dev/dri:/dev/dri
+      - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:
       - "11602:8080"
     command:

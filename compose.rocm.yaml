@@ -20,6 +20,8 @@ x-llama-gpu: &llama-gpu
     LD_LIBRARY_PATH: /app
     GGML_CUDA_ENABLE_UNIFIED_MEMORY: "1"
     ROCBLAS_USE_HIPBLASLT: "1"
+    LLAMA_WEBUI: ${LLAMA_WEBUI:-true}
+  entrypoint: ["/bin/sh", "/entrypoint.sh"]
   restart: unless-stopped
 
 services:
@@ -29,11 +31,11 @@ services:
     volumes:
       - ./models:/models
       - ./models.ini:/etc/llama-cpp/models.ini:ro
+      - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:
       - "11535:8080"
     command:
       [
-        "/app/llama-server",
         "--host", "0.0.0.0",
         "--port", "8080",
         "--models-preset", "/etc/llama-cpp/models.ini",
@@ -47,11 +49,11 @@ services:
     volumes:
       - ./models:/models
       - ./models-heavy.ini:/etc/llama-cpp/models.ini:ro
+      - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:
       - "11537:8080"
     command:
       [
-        "/app/llama-server",
         "--host", "0.0.0.0",
         "--port", "8080",
         "--models-preset", "/etc/llama-cpp/models.ini",
@@ -65,11 +67,11 @@ services:
     volumes:
       - ./models:/models
       - ./models-embeddings.ini:/etc/llama-cpp/models-embeddings.ini:ro
+      - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:
       - "11536:8080"
     command:
       [
-        "/app/llama-server",
         "--host", "0.0.0.0",
         "--port", "8080",
         "--models-preset", "/etc/llama-cpp/models-embeddings.ini",
@@ -83,11 +85,11 @@ services:
     volumes:
       - ./models:/models
       - ./models-extractor.ini:/etc/llama-cpp/models-extractor.ini:ro
+      - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:
       - "11539:8080"
     command:
       [
-        "/app/llama-server",
         "--host", "0.0.0.0",
         "--port", "8080",
         "--models-preset", "/etc/llama-cpp/models-extractor.ini",

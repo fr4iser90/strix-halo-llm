@@ -40,6 +40,8 @@ The API model name is the INI section name (filename without `.gguf`).
 ./model-dl.sh init-dirs
 ./model-dl.sh download          # missing models referenced by models.ini
 
+# Optional API-only (no Web UI): cp .env.example .env && set LLAMA_WEBUI=false
+
 # 2. Start (Vulkan / AMD Mesa)
 docker compose up -d --build
 
