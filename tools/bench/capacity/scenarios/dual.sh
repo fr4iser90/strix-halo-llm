@@ -57,6 +57,24 @@ init_capacity_run "dual"
 IFS=',' read -ra KV_VALUES <<< "$KV_LIST"
 IFS=',' read -ra C_VALUES <<< "$C_LIST"
 
+_prog_total=0
+for _m in "${MODELS[@]}"; do
+  [[ -n "$_m" ]] || continue
+  for _kv in "${KV_VALUES[@]}"; do
+    _kv="${_kv// /}"
+    [[ -n "$_kv" ]] || continue
+    for _c in "${C_VALUES[@]}"; do
+      _c="${_c// /}"
+      [[ -n "$_c" ]] || continue
+      _prog_total=$((_prog_total + 1))
+    done
+  done
+done
+CAPACITY_PROG_TIMED_N=0
+CAPACITY_PROG_TIMED_SUM=0
+capacity_progress_seed_eta "dual"
+capacity_progress_init "$_prog_total"
+
 run_dual_cell() {
   local MODEL="$1" kv="$2" C_VAL="$3"
   local key cell_dir fill_tok ok=1 phase="ok"
@@ -64,10 +82,13 @@ run_dual_cell() {
   key="$(cell_key dual "$MODEL" "$kv" "$C_VAL")"
   cell_dir="$CAPACITY_RUN_DIR/${MODEL}/dual_${kv}_c${C_VAL}"
 
+  capacity_progress_begin "$key"
+
   if should_skip_cell "$key"; then
     log "skip $key"
     echo "{\"key\":\"$key\",\"skipped\":true,\"ok\":true,\"mode\":\"dual\",\"model\":\"$MODEL\",\"kv\":\"$kv\",\"c\":$C_VAL}" \
       >>"$CAPACITY_RUN_DIR/matrix.jsonl"
+    capacity_progress_end skip
     return 0
   fi
 
@@ -144,6 +165,7 @@ with open(ledger_path, "a", encoding="utf-8") as f:
     f.write(line + "\n")
 print(f"done  {key} ok={row['ok']} phase={phase}")
 PY
+  capacity_progress_end run
   # Ascending c: stop this model+kv ladder on first hard fail (save time on small hosts)
   if [[ "$ok" -ne 1 && "${CAPACITY_DUAL_STOP_ON_FAIL:-1}" == "1" ]]; then
     log "stop ladder for $MODEL kv=$kv after fail at c=$C_VAL"

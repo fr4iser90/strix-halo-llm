@@ -54,6 +54,7 @@ copy_if "$SRC/scheduling/latest/apply-plan.json" "$DST/scheduling/latest/apply-p
 copy_if "$SRC/capacity/latest/compare.md" "$DST/capacity/latest/compare.md"
 copy_if "$SRC/capacity/latest/manifest.json" "$DST/capacity/latest/manifest.json"
 copy_if "$SRC/capacity/cells.jsonl" "$DST/capacity/cells.jsonl"
+copy_if "$SRC/capacity/progress.json" "$DST/capacity/progress.json"
 copy_if "$SRC/matrix/progress.json" "$DST/matrix/progress.json"
 
 # Quality: copy latest summaries + index if any

@@ -74,9 +74,10 @@ resolve_profile() {
 write_progress() {
   local phase="$1" detail="${2:-}"
   mkdir -p "$OUT"
-  bench_python - "$PROGRESS" "$phase" "$detail" "${PROFILE_PATH-}" <<'PY'
+  local cap_prog="$ROOT/output/bench/capacity/progress.json"
+  bench_python - "$PROGRESS" "$phase" "$detail" "${PROFILE_PATH-}" "$cap_prog" <<'PY'
 import json, os, sys, time
-path, phase, detail, profile = sys.argv[1:5]
+path, phase, detail, profile, cap_prog = sys.argv[1:6]
 data = {}
 if os.path.isfile(path):
     try:
@@ -89,8 +90,25 @@ data["phase"] = phase
 data["detail"] = detail
 if profile:
     data["profile"] = profile
+# Merge live capacity cell progress when present
+if os.path.isfile(cap_prog):
+    try:
+        with open(cap_prog, encoding="utf-8") as f:
+            cap = json.load(f)
+        data["capacity"] = {
+            "index": cap.get("index"),
+            "total": cap.get("total"),
+            "pct": cap.get("pct"),
+            "eta": cap.get("eta"),
+            "detail": cap.get("detail"),
+            "updated": cap.get("updated"),
+        }
+        if phase.startswith("capacity") and cap.get("detail"):
+            data["detail"] = f"{detail} | {cap.get('index')}/{cap.get('total')} ({cap.get('pct')}%) ETA ~{cap.get('eta')} | {cap.get('detail')}"
+    except Exception:
+        pass
 data.setdefault("log", [])
-data["log"].append({"t": data["updated"], "phase": phase, "detail": detail})
+data["log"].append({"t": data["updated"], "phase": phase, "detail": data.get("detail", detail)})
 data["log"] = data["log"][-200:]
 with open(path, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2)
@@ -340,14 +358,30 @@ show_status() {
     echo "No matrix progress yet. Start with: ./bench matrix --profile full"
     return 0
   fi
-  bench_python - "$PROGRESS" <<'PY'
-import json, sys
+  local cap_prog="$ROOT/output/bench/capacity/progress.json"
+  bench_python - "$PROGRESS" "$cap_prog" <<'PY'
+import json, sys, os
 with open(sys.argv[1], encoding="utf-8") as f:
     d = json.load(f)
 print(f"profile:  {d.get('profile','—')}")
 print(f"phase:    {d.get('phase','—')}")
 print(f"detail:   {d.get('detail','—')}")
 print(f"updated:  {d.get('updated','—')}")
+cap = d.get("capacity") or {}
+cap_path = sys.argv[2]
+if os.path.isfile(cap_path):
+    try:
+        with open(cap_path, encoding="utf-8") as f:
+            cap = json.load(f)
+    except Exception:
+        pass
+if cap.get("total"):
+    print("")
+    print(f"capacity: {cap.get('index')}/{cap.get('total')} ({cap.get('pct')}%)  ETA ~{cap.get('eta','?')}")
+    if cap.get("detail"):
+        print(f"  cell:   {cap.get('detail')}")
+    if cap.get("avg_cell_s"):
+        print(f"  avg:    ~{cap.get('avg_cell_s')}s/cell (timed)")
 print("")
 print("recent log:")
 for e in (d.get("log") or [])[-15:]:

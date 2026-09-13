@@ -585,6 +585,153 @@ sys.stderr.write(
 PY
 }
 
+# --- Progress / ETA (capacity cells) ------------------------------------------
+# CAPACITY_PROG_TOTAL / INDEX / TIMED_* set by scenarios.
+CAPACITY_PROG_TOTAL="${CAPACITY_PROG_TOTAL:-0}"
+CAPACITY_PROG_INDEX="${CAPACITY_PROG_INDEX:-0}"
+CAPACITY_PROG_TIMED_N="${CAPACITY_PROG_TIMED_N:-0}"
+CAPACITY_PROG_TIMED_SUM="${CAPACITY_PROG_TIMED_SUM:-0}"
+CAPACITY_PROG_CELL_T0="${CAPACITY_PROG_CELL_T0:-0}"
+CAPACITY_PROG_FILE="${CAPACITY_PROG_FILE:-$CAPACITY_OUT/progress.json}"
+
+capacity_fmt_duration() {
+  local s="${1:-0}"
+  [[ "$s" =~ ^[0-9]+$ ]] || s=0
+  if [[ "$s" -lt 60 ]]; then
+    printf '%ss' "$s"
+  elif [[ "$s" -lt 3600 ]]; then
+    printf '%dm%02ds' "$((s / 60))" "$((s % 60))"
+  else
+    printf '%dh%02dm' "$((s / 3600))" "$(((s % 3600) / 60))"
+  fi
+}
+
+# Seed average cell duration from ledger (elapsed_s), optional mode filter.
+# Stores CAPACITY_PROG_SEED_AVG (seconds); session timings override once available.
+capacity_progress_seed_eta() {
+  local mode="${1:-}"
+  local seed
+  seed="$(bench_python - "$CELLS_LEDGER" "$mode" <<'PY'
+import json, sys, os
+path, mode = sys.argv[1], sys.argv[2]
+vals = []
+if not os.path.isfile(path):
+    print("0")
+    raise SystemExit(0)
+with open(path, encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if r.get("skipped"):
+            continue
+        if mode and r.get("mode") != mode:
+            continue
+        e = r.get("elapsed_s")
+        if e is None:
+            continue
+        try:
+            e = float(e)
+        except (TypeError, ValueError):
+            continue
+        if e > 1:
+            vals.append(e)
+if not vals:
+    print("0")
+else:
+    vals = vals[-40:]
+    print(int(round(sum(vals) / len(vals))))
+PY
+)"
+  CAPACITY_PROG_SEED_AVG="${seed:-0}"
+  export CAPACITY_PROG_SEED_AVG
+  if [[ "${CAPACITY_PROG_SEED_AVG:-0}" -gt 0 ]]; then
+    log "ETA seed from ledger: avg≈$(capacity_fmt_duration "$CAPACITY_PROG_SEED_AVG")/cell"
+  fi
+}
+
+capacity_progress_init() {
+  CAPACITY_PROG_TOTAL="${1:?}"
+  CAPACITY_PROG_INDEX=0
+  CAPACITY_PROG_TIMED_N=0
+  CAPACITY_PROG_TIMED_SUM=0
+  export CAPACITY_PROG_TOTAL CAPACITY_PROG_INDEX CAPACITY_PROG_TIMED_N CAPACITY_PROG_TIMED_SUM
+  mkdir -p "$(dirname "$CAPACITY_PROG_FILE")"
+  log "progress plan: $CAPACITY_PROG_TOTAL cells"
+  capacity_progress_write ""
+}
+
+capacity_progress_write() {
+  local detail="${1:-}"
+  local pct=0 eta_s="" eta_h="" remaining=0 avg=0
+  if [[ "${CAPACITY_PROG_TOTAL:-0}" -gt 0 ]]; then
+    pct=$((CAPACITY_PROG_INDEX * 100 / CAPACITY_PROG_TOTAL))
+    remaining=$((CAPACITY_PROG_TOTAL - CAPACITY_PROG_INDEX))
+    [[ "$remaining" -lt 0 ]] && remaining=0
+  fi
+  if [[ "${CAPACITY_PROG_TIMED_N:-0}" -gt 0 ]]; then
+    avg=$((CAPACITY_PROG_TIMED_SUM / CAPACITY_PROG_TIMED_N))
+  elif [[ "${CAPACITY_PROG_SEED_AVG:-0}" -gt 0 ]]; then
+    avg="$CAPACITY_PROG_SEED_AVG"
+  fi
+  if [[ "$avg" -gt 0 ]]; then
+    eta_s=$((remaining * avg))
+    eta_h="$(capacity_fmt_duration "$eta_s")"
+  else
+    eta_h="?"
+  fi
+  bench_python - "$CAPACITY_PROG_FILE" "$CAPACITY_PROG_INDEX" "$CAPACITY_PROG_TOTAL" "$pct" \
+    "${eta_s:-}" "$eta_h" "$avg" "$detail" <<'PY'
+import json, os, sys, time
+path, idx, total, pct, eta_s, eta_h, avg, detail = sys.argv[1:9]
+data = {
+    "updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "index": int(idx),
+    "total": int(total),
+    "pct": int(pct),
+    "eta_s": int(eta_s) if str(eta_s).isdigit() else None,
+    "eta": eta_h,
+    "avg_cell_s": int(avg) if str(avg).isdigit() and int(avg) > 0 else None,
+    "detail": detail,
+}
+os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PY
+  export CAPACITY_PROG_PCT="$pct"
+  export CAPACITY_PROG_ETA="$eta_h"
+  export CAPACITY_PROG_DETAIL="$detail"
+}
+
+capacity_progress_begin() {
+  local detail="${1:-}"
+  CAPACITY_PROG_INDEX=$((CAPACITY_PROG_INDEX + 1))
+  CAPACITY_PROG_CELL_T0="$(date +%s)"
+  export CAPACITY_PROG_INDEX CAPACITY_PROG_CELL_T0
+  capacity_progress_write "$detail"
+  log "progress ${CAPACITY_PROG_INDEX}/${CAPACITY_PROG_TOTAL} (${CAPACITY_PROG_PCT}%) ETA ~${CAPACITY_PROG_ETA:-?} | $detail"
+}
+
+# kind=skip → no timing; kind=run → accumulate wall time for this cell
+capacity_progress_end() {
+  local kind="${1:-run}"
+  if [[ "$kind" == "run" && "${CAPACITY_PROG_CELL_T0:-0}" -gt 0 ]]; then
+    local now dt
+    now="$(date +%s)"
+    dt=$((now - CAPACITY_PROG_CELL_T0))
+    [[ "$dt" -lt 1 ]] && dt=1
+    CAPACITY_PROG_TIMED_N=$((CAPACITY_PROG_TIMED_N + 1))
+    CAPACITY_PROG_TIMED_SUM=$((CAPACITY_PROG_TIMED_SUM + dt))
+    export CAPACITY_PROG_TIMED_N CAPACITY_PROG_TIMED_SUM
+  fi
+  capacity_progress_write "${CAPACITY_PROG_DETAIL:-}"
+}
+
 init_capacity_run() {
   local tag="$1"
   local stamp

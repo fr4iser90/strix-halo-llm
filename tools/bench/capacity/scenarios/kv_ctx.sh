@@ -50,6 +50,23 @@ IFS=',' read -ra KV_VALUES <<< "$KV_LIST"
 IFS=',' read -ra C_VALUES <<< "$C_LIST"
 q4_min_c="${CAPACITY_Q4_MIN_C:-131072}"
 
+# Count planned cells
+_prog_total=0
+for _m in "${MODELS[@]}"; do
+  [[ -n "$_m" ]] || continue
+  for _kv in "${KV_VALUES[@]}"; do
+    _kv="${_kv// /}"
+    [[ -n "$_kv" ]] || continue
+    for _c in "${C_VALUES[@]}"; do
+      _c="${_c// /}"
+      [[ -n "$_c" ]] || continue
+      _prog_total=$((_prog_total + 1))
+    done
+  done
+done
+capacity_progress_seed_eta "solo"
+capacity_progress_init "$_prog_total"
+
 run_cell() {
   local MODEL="$1" kv="$2" c="$3"
   local key cell_dir fill_tok ok=1 phase="ok" t0 t1 dt
@@ -57,10 +74,13 @@ run_cell() {
   key="$(cell_key solo "$MODEL" "$kv" "$c")"
   cell_dir="$CAPACITY_RUN_DIR/${MODEL}/solo_${kv}_c${c}"
 
+  capacity_progress_begin "$key"
+
   if should_skip_cell "$key"; then
     log "skip $key"
     echo "{\"key\":\"$key\",\"skipped\":true,\"ok\":true,\"mode\":\"solo\",\"model\":\"$MODEL\",\"kv\":\"$kv\",\"c\":$c}" \
       >>"$CAPACITY_RUN_DIR/matrix.jsonl"
+    capacity_progress_end skip
     return 0
   fi
 
@@ -68,6 +88,7 @@ run_cell() {
     log "skip $key (q4-family below min c=$q4_min_c)"
     echo "{\"key\":\"$key\",\"skipped\":true,\"reason\":\"q4_min_c\",\"ok\":true,\"mode\":\"solo\",\"model\":\"$MODEL\",\"kv\":\"$kv\",\"c\":$c}" \
       >>"$CAPACITY_RUN_DIR/matrix.jsonl"
+    capacity_progress_end skip
     return 0
   fi
 
@@ -151,6 +172,7 @@ with open(ledger_path, "a", encoding="utf-8") as f:
     f.write(line + "\n")
 print(f"done  {key} ok={row['ok']} phase={phase}")
 PY
+  capacity_progress_end run
 }
 
 for MODEL in "${MODELS[@]}"; do

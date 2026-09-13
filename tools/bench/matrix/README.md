@@ -15,4 +15,7 @@ tmux new -s bench './bench matrix --profile full'
 ./bench matrix --profile full --skip-suite quality
 ```
 
-Progress: `output/bench/matrix/progress.json` (also on Pages via `./bench publish`).
+Progress: `output/bench/matrix/progress.json` + live capacity cells in
+`output/bench/capacity/progress.json` (`./bench matrix status`).
+
+See also [`../ROADMAP.md`](../ROADMAP.md).

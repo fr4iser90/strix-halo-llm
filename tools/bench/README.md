@@ -37,7 +37,17 @@ rm -f output/bench/capacity/cells.jsonl
 ```
 
 Alte Results zu gelöschten Modellen stören nicht (nur Index-Noise).
-## Planner / apply
+
+**Progress:** Capacity loggt `progress N/total (pct%) ETA ~…`. Status:
+
+```bash
+./bench matrix status
+# → capacity: 42/270 (15%)  ETA ~3h12m
+cat output/bench/capacity/progress.json
+```
+
+Nice-to-haves: [`ROADMAP.md`](ROADMAP.md).
+
 
 Nach Matrix (oder lokal mit vorhandenem `cells.jsonl` + sched summary):
 
