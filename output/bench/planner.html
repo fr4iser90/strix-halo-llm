@@ -38,23 +38,29 @@ th, td { padding: .35rem .45rem; border-bottom: 1px solid var(--line); text-alig
 th { color: var(--muted); font-weight: 600; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
 button.copy, button.dl { background:#2a3444;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:.4rem .7rem;cursor:pointer;font:inherit;margin-right:.4rem; }
-.coder-wrap.hidden { display: none; }
+.modes button:disabled { opacity: .45; cursor: not-allowed; }
+.banner { background: #12141a; border: 1px solid var(--line); border-radius: 8px; padding: .75rem 1rem; margin: 0 0 1rem; font-size: .92rem; }
+.banner.prefer { border-color: var(--ok); }
+.banner.warn { border-color: var(--warn); }
 .cap-pill { display:inline-block; font-size:.75rem; padding:.1rem .45rem; border-radius:999px; border:1px solid var(--line); margin-left:.35rem; }
 .cap-pill.ok { border-color: var(--ok); color: var(--ok); }
 .cap-pill.bad { border-color: var(--bad); color: var(--bad); }
 </style></head><body>
 <main>
   <h1>Recommendation planner</h1>
-  <p class="meta">Pick <strong>1 sticky</strong> or <strong>2 stickys</strong> (chat + coder). Defaults: sched ★ + capacity max <code>c</code> that passed.
-  GTT from <code>host.json</code>. Pages = view/copy only — apply on the host with CLI below.
+  <p class="meta">Defaults from host RAM/GTT + capacity dual: high-memory hosts prefer <strong>2 stickys</strong>
+  (models top out near ~256k context — better a second container than one mega sticky).
+  Tight hosts without dual capacity stay on <strong>1 sticky</strong>.
+  Sched ★ + capacity max <code>c</code>. Pages = view/copy — apply on the host.
   <a href="index.html">Dashboard</a> · <a href="capacity/latest/compare.md">Capacity</a> · <a href="scheduling/latest/compare.html">Sweeps</a></p>
+  <div class="banner" id="adviceBanner"></div>
 
   <div class="grid">
     <section class="card">
       <h2>Scenario</h2>
       <div class="modes" id="modes">
-        <button type="button" data-mode="solo" class="active">1 sticky</button>
-        <button type="button" data-mode="dual">2 stickys (chat + coder)</button>
+        <button type="button" data-mode="solo">1 sticky</button>
+        <button type="button" data-mode="dual" id="btnDual">2 stickys (chat + coder)</button>
         <button type="button" data-mode="lab">Lab only</button>
       </div>
       <label for="chatModel">Chat / sticky model</label>
@@ -123,7 +129,7 @@ button.copy, button.dl { background:#2a3444;color:var(--text);border:1px solid v
   </section>
 </main>
 <script>
-const DATA = {"host": {"gtt_gib": 15.6, "ram_gib": 31.2, "os_reserve_gib": 16.0, "kv_gib_per_token_slot": 2.86102294921875e-05}, "weights_gib": {"Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL": 26.0, "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL": 27.0, "Qwen3.6-35B-A3B-MTP-UD-Q4_K_M": 22.0, "Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL": 23.0, "Qwen3.6-35B-A3B-MTP-UD-Q4_K_XL": 22.0, "Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL": 21.0, "Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL": 17.0, "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL": 26.0, "Qwen3.8-27B-Q4_K_M-MTP": 21.0, "Qwen3.8-27B-Q4_K_M-MTP-VL": 22.0, "Qwen3.8-27B-UD-Q4_K_M-MTP": 21.0, "Qwen3.8-27B-UD-Q4_K_M-MTP-VL": 22.0, "Qwen3.8-27B-Q8_0-MTP": 32.0, "Qwen3.8-27B-Q8_0-MTP-VL": 33.0, "Qwen3.8-Flash-Next-UD-Q4_K_XL-MTP": 100.0, "Qwen3.8-Flash-Next-UD-Q4_K_XL-MTP-VL": 101.0}, "recommendations": [], "capacity": {}};
+const DATA = {"host": {"gtt_gib": 15.6, "ram_gib": 31.2, "os_reserve_gib": 16.0, "kv_gib_per_token_slot": 2.86102294921875e-05}, "weights_gib": {}, "recommendations": [], "capacity": {}, "advice": {"prefer_mode": "solo", "allow_dual": false, "prefer_dual": false, "any_dual_ok": false, "any_solo_ok": false, "high_mem": false, "reason": "No dual capacity ok on this host class — stay on 1 sticky (or run ./bench capacity dual after freeing GTT)."}};
 
 function dash(v) {
   return v === null || v === undefined || v === "" || v === "—" || v === "\u2014";
@@ -140,6 +146,7 @@ function capFor(name) {
   return (DATA.capacity || {})[name] || {};
 }
 function weightGiB(name) {
+  // From on-disk GGUF sizes / INI paths (built at index time). Last resort ≈24 GiB.
   if (DATA.weights_gib[name] != null) return DATA.weights_gib[name];
   const base = name.replace(/-VL$/, "");
   if (base !== name && DATA.weights_gib[base] != null) return DATA.weights_gib[base] + 1;
@@ -173,9 +180,16 @@ function esc(s) {
 function defaultC(model) {
   const r = recFor(model) || {};
   const solo = (capFor(model).solo || {}).max_c;
+  const dual = (capFor(model).dual || {}).max_c;
   let c = num(r.best_c, solo || 131072);
-  if (solo && c > solo) c = solo;
-  if (!solo && dash(r.best_c)) c = 131072;
+  if (mode === "dual" && dual) {
+    // Prefer proven dual ceiling; don't default above what dual capacity passed
+    c = Math.min(c, dual);
+    if (!solo && dash(r.best_c)) c = dual;
+  } else if (solo && c > solo) {
+    c = solo;
+  }
+  if (!solo && !dual && dash(r.best_c)) c = 131072;
   return c;
 }
 function defaultKv(model) {
@@ -204,7 +218,37 @@ function effective(model, role) {
   return { model, np, c, ub, b, cont, kv, decode: r.decode_ms, prefill: r.prefill_tps, missing, soloMax, dualMax };
 }
 
-let mode = "solo";
+let mode = (DATA.advice && DATA.advice.prefer_mode) || "solo";
+
+function setMode(next) {
+  const advice = DATA.advice || {};
+  if (next === "dual" && advice.allow_dual === false) return;
+  mode = next;
+  document.querySelectorAll("#modes button").forEach(b => {
+    b.classList.toggle("active", b.dataset.mode === mode);
+  });
+  render();
+}
+
+function updateAdviceBanner() {
+  const a = DATA.advice || {};
+  const el = document.getElementById("adviceBanner");
+  if (!el) return;
+  const prefer = a.prefer_mode || "solo";
+  el.className = "banner " + (a.prefer_dual ? "prefer" : "warn");
+  const dualNote = a.any_dual_ok
+    ? " Dual capacity has ok cells."
+    : (a.high_mem ? " Run ./bench capacity dual to confirm 2× fit." : "");
+  el.innerHTML = `<strong>Host advice:</strong> prefer <code>${esc(prefer)}</code>. ${esc(a.reason || "")}${esc(dualNote)}`
+    + ` <span class="meta">(RAM ${DATA.host.ram_gib} GiB · GTT ${DATA.host.gtt_gib} GiB)</span>`;
+  const btn = document.getElementById("btnDual");
+  if (btn) {
+    btn.disabled = a.allow_dual === false;
+    btn.title = a.allow_dual === false
+      ? "Disabled: no dual capacity ok on this host class"
+      : "Two containers — recommended when RAM/GTT allows (256k context ceiling per model)";
+  }
+}
 
 function buildPlan(chat, coder) {
   const sticky = mode === "dual" ? 2 : 1;
@@ -259,7 +303,16 @@ function render() {
     used += weightGiB(coder.model) + kvGiB(coder.c, coder.np);
     parts.push(chat, coder);
     notes.push("2 stickys: models.ini → :11535 + models-coder.ini → :11538.");
-    if (chat.c >= 262144 && coder.c >= 262144) notes.push("Both at 256k is usually too much.");
+    if (chat.model === coder.model) {
+      notes.push("Same model twice is fine for capacity proof; for daily use pick distinct chat + coder.");
+    }
+    if (chat.c >= 262144 && coder.c >= 262144) {
+      notes.push("Both at 256k is the training ceiling — expect long prefills; np=1 is safer.");
+    }
+    if (chat.dualMax) notes.push(`${chat.model}: dual capacity ok ≤ ${chat.dualMax}.`);
+    if (coder.dualMax && coder.model !== chat.model) {
+      notes.push(`${coder.model}: dual capacity ok ≤ ${coder.dualMax}.`);
+    }
   }
 
   // capacity warnings
@@ -387,14 +440,24 @@ fit = off
 }
 
 function bind() {
-  fillSelect(document.getElementById("chatModel"), "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL");
-  fillSelect(document.getElementById("coderModel"), "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL");
+  updateAdviceBanner();
+  const list = models();
+  const preferChat = list.find(m => /Qwen3\.6.*35B/.test(m) && !m.endsWith("-VL"))
+    || list.find(m => /Qwen3\.6/.test(m))
+    || list[0];
+  const preferCoder = list.find(m => /Cyber-Tiel/.test(m) && !m.endsWith("-VL"))
+    || list.find(m => /Tiel-Coder/.test(m) && !m.endsWith("-VL"))
+    || list.find(m => m !== preferChat)
+    || list[0];
+  fillSelect(document.getElementById("chatModel"), preferChat);
+  fillSelect(document.getElementById("coderModel"), preferCoder);
+  document.querySelectorAll("#modes button").forEach(b => {
+    b.classList.toggle("active", b.dataset.mode === mode);
+  });
   document.getElementById("modes").addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-mode]");
-    if (!btn) return;
-    mode = btn.dataset.mode;
-    document.querySelectorAll("#modes button").forEach(b => b.classList.toggle("active", b === btn));
-    render();
+    if (!btn || btn.disabled) return;
+    setMode(btn.dataset.mode);
   });
   ["chatModel","coderModel","npChat","npCoder","cChat","cCoder"].forEach(id => {
     document.getElementById(id).addEventListener("input", render);

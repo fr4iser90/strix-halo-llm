@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Patch models-lab.ini and restart lab router (one key at a time, all sections).
+# Patch models-bench.ini and restart bench-a (one key at a time, all sections).
 set -euo pipefail
 
-patch_lab_ini() {
+patch_bench_ini() {
   local key="$1" val="$2"
-  local ini="${SCHED_LAB_INI:-$PROJECT_ROOT/models-lab.ini}"
+  local ini="${SCHED_BENCH_INI:-$PROJECT_ROOT/models-bench.ini}"
   [[ -f "$ini" ]] || die "missing ini: $ini"
   grep -qE "^${key}[[:space:]]*=" "$ini" || die "no ${key}= in $ini"
   sed -i "s/^${key}[[:space:]]*=.*/${key} = ${val}/" "$ini"
@@ -82,13 +82,13 @@ PY
 }
 
 # Read a key from one [section] (empty string if missing).
-get_lab_ini_section_key() {
-  get_ini_section_key "${SCHED_LAB_INI:-$PROJECT_ROOT/models-lab.ini}" "$1" "$2"
+get_bench_ini_section_key() {
+  get_ini_section_key "${SCHED_BENCH_INI:-$PROJECT_ROOT/models-bench.ini}" "$1" "$2"
 }
 
 # Set/replace a key inside one [section] only. Creates the key if missing.
-patch_lab_ini_section() {
-  patch_ini_section "${SCHED_LAB_INI:-$PROJECT_ROOT/models-lab.ini}" "$1" "$2" "$3"
+patch_bench_ini_section() {
+  patch_ini_section "${SCHED_BENCH_INI:-$PROJECT_ROOT/models-bench.ini}" "$1" "$2" "$3"
 }
 
 
@@ -175,8 +175,8 @@ with open(out, "w", encoding="utf-8") as f:
 PY
 }
 
-# shellcheck source=lab_server.sh
-source "$SCHED_BENCH_ROOT/lib/lab_server.sh"
+# shellcheck source=bench_server.sh
+source "$SCHED_BENCH_ROOT/lib/bench_server.sh"
 
 merge_sweep_summary() {
   local sdir="$1" param="$2"

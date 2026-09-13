@@ -200,7 +200,7 @@ for model in sorted(model_status.keys()):
     parts.append("b ✓" if st["b_sweep"] else "b ⏳")
     status = " · ".join(parts)
     if all(st[k] for k in ("auto", "ub_sweep", "np_sweep", "b_sweep")):
-        status = "✓ komplett"
+        status = "✓ complete"
     rec = next((r for r in sch_recs if r.get("model") == model), {})
     status_rows.append({
         "model": model,
@@ -623,7 +623,8 @@ summary {{ cursor: pointer; color: #9aa0a6; font-weight: 600; }}
 
 <h1>Bench Dashboard</h1>
 <p class="meta">★ = recommended sweep value · Prefill/TG tok/s = under load / idle</p>
-<p class="more"><a href="planner.html"><strong>→ Recommendation planner</strong></a> (1 vs 2 stickys · capacity max c · download plan.json)</p>
+<p class="more"><a href="planner.html"><strong>→ Recommendation planner</strong></a>
+  — host RAM/GTT picks 1 vs 2 stickys · capacity max c · download plan.json</p>
 
 {host_html_card(host)}
 

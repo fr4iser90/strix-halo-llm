@@ -25,9 +25,10 @@ usage() {
 Usage: ./bench throughput [options] [filter]
        (also: tools/bench/throughput/llama-bench-all.sh)
 
-Suites (default: --daily):
-  --daily       models.ini
-  --lab         models-lab.ini (alias: --heavy)
+Suites (default: --bench → models-bench.ini):
+  --bench       models-bench.ini (synced from sticky/lab; default)
+  --daily       models.ini (sticky chat)
+  --lab         models-lab.ini
   --all         every chat/*.gguf except mmproj / mtp draft files
 
 Backends (default: Vulkan + ROCm):
@@ -47,14 +48,14 @@ Other:
   --compare     historical merge across all CSVs in output/bench/throughput/
   --compare-run rebuild table from newest stamped run only
   --no-compare  skip compare after a run
-  --no-restore  do not restart daily/embeddings after bench
+  --no-restore  do not restart sticky/embeddings after bench
 
 Examples:
   ./bench throughput --vulkan
-  ./bench throughput --backends vulkan,cpu --lab
+  ./bench throughput --backends vulkan,cpu --bench
   ./bench throughput --all-backends --all
   ./bench throughput -m Qwen3.8 -m Nemotron --rocm
-  ./bench list lab
+  ./bench list bench
   ./bench                              # interactive menu
 
 EOF
@@ -70,6 +71,7 @@ backend_explicit=0
 ALL=0
 DAILY=0
 LAB=0
+BENCH=0
 FILTER=""
 MODEL_PATTERNS=()
 LIST_ONLY=0
@@ -77,6 +79,7 @@ COMPARE_ONLY=0
 COMPARE_RUN=0
 NO_COMPARE=0
 NO_RESTORE=0
+THROUGHPUT_SYNC_SOURCES="${THROUGHPUT_SYNC_SOURCES:-coder,chat,lab}"
 
 enable_backend() {
   case "$1" in
@@ -99,6 +102,7 @@ while [[ $# -gt 0 ]]; do
     --no-restore) NO_RESTORE=1 ;;
     --all) ALL=1 ;;
     --daily) DAILY=1 ;;
+    --bench) BENCH=1 ;;
     --lab|--heavy) LAB=1 ;;
     --vulkan) enable_backend vulkan; backend_explicit=1 ;;
     --rocm) enable_backend rocm; backend_explicit=1 ;;
@@ -145,17 +149,23 @@ if [[ "$backend_explicit" -eq 0 ]]; then
   want_rocm=1
 fi
 
-if [[ "$ALL" -eq 0 && "$DAILY" -eq 0 && "$LAB" -eq 0 ]]; then
-  DAILY=1
+if [[ "$ALL" -eq 0 && "$DAILY" -eq 0 && "$LAB" -eq 0 && "$BENCH" -eq 0 ]]; then
+  BENCH=1
 fi
 
-SUITE="daily"
+SUITE="bench"
 if [[ "$ALL" -eq 1 ]]; then
   SUITE="all"
 elif [[ "$DAILY" -eq 1 && "$LAB" -eq 1 ]]; then
   SUITE="mix"
+elif [[ "$BENCH" -eq 1 && ( "$DAILY" -eq 1 || "$LAB" -eq 1 ) ]]; then
+  SUITE="mix"
 elif [[ "$LAB" -eq 1 ]]; then
   SUITE="lab"
+elif [[ "$DAILY" -eq 1 ]]; then
+  SUITE="daily"
+elif [[ "$BENCH" -eq 1 ]]; then
+  SUITE="bench"
 fi
 
 backends_label() {
@@ -181,6 +191,24 @@ lab_ini() {
   else
     die "missing models-lab.ini"
   fi
+}
+
+bench_ini() {
+  local ini="${THROUGHPUT_BENCH_INI:-$PROJECT_ROOT/models-bench.ini}"
+  [[ -f "$ini" ]] || die "missing $ini — run: ./bench capacity sync --from coder,chat,lab"
+  printf '%s\n' "$ini"
+}
+
+ensure_bench_ini() {
+  [[ "$BENCH" -eq 1 ]] || return 0
+  # shellcheck source=../lib/python.sh
+  source "$PROJECT_ROOT/tools/bench/lib/python.sh"
+  # shellcheck source=../capacity/lib/sync_ini.sh
+  CAPACITY_INI_A="${CAPACITY_INI_A:-$PROJECT_ROOT/models-bench.ini}"
+  CAPACITY_INI_B="${CAPACITY_INI_B:-$PROJECT_ROOT/models-bench-b.ini}"
+  source "$PROJECT_ROOT/tools/bench/capacity/lib/sync_ini.sh"
+  log "sync models-bench.ini from: $THROUGHPUT_SYNC_SOURCES"
+  sync_bench_inis "$THROUGHPUT_SYNC_SOURCES"
 }
 
 collect_ini() {
@@ -242,6 +270,7 @@ mapfile -t CANDIDATES < <(
   if [[ "$ALL" -eq 1 ]]; then
     collect_all
   else
+    [[ "$BENCH" -eq 1 ]] && { ensure_bench_ini; collect_ini "$(bench_ini)"; }
     [[ "$DAILY" -eq 1 ]] && collect_ini "$PROJECT_ROOT/models.ini"
     [[ "$LAB" -eq 1 ]] && collect_ini "$(lab_ini)"
   fi
@@ -276,11 +305,11 @@ if [[ "$COMPARE_ONLY" -eq 0 && "$COMPARE_RUN" -eq 0 ]]; then
   [[ ${#FILES[@]} -gt 0 ]] || die "no GGUFs matched (copy models.ini / download first)"
   log "${#FILES[@]} model(s) suite=$SUITE backends=$(backends_label) → $OUT_DIR"
   if [[ "$want_vk" -eq 1 || "$want_rocm" -eq 1 ]]; then
-    log "stop Vulkan + ROCm routers so bench owns the GPU"
+    log "stop sticky + lab routers so llama-bench owns the GPU"
     if command -v docker >/dev/null 2>&1; then
-      (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama llama-lab llama-embeddings llama-extractor 2>/dev/null) || true
+      (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama llama-coder llama-lab llama-embeddings llama-extractor 2>/dev/null) || true
       if [[ -f "$ROCM_COMPOSE" ]]; then
-        (cd "$PROJECT_ROOT" && docker compose -f "$ROCM_COMPOSE" stop llama llama-lab llama-embeddings llama-extractor 2>/dev/null) || true
+        (cd "$PROJECT_ROOT" && docker compose -f "$ROCM_COMPOSE" stop llama llama-coder llama-lab llama-embeddings llama-extractor 2>/dev/null) || true
       fi
       BENCH_STOPPED_ROUTERS=1
       bench_restore_on_exit() {
@@ -530,7 +559,7 @@ load_compare_run() {
   done
   [[ -n "$f" && -f "$f" ]] || die "no bench CSV with GPU/CPU rows in $OUT_DIR"
   base="$(basename "$f" .csv)"
-  if [[ "$base" =~ ^llama-bench-(.+)-(daily|mix|lab|all)-(vulkan|rocm|cpu)$ ]]; then
+  if [[ "$base" =~ ^llama-bench-(.+)-(daily|mix|lab|all|bench)-(vulkan|rocm|cpu)$ ]]; then
     STAMP="${BASH_REMATCH[1]}"
     SUITE="${BASH_REMATCH[2]}"
   else

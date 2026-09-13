@@ -8,6 +8,8 @@ PROJECT_ROOT="$(cd "$CAPACITY_ROOT/../../.." && pwd)"
 
 # shellcheck source=../../lib/python.sh
 source "$PROJECT_ROOT/tools/bench/lib/python.sh"
+# shellcheck source=../../lib/host_mem.sh
+source "$PROJECT_ROOT/tools/bench/lib/host_mem.sh"
 # shellcheck source=../../lib/compose_overlay.sh
 source "$PROJECT_ROOT/tools/bench/lib/compose_overlay.sh"
 # shellcheck source=ini.sh

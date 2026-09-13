@@ -1,6 +1,6 @@
 {
   "name": "default",
-  "description": "Recommended: capacity KV×ctx + dual (auto c from RAM/GTT) + sched auto/ub/np",
+  "description": "Recommended: solo capacity KV×ctx + optional dual (auto c / auto-skip small hosts) + sched auto/ub/np",
   "sync_from": "coder,chat",
   "suites": {
     "capacity": {
@@ -10,7 +10,9 @@
       "dual": {
         "enabled": true,
         "kv": ["q8_0", "q5_0"],
-        "c": "auto"
+        "c": "auto",
+        "skip_below_ram_gib": 64,
+        "skip_below_gtt_gib": 48
       }
     },
     "sched": {
@@ -27,7 +29,7 @@
     "throughput": {
       "enabled": false,
       "backends": ["vulkan"],
-      "scope": "lab"
+      "scope": "bench"
     },
     "quality": {
       "enabled": false,

@@ -18,8 +18,9 @@ usage() {
   cat <<'EOF'
 Usage: ./bench sched [options]
 
-Decode latency while concurrent long prefill (lab router :11537).
-Automatically stops daily/embeddings, starts lab, restores after (unless --no-restore).
+Decode latency while concurrent long prefill (bench-a :11601).
+Stops stickys/lab, syncs models-bench.ini, restores after (unless --no-restore).
+Coexist scenarios still use sticky + lab :11537.
 
 Options:
   --list              list scenarios / matrices
@@ -27,15 +28,16 @@ Options:
   --matrix FILE       matrix yaml under tools/bench/scheduling/matrix/
   --scenario NAME     one scenario (baseline_solo, interleave_np2, …)
   --compare           rebuild output/bench/scheduling/latest/compare.md
-  --restart-lab       with ub_sweep: patch models-lab.ini ub= + restart lab
-  --no-restore        skip auto-restore (daily stays stopped / lab stays loaded)
+  --restart-bench     with sweeps: patch models-bench.ini + restart bench-a
+  --restart-lab       alias for --restart-bench (compat)
+  --no-restore        skip auto-restore (stickys stay stopped)
 
 Env:
   SCHED_MODEL SCHED_NP SCHED_UB SCHED_B SCHED_UB_LIST SCHED_NP_LIST SCHED_B_LIST SCHED_C_LIST
   SCHED_MTP_LIST          (default off,1,2,3,4 — for mtp_sweep)
   COEXIST_CHAT_MODEL COEXIST_CODER_MODEL COEXIST_C_LIST COEXIST_NP_PAIRS
   SCHED_SWEEP_UB SCHED_SWEEP_NP  (fixed params during cross-sweeps)
-  SCHED_BASE_URL (default http://localhost:11537)
+  SCHED_BASE_URL (default http://127.0.0.1:11601)
   SCHED_NO_RESTORE=1  same as --no-restore
 
 Examples:
@@ -133,7 +135,7 @@ while [[ $# -gt 0 ]]; do
       [[ $# -gt 0 ]] || die "--scenario needs a name"
       SCENARIOS+=("$1")
       ;;
-    --restart-lab) export SCHED_RESTART_LAB=1 ;;
+    --restart-lab|--restart-bench) export SCHED_RESTART_LAB=1; export SCHED_RESTART_BENCH=1 ;;
     -*) die "unknown option: $1" ;;
     *) SCENARIOS+=("$1") ;;
   esac
@@ -183,7 +185,8 @@ if [[ "$COEXIST" -eq 1 ]]; then
   init_run "sched-coexist"
   # Skip single-model preflight; scenario loads both itself.
 else
-  prepare_lab_gpu
+  sched_bench_prepare
+  sched_bench_load "$SCHED_MODEL" || die "failed to load $SCHED_MODEL on bench-a"
   init_run "sched-bench"
   preflight
 fi

@@ -34,64 +34,67 @@ usage() {
 Usage: ./bench [command] [options]
 
 Commands:
-  (none) | interactive     menu
-  throughput | thr | t     PP/TG llama-bench (stops all routers)
-  sched | scheduling | s   rolling prefill / slot latency (lab only)
-  quality | q              task correctness plugins (HumanEval, …)
-  capacity | cap           KV×ctx memory + dual-256k (bench-a/b profile)
-  matrix | m               multi-suite matrix (--profile default|full [--model …])
-  sync-models              scan ./models → update models-lab/emb/extractor INIs
-  list [opts]              list throughput models (shorthand → throughput --list)
-  compare                  rebuild throughput compare table
-  compare-sched            rebuild scheduling compare table
-  apply-ini                patch INIs from sched ★ or planner --plan plan.json
-  index                    rebuild output/bench/index.md + index.html
-  publish                  copy curated dashboard → docs/ (GitHub Pages)
-  probe-host               refresh output/bench/host.json (hardware for Pages)
+  (none) | interactive     goal-based menu (best for first runs)
+  recipes | goals          print “what to run” cheat sheet
+  throughput | thr | t     PP/TG speed ranking (stops routers)
+  sched | scheduling | s   sticky feel: np/ub under load (bench-a :11601)
+  quality | q              HumanEval / plugins (bench-a :11601)
+  capacity | cap           memory fit KV×ctx + optional dual (bench-a/b)
+  matrix | m               multi-suite orchestrator (--profile default|full)
+  sync-models              scan ./models → lab/emb/extractor INIs
+  list | compare | compare-sched | apply-ini | index | publish | probe-host
   help                     this help
 
-Throughput examples:
-  ./bench throughput --vulkan
-  ./bench throughput lab Qwen3.6
-  ./bench t vulkan,cpu --lab -m Qwen3.8
-  ./bench list lab
+Most people only need throughput (A). Dual capacity is optional (needs RAM for 2 stickys).
 
-Scheduling examples:
-  ./bench sched --auto
-  ./bench sched --scenario interleave_np2
-  ./bench s --matrix qwen36_vl.yaml
-  SCHED_NP=2 SCHED_UB=32 ./bench sched --scenario baseline_solo
-
-Quality examples (OpenAI HumanEval + more plugins):
-  ./bench quality list
-  ./bench quality humaneval --setup
-  ./bench quality humaneval --model Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL --limit 10
-  ./bench quality humaneval --model … --n 1 --eval
-  ./bench quality compare
-
-Capacity (bench profile :11601/:11602 — stickys not patched):
-  ./bench capacity kv-ctx
-  ./bench capacity dual --kv q5_0,q4_0
-
-Full matrix (edit tools/bench/matrix/profiles/*.json — multi-day OK):
-  ./bench sync-models --dry-run
-  ./bench sync-models
-  ./bench capacity sync --from coder,chat,lab
-  ./bench matrix --profile full
+Quick recipes (full table: ./bench recipes):
+  ./bench throughput --vulkan -m Qwen3.6 -m Tiel
+  SCHED_MODEL=Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL ./bench sched --auto
+  ./bench capacity kv-ctx --from coder,chat,lab --model Tiel-Coder-35B,Qwen3.6-35B
+  ./bench capacity dual --from coder,chat,lab --model Tiel-Coder-35B   # skip if <~64GiB
+  ./bench quality humaneval --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL --limit 20
   ./bench matrix --profile full --model Tiel-Coder-35B,Cyber-Tiel,Qwen3.6-35B
-  ./bench matrix status
-  tmux new -s bench './bench matrix --profile full'
 
-Outputs:
-  output/bench/index.md        ← Start here (Liste aller Runs)
-  output/bench/throughput/     llama-bench CSVs + latest/compare.*
-  output/bench/scheduling/     sched runs + latest/compare.md
-  output/bench/quality/        HumanEval etc. + latest/compare.md
-  output/bench/capacity/       KV×ctx + dual + cells.jsonl ledger
-  output/bench/matrix/         progress.json for long runs
-  docs/                        GitHub Pages publish set (./bench publish)
+See: tools/bench/README.md
+EOF
+}
 
-See: tools/bench/README.md · tools/bench/quality/plugins/README.md
+print_recipes() {
+  cat <<'EOF'
+Bench recipes — pick a goal (you do NOT need every suite)
+
+  A. Fastest model (PP/TG tok/s)     ~5–30 min
+     ./bench throughput --vulkan -m PATTERN [-m PATTERN …]
+     (default suite: models-bench.ini; stickys stopped)
+
+  B. Sticky feel (np / ub under load)  ~1–4 h per model
+     SCHED_MODEL=SECTION_NAME ./bench sched --auto
+     (bench-a :11601 — stickys stopped then restored; coexist uses lab :11537)
+
+  C. Max context solo (does it fit?)   ~1–8 h
+     ./bench capacity kv-ctx --from coder,chat,lab --model NAME[,NAME…]
+     (bench-a :11601 — sticky INIs untouched)
+
+  D. Two stickys fit? (dual)           ~2–12 h — OPTIONAL
+     Only if you want chat+coder concurrent / have ≥~64 GiB RAM:
+     ./bench capacity dual --from coder,chat,lab --model NAME[,NAME…]
+
+  E. Code quality (HumanEval)          ~0.5–3 h per model
+     ./bench quality humaneval --model SECTION --limit 20
+
+  F. Full matrix                       multi-day
+     Solo capacity + sched + throughput + HumanEval (no dual).
+     ./bench matrix --profile full [--model …] [--no-vl]
+     Dual separately if needed: ./bench capacity dual …  (or --profile default)
+     tmux new -s bench './bench matrix --profile full --model …'
+
+Routers:
+  sticky chat/coder  :11535 / :11538   daily use
+  lab                :11537            experiments / coexist
+  bench-a / bench-b  :11601 / :11602   capacity + quality + sched
+  llama-bench        one-shot          throughput (stickys stopped)
+
+Interactive:  ./bench
 EOF
 }
 
@@ -126,6 +129,7 @@ map_shorthand() {
   local suite_set=0 backend_set=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      bench) args+=(--bench); suite_set=1 ;;
       daily) args+=(--daily); suite_set=1 ;;
       lab|heavy) args+=(--lab); suite_set=1 ;;
       all)
@@ -135,7 +139,7 @@ map_shorthand() {
           args+=(--all-backends); backend_set=1
         fi
         ;;
-      mix) args+=(--daily --lab); suite_set=1 ;;
+      mix) args+=(--bench --daily); suite_set=1 ;;
       vulkan|rocm|cpu) args+=("--$1"); backend_set=1 ;;
       both|gpu) args+=(--both); backend_set=1 ;;
       all-backends|every) args+=(--all-backends); backend_set=1 ;;
@@ -150,14 +154,14 @@ map_shorthand() {
 
 interactive_throughput() {
   local suite backends args pat choice
-  suite="$(pick 'Suite:' 'daily (models.ini)' 'lab (models-lab.ini)' 'all GGUFs' 'daily + lab')"
+  suite="$(pick 'Suite:' 'bench (models-bench.ini, default)' 'daily (models.ini sticky)' 'lab (models-lab.ini)' 'all GGUFs')"
   backends="$(pick 'Backends:' 'vulkan' 'rocm' 'cpu' 'vulkan + rocm (both)' 'all three')"
   args=()
   case "$suite" in
-    *daily*lab*|*lab*daily*) args+=(--daily --lab) ;;
     *lab*) args+=(--lab) ;;
     *all*) args+=(--all) ;;
-    *) args+=(--daily) ;;
+    *daily*) args+=(--daily) ;;
+    *) args+=(--bench) ;;
   esac
   case "$backends" in
     vulkan) args+=(--vulkan) ;;
@@ -186,51 +190,73 @@ interactive_throughput() {
 
 interactive_sched() {
   local choice model
-  echo "=== scheduling (lab :11537) ===" >&2
-  echo "Stops daily/embeddings, starts lab, restores after." >&2
-  read_tty model "Model [${SCHED_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL}]: "
-  export SCHED_MODEL="${model:-${SCHED_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL}}"
+  echo "=== scheduling (bench-a :11601) ===" >&2
+  echo "Stops stickys/lab, uses models-bench.ini, restores after." >&2
+  read_tty model "Model [${SCHED_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL}]: "
+  export SCHED_MODEL="${model:-${SCHED_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL}}"
   read_tty choice "np (slots, need ≥2 for interleave) [${SCHED_NP:-2}]: "
   export SCHED_NP="${choice:-${SCHED_NP:-2}}"
   read_tty choice "ub [${SCHED_UB:-32}]: "
   export SCHED_UB="${choice:-${SCHED_UB:-32}}"
-  choice="$(pick 'Run:' 'auto (01+02+03)' 'baseline_solo' 'interleave_np2' 'matrix qwen36_vl' 'matrix qwen38_vl' 'list scenarios')"
+  choice="$(pick 'Run:' 'auto (01+02+03) ~1–2h' 'baseline_solo' 'interleave_np2' 'list scenarios')"
   case "$choice" in
     auto*) exec "$SCHED" --auto ;;
     baseline*) exec "$SCHED" --scenario baseline_solo ;;
     interleave*) exec "$SCHED" --scenario interleave_np2 ;;
-    *qwen36*) exec "$SCHED" --matrix qwen36_vl.yaml ;;
-    *qwen38*) exec "$SCHED" --matrix qwen38_vl.yaml ;;
     list*) exec "$SCHED" --list ;;
   esac
+}
+
+interactive_capacity() {
+  local kind="${1:-solo}" models from
+  echo "=== capacity (bench-a/b :11601/:11602) ===" >&2
+  echo "Sticky INIs are not patched. Stickys are stopped for a clean curve." >&2
+  if [[ "$kind" == "help" ]]; then
+    [[ -x "$CAPACITY" ]] || chmod +x "$CAPACITY" 2>/dev/null || true
+    exec "$CAPACITY" help
+  fi
+  read_tty from "Sync from [coder,chat,lab]: "
+  from="${from:-coder,chat,lab}"
+  read_tty models "Models (comma / empty=all; e.g. Tiel-Coder-35B,Qwen3.6-35B): "
+  local args=(--from "$from")
+  [[ -n "$models" ]] && args+=(--model "$models")
+  [[ -x "$CAPACITY" ]] || chmod +x "$CAPACITY" 2>/dev/null || true
+  if [[ "$kind" == "dual" ]]; then
+    echo "Running: ./bench capacity dual ${args[*]}" >&2
+    exec "$CAPACITY" dual "${args[@]}"
+  fi
+  echo "Running: ./bench capacity kv-ctx ${args[*]}" >&2
+  exec "$CAPACITY" kv-ctx "${args[@]}"
 }
 
 interactive() {
   local kind
   { echo "=== bench (interactive) ==="
-    echo "Enter = default. Ctrl+C = abort."
+    echo "Pick a goal — you usually do NOT need dual or full matrix."
+    echo "Enter = default. Ctrl+C = abort. Cheat sheet: ./bench recipes"
   } >&2
-  kind="$(pick 'What to run?' \
-    'throughput (llama-bench PP/TG)' \
-    'scheduling (rolling prefill / slots)' \
-    'capacity (KV×ctx / dual-256k)' \
-    'matrix (default/full multi-suite)' \
-    'quality (HumanEval / plugins)')"
+  kind="$(pick 'What do you want?' \
+    'A) Fastest model — PP/TG tok/s (~5–30 min)' \
+    'B) Sticky feel — np/ub under load (~1–4 h / model)' \
+    'C) Max context solo — memory fit (~1–8 h)' \
+    'D) Dual 2× servers — optional, needs RAM (~2–12 h)' \
+    'E) Code quality — HumanEval' \
+    'F) Full matrix — multi-day' \
+    'Show recipes cheat sheet')"
   case "$kind" in
-    throughput*) interactive_throughput ;;
-    scheduling*) interactive_sched ;;
-    capacity*)
-      [[ -x "$CAPACITY" ]] || chmod +x "$CAPACITY" 2>/dev/null || true
-      exec "$CAPACITY" help
-      ;;
-    matrix*)
-      [[ -x "$MATRIX" ]] || chmod +x "$MATRIX" 2>/dev/null || true
-      exec "$MATRIX" list
-      ;;
-    *)
+    A\)*|*'PP/TG'*) interactive_throughput ;;
+    B\)*|*'Sticky feel'*) interactive_sched ;;
+    C\)*|*'Max context'*) interactive_capacity solo ;;
+    D\)*|*'Dual'*) interactive_capacity dual ;;
+    E\)*|*'quality'*|*'HumanEval'*)
       [[ -x "$QUALITY" ]] || chmod +x "$QUALITY" 2>/dev/null || true
       exec "$QUALITY" list
       ;;
+    F\)*|*'matrix'*)
+      [[ -x "$MATRIX" ]] || chmod +x "$MATRIX" 2>/dev/null || true
+      exec "$MATRIX" list
+      ;;
+    *) print_recipes ;;
   esac
 }
 
@@ -238,6 +264,9 @@ cmd="${1:-}"
 case "$cmd" in
   ""|i|interactive)
     interactive
+    ;;
+  recipes|goals|cheat|cheatsheet)
+    print_recipes
     ;;
   help|-h|--help)
     usage

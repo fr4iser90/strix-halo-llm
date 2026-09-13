@@ -10,7 +10,7 @@ mkdir -p "$sdir"
 
 preflight
 if [[ -n "${SCHED_NP:-}" && "${SCHED_NP}" =~ ^[0-9]+$ && "$SCHED_NP" -lt 2 ]]; then
-  log "warning: SCHED_NP=$SCHED_NP — interleaving needs np>=2 in models-lab.ini"
+  log "warning: SCHED_NP=$SCHED_NP — interleaving needs np>=2 in models-bench.ini"
 fi
 
 log "scenario $SCENARIO — concurrent decode + prefill"

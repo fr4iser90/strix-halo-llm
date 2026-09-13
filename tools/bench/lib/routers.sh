@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Unload all models from lab router (:11537) to free VRAM/GTT.
+# Unload models / restore routers after benches.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,8 +14,9 @@ bench_container_running() {
   docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null | grep -qx true
 }
 
+# Coexist / legacy: unload models from lab :11537
 bench_unload_lab() {
-  local base_url="${SCHED_BASE_URL:-http://localhost:11537}"
+  local base_url="${COEXIST_CODER_URL:-http://localhost:11537}"
   local models_json model
 
   bench_container_running llama-router-lab || return 0
@@ -57,10 +58,10 @@ bench_restore_daily() {
   local rocm="${ROCM_COMPOSE:-$root/compose.rocm.yaml}"
 
   command -v docker >/dev/null 2>&1 || return 0
-  bench_router_log "start daily + embeddings + extractor"
-  (cd "$root" && docker compose -f "$vk" up -d llama llama-embeddings llama-extractor) || true
+  bench_router_log "start sticky chat + coder + embeddings + extractor"
+  (cd "$root" && docker compose -f "$vk" up -d llama llama-coder llama-embeddings llama-extractor) || true
   if [[ -f "$rocm" ]]; then
-    (cd "$root" && docker compose -f "$rocm" up -d llama llama-embeddings llama-extractor 2>/dev/null) || true
+    (cd "$root" && docker compose -f "$rocm" up -d llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
   fi
 }
 
@@ -69,6 +70,7 @@ bench_restore_after_throughput() {
   bench_restore_daily
 }
 
+# Coexist path only (sticky + lab). Normal sched uses sched_bench_cleanup → restore_after_capacity.
 bench_restore_after_sched() {
   [[ "${SCHED_NO_RESTORE:-0}" == "1" ]] && return 0
   bench_unload_lab

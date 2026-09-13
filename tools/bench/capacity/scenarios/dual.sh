@@ -11,6 +11,16 @@ CAPACITY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "$CAPACITY_ROOT/lib/common.sh"
 
+# Auto-skip on small hosts (same defaults as matrix profiles). Override:
+#   CAPACITY_FORCE_DUAL=1 ./bench capacity dual
+#   CAPACITY_DUAL_SKIP_BELOW_RAM_GIB=0 CAPACITY_DUAL_SKIP_BELOW_GTT_GIB=0 …
+CAPACITY_DUAL_SKIP_BELOW_RAM_GIB="${CAPACITY_DUAL_SKIP_BELOW_RAM_GIB:-64}"
+CAPACITY_DUAL_SKIP_BELOW_GTT_GIB="${CAPACITY_DUAL_SKIP_BELOW_GTT_GIB:-48}"
+if reason="$(dual_host_too_small)"; then
+  log "skip dual: $reason (set CAPACITY_FORCE_DUAL=1 to run anyway)"
+  exit 0
+fi
+
 KV_LIST="${CAPACITY_DUAL_KV_LIST:-${CAPACITY_KV_LIST:-q8_0,q5_0,q4_0}}"
 C_LIST="$(resolve_dual_c_list)"
 export CAPACITY_DUAL_C_LIST="$C_LIST"

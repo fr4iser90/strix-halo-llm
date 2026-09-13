@@ -20,6 +20,8 @@ BUILD_INDEX="$ROOT/tools/bench/build-index.sh"
 
 # shellcheck source=../lib/python.sh
 source "$ROOT/tools/bench/lib/python.sh"
+# shellcheck source=../lib/host_mem.sh
+source "$ROOT/tools/bench/lib/host_mem.sh"
 # shellcheck source=../capacity/lib/sync_ini.sh
 CAPACITY_INI_A="${CAPACITY_INI_A:-$ROOT/models-bench.ini}"
 source "$ROOT/tools/bench/capacity/lib/sync_ini.sh"
@@ -44,15 +46,21 @@ Options:
   --no-vl                  drop *-VL twins (capacity/sched/quality)
   --only SUITE             capacity|sched|throughput|quality (repeatable)
   --skip-suite SUITE       disable a suite for this run
+  --skip-dual              never run capacity dual (even if profile enables it)
+  --force-dual             run dual even if host is below skip_below_*_gib
   --dry-run                print plan only
 
 Profiles live in tools/bench/matrix/profiles/*.json — edit freely.
+Profile `full` leaves dual disabled (run ./bench capacity dual separately).
+When dual is enabled, it auto-skips below dual.skip_below_*_gib (default 64/48);
+use --force-dual or CAPACITY_FORCE_DUAL=1 to override. --skip-dual always skips.
 Full profile is multi-day; safe to Ctrl+C and re-run (capacity/sched skip done cells).
 
 Examples:
   ./bench matrix --profile full
   ./bench matrix --profile full --only capacity
   ./bench matrix --profile full --no-vl
+  ./bench matrix --profile default
   ./bench matrix --profile full --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel,Qwen3.6-35B
   tmux new -s bench './bench matrix --profile full --model Tiel-Coder,Cyber-Tiel,Qwen3.6-35B'
 EOF
@@ -65,6 +73,8 @@ ONLY=()
 SKIP_SUITE=()
 MATRIX_MODELS="${MATRIX_MODELS:-}"
 MATRIX_NO_VL="${MATRIX_NO_VL:-0}"
+MATRIX_SKIP_DUAL="${MATRIX_SKIP_DUAL:-0}"
+MATRIX_FORCE_DUAL="${MATRIX_FORCE_DUAL:-0}"
 
 resolve_profile() {
   local p="$1"
@@ -163,6 +173,9 @@ elif isinstance(dc, (list, tuple)):
     print(f"CAP_DUAL_C={','.join(str(x) for x in dc)!r}")
 else:
     print(f"CAP_DUAL_C={str(dc)!r}")
+# Auto-skip dual on small hosts (GiB). 0 = never auto-skip.
+print(f"CAP_DUAL_SKIP_BELOW_RAM={float(dual.get('skip_below_ram_gib') or 0)}")
+print(f"CAP_DUAL_SKIP_BELOW_GTT={float(dual.get('skip_below_gtt_gib') or 0)}")
 sch = suites.get("sched") or {}
 scen = ",".join(sch.get("scenarios") or [])
 print(f"SCHED_SCENARIOS={scen!r}")
@@ -176,7 +189,7 @@ print(f"SCHED_MTP_LIST_VAL={sch.get('mtp_list', 'off,1,2,3,4')!r}")
 thr = suites.get("throughput") or {}
 backends = ",".join(thr.get("backends") or ["vulkan"])
 print(f"THR_BACKENDS={backends!r}")
-print(f"THR_SCOPE={thr.get('scope', 'lab')!r}")
+print(f"THR_SCOPE={thr.get('scope', 'bench')!r}")
 qual = suites.get("quality") or {}
 print(f"QUAL_SUITE={qual.get('suite', 'humaneval')!r}")
 print(f"QUAL_N={qual.get('n', 1)}")
@@ -205,6 +218,27 @@ models_from_bench_ini() {
     resolve_bench_models
 }
 
+# Returns 0 if dual should run.
+matrix_dual_should_run() {
+  [[ "${CAP_DUAL_ENABLED:-0}" == "1" ]] || return 1
+  if [[ "${MATRIX_SKIP_DUAL:-0}" == "1" ]]; then
+    log "skip dual (--skip-dual)"
+    return 1
+  fi
+  if [[ "${MATRIX_FORCE_DUAL:-0}" == "1" ]]; then
+    export CAPACITY_FORCE_DUAL=1
+    return 0
+  fi
+  export CAPACITY_DUAL_SKIP_BELOW_RAM_GIB="${CAP_DUAL_SKIP_BELOW_RAM:-0}"
+  export CAPACITY_DUAL_SKIP_BELOW_GTT_GIB="${CAP_DUAL_SKIP_BELOW_GTT:-0}"
+  local reason
+  if reason="$(dual_host_too_small)"; then
+    log "skip dual: $reason (profile dual.skip_below_*; --force-dual to override)"
+    return 1
+  fi
+  return 0
+}
+
 run_capacity() {
   [[ "${SUITE_CAPACITY_ENABLED:-0}" == "1" ]] || { log "capacity disabled in profile"; return 0; }
   suite_wanted capacity || { log "skip suite capacity (--only/--skip-suite)"; return 0; }
@@ -222,10 +256,13 @@ run_capacity() {
     --kv "$CAP_KV" \
     --c "$CAP_C" \
     "${cap_extra[@]}"
-  if [[ "${CAP_DUAL_ENABLED:-0}" == "1" ]]; then
+  if matrix_dual_should_run; then
     write_progress "capacity" "dual"
     log "=== capacity dual (c=$CAP_DUAL_C) ==="
     CAPACITY_DUAL_KV_LIST="$CAP_DUAL_KV" CAPACITY_DUAL_C="$CAP_DUAL_C" \
+      CAPACITY_DUAL_SKIP_BELOW_RAM_GIB="${CAP_DUAL_SKIP_BELOW_RAM:-0}" \
+      CAPACITY_DUAL_SKIP_BELOW_GTT_GIB="${CAP_DUAL_SKIP_BELOW_GTT:-0}" \
+      CAPACITY_FORCE_DUAL="${CAPACITY_FORCE_DUAL:-${MATRIX_FORCE_DUAL:-0}}" \
       "$CAPACITY" dual --from "$SYNC_FROM" --kv "$CAP_DUAL_KV" "${cap_extra[@]}"
   fi
 }
@@ -234,9 +271,12 @@ run_sched() {
   [[ "${SUITE_SCHED_ENABLED:-0}" == "1" ]] || { log "sched disabled in profile"; return 0; }
   suite_wanted sched || { log "skip suite sched"; return 0; }
 
-  # Ensure bench ini synced so we know model list; sched uses lab
-  "$CAPACITY" sync --from "$SYNC_FROM" >/dev/null || true
+  # shellcheck source=../scheduling/lib/server.sh
+  SCHED_BENCH_ROOT="$ROOT/tools/bench/scheduling"
+  export SCHED_BENCH_ROOT PROJECT_ROOT="$ROOT"
+  source "$ROOT/tools/bench/scheduling/lib/server.sh"
 
+  export SCHED_SYNC_SOURCES="$SYNC_FROM"
   export SCHED_NP="$SCHED_NP_VAL"
   export SCHED_UB="$SCHED_UB_VAL"
   export SCHED_B="$SCHED_B_VAL"
@@ -245,6 +285,10 @@ run_sched() {
   export SCHED_B_LIST="$SCHED_B_LIST_VAL"
   export SCHED_MTP_LIST="$SCHED_MTP_LIST_VAL"
   export SCHED_RESTART_LAB=1
+  export SCHED_RESTART_BENCH=1
+  export SCHED_BENCH_OWNED=1
+  sched_bench_prepare
+  trap 'SCHED_BENCH_OWNED=0; sched_bench_cleanup' RETURN
 
   local models=() m scen
   mapfile -t models < <(models_from_bench_ini)
@@ -254,6 +298,10 @@ run_sched() {
   for m in "${models[@]}"; do
     [[ -n "$m" ]] || continue
     export SCHED_MODEL="$m"
+    if ! sched_bench_load "$m"; then
+      log "sched load failed for $m (continue)"
+      continue
+    fi
     for scen in "${SCEN_ARR[@]}"; do
       scen="${scen// /}"
       [[ -n "$scen" ]] || continue
@@ -263,12 +311,16 @@ run_sched() {
       fi
       write_progress "sched" "$m / $scen"
       log "=== sched $m :: $scen ==="
+      export SCHED_SKIP_BENCH=1 SCHED_NO_RESTORE=1
       case "$scen" in
-        auto) "$SCHED" --auto ;;
-        *) "$SCHED" --scenario "$scen" ;;
+        auto) "$SCHED" --auto --no-restore ;;
+        *) "$SCHED" --scenario "$scen" --no-restore ;;
       esac
     done
   done
+  SCHED_BENCH_OWNED=0
+  sched_bench_cleanup
+  trap - RETURN
 }
 
 run_throughput() {
@@ -278,10 +330,11 @@ run_throughput() {
   log "=== throughput $THR_SCOPE $THR_BACKENDS ==="
   local args=()
   case "$THR_SCOPE" in
+    bench) args+=(--bench) ;;
     lab) args+=(--lab) ;;
     daily) args+=(--daily) ;;
     all) args+=(--all) ;;
-    *) args+=(--lab) ;;
+    *) args+=(--bench) ;;
   esac
   IFS=',' read -ra B <<< "$THR_BACKENDS"
   local b
@@ -330,12 +383,25 @@ run_quality() {
 
 print_plan() {
   local models_line="${MATRIX_MODELS:-all}"
+  local dual_line
   [[ "${MATRIX_NO_VL:-0}" == "1" ]] && models_line+=" (--no-vl)"
+  if [[ "${CAP_DUAL_ENABLED:-0}" != "1" ]]; then
+    dual_line="off (profile)"
+  elif [[ "${MATRIX_SKIP_DUAL:-0}" == "1" ]]; then
+    dual_line="skip (--skip-dual)"
+  else
+    dual_line="on ($CAP_DUAL_KV @ $CAP_DUAL_C)"
+    if [[ "${MATRIX_FORCE_DUAL:-0}" == "1" ]]; then
+      dual_line+="; force"
+    else
+      dual_line+="; auto-skip if RAM<${CAP_DUAL_SKIP_BELOW_RAM} or GTT<${CAP_DUAL_SKIP_BELOW_GTT} GiB"
+    fi
+  fi
   cat <<EOF
 Profile: $PROFILE_PATH
   sync_from:     $SYNC_FROM
   models:        $models_line
-  capacity:      enabled=$SUITE_CAPACITY_ENABLED kv=$CAP_KV c=$CAP_C dual=$CAP_DUAL_ENABLED ($CAP_DUAL_KV @ $CAP_DUAL_C)
+  capacity:      enabled=$SUITE_CAPACITY_ENABLED kv=$CAP_KV c=$CAP_C dual=$dual_line
   sched:         enabled=$SUITE_SCHED_ENABLED scenarios=$SCHED_SCENARIOS
   throughput:    enabled=$SUITE_THROUGHPUT_ENABLED $THR_SCOPE $THR_BACKENDS
   quality:       enabled=$SUITE_QUALITY_ENABLED $QUAL_SUITE n=$QUAL_N limit=$QUAL_LIMIT
@@ -345,9 +411,20 @@ EOF
 run_matrix() {
   eval "$(load_profile)"
   [[ -n "$FROM_OVERRIDE" ]] && SYNC_FROM="$FROM_OVERRIDE"
-  export MATRIX_MODELS MATRIX_NO_VL
+  export MATRIX_MODELS MATRIX_NO_VL MATRIX_SKIP_DUAL MATRIX_FORCE_DUAL
   print_plan
   if [[ "$DRY" == "1" ]]; then
+    if [[ "${CAP_DUAL_ENABLED:-0}" == "1" && "${MATRIX_SKIP_DUAL:-0}" != "1" ]]; then
+      export CAPACITY_DUAL_SKIP_BELOW_RAM_GIB="${CAP_DUAL_SKIP_BELOW_RAM:-0}"
+      export CAPACITY_DUAL_SKIP_BELOW_GTT_GIB="${CAP_DUAL_SKIP_BELOW_GTT:-0}"
+      [[ "${MATRIX_FORCE_DUAL:-0}" == "1" ]] && export CAPACITY_FORCE_DUAL=1
+      local reason
+      if reason="$(dual_host_too_small)"; then
+        log "dry-run note: dual would skip ($reason)"
+      else
+        log "dry-run note: dual would run"
+      fi
+    fi
     log "dry-run — exiting"
     return 0
   fi
@@ -434,6 +511,8 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --no-vl) MATRIX_NO_VL=1; shift ;;
+    --skip-dual) MATRIX_SKIP_DUAL=1; shift ;;
+    --force-dual) MATRIX_FORCE_DUAL=1; shift ;;
     --only) shift; ONLY+=("${1:?}"); shift ;;
     --skip-suite) shift; SKIP_SUITE+=("${1:?}"); shift ;;
     --dry-run) DRY=1; shift ;;

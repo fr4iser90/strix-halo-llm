@@ -71,7 +71,7 @@ run_cell() {
   patch_ini_section "$CODER_INI" "$CODER_MODEL" "np" "$np_coder"
 
   restart_sticky
-  restart_lab_only
+  restart_lab_server
 
   # Reload presets after restart
   curl -sfS "$COEXIST_CHAT_URL/models?reload=1" >/dev/null || true

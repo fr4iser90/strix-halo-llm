@@ -1,14 +1,28 @@
 # Bench toolkit
 
-**One CLI:** `./bench`
+**One CLI:** `./bench` — start with `./bench` (menu) or `./bench recipes`.
+
+| Goal | Time | Command |
+|------|------|---------|
+| **A. Fastest model (PP/TG)** | ~5–30 min | `./bench throughput --vulkan -m …` (default: models-bench.ini) |
+| **B. Sticky feel (np/ub)** | ~1–4 h / model | `SCHED_MODEL=… ./bench sched --auto` |
+| **C. Max context solo** | ~1–8 h | `./bench capacity kv-ctx --model …` |
+| **D. Dual 2× servers** | ~2–12 h | optional — only if 2 stickys / ≥~64 GiB RAM |
+| **E. HumanEval** | ~0.5–3 h / model | `./bench quality humaneval --model …` |
+| **F. Full matrix** | multi-day | `./bench matrix --profile full` — solo capacity + sched + throughput + HumanEval (**no dual**) |
+
+Most users only need **A** (and maybe **B**). Dual (**D**) is optional — not part of `full`; use `./bench capacity dual` or profile `default`.
 
 | What | Path | Role |
 |------|------|------|
-| **`./bench`** | Root | `throughput`, `sched`, `capacity`, `matrix`, `quality`, `index`, `publish` |
-| `./bench matrix` | `tools/bench/matrix/` | Multi-suite orchestrator (`default` / `full`) |
-| `./bench capacity` | `tools/bench/capacity/` | KV×ctx + dual (`c` auto) |
-| `./bench quality` | `tools/bench/quality/` | HumanEval plugins |
+| **`./bench`** | Root | menu / recipes / all suites |
+| `./bench matrix` | `tools/bench/matrix/` | Multi-suite orchestrator |
+| `./bench capacity` | `tools/bench/capacity/` | KV×ctx + dual (`bench-a/b`) |
+| `./bench sched` | `tools/bench/scheduling/` | np/ub under load (**bench-a** `:11601`) |
+| `./bench quality` | `tools/bench/quality/` | HumanEval on **bench-a** |
 | `./bench publish` | `tools/bench/publish-docs.sh` | → `docs/` GitHub Pages |
+
+**Routers:** sticky `:11535`/`:11538` · lab `:11537` (coexist) · bench `:11601`/`:11602` (capacity/quality/sched) · llama-bench one-shot (throughput).
 
 ## Full matrix (multi-day)
 
@@ -27,7 +41,9 @@ tmux new -s bench './bench matrix --profile full'
 ```
 
 Profiles: `tools/bench/matrix/profiles/{default,full}.json` — edit freely.
-
+- **`full`**: solo capacity + sched + throughput + HumanEval — **dual off**
+- **`default`**: capacity + dual (auto-skip below ~64 GiB RAM / ~48 GiB GTT) + sched
+- Dual alone: `./bench capacity dual` (`CAPACITY_FORCE_DUAL=1` to override host gate)
 ### Model filter
 
 `--model` (comma list or repeatable) plus optional `--no-vl`. Match: exact section name **or** unique prefix/substring (non-VL preferred). Capacity ledger keeps skipping finished cells.
@@ -96,8 +112,8 @@ Auto-sync from sticky/lab → `models-bench.ini`. Skip includes llama.cpp finger
 | Mode | Behavior |
 |------|----------|
 | `capacity` / `matrix` capacity | Stickys stopped, bench-a/b, then restore |
-| `sched` | Lab on, daily off |
-| `throughput` | All routers stopped |
+| `sched` / `matrix` sched | Stickys stopped, **bench-a :11601**, then restore (coexist: sticky+lab) |
+| `throughput` / `matrix` throughput | Stickys stopped, models-bench.ini → llama-bench, then restore |
 | `quality` / `matrix` quality | Stickys stopped, **bench-a :11601**, then restore |
 
 ## Commands

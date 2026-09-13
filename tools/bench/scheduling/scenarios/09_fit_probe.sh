@@ -10,14 +10,14 @@ mkdir -p "$sdir"
 
 if [[ "${SCHED_RESTART_LAB:-0}" == "1" ]]; then
   log "enable fit=on and restart lab"
-  patch_lab_ini fit on
-  restart_lab_server 0
+  patch_bench_ini fit on
+  restart_bench_server 0
 else
   log "fit probe (set SCHED_RESTART_LAB=1 to patch ini)"
 fi
 
 preflight
-bench_python - "$sdir" "${SCHED_MODEL:-}" "${SCHED_BASE_URL:-http://localhost:11537}" <<'PY'
+bench_python - "$sdir" "${SCHED_MODEL:-}" "${SCHED_BASE_URL:-http://127.0.0.1:11601}" <<'PY'
 import json, os, sys, urllib.request
 
 sdir, model, base = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -41,8 +41,8 @@ print(f"wrote {path}")
 PY
 
 if [[ "${SCHED_RESTART_LAB:-0}" == "1" ]]; then
-  patch_lab_ini fit off
-  restart_lab_server 0
+  patch_bench_ini fit off
+  restart_bench_server 0
 fi
 
 log "done $SCENARIO → $sdir/summary.json"

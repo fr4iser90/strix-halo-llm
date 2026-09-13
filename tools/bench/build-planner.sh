@@ -18,7 +18,7 @@ PLANNER="$OUT/planner.html"
 mkdir -p "$OUT" "$SCH"
 
 bench_python - "$SUMMARY" "$PLANNER" "$HOST_JSON" "$CELLS" <<'PY'
-import json, os, sys
+import json, os, re, sys
 from pathlib import Path
 
 summary_path, out_path, host_path, cells_path = sys.argv[1:5]
@@ -54,26 +54,109 @@ if os.path.isfile(host_path):
     if ram:
         host["ram_gib"] = float(ram)
 
-WEIGHTS = {
-    "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL": 26.0,
-    "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL": 27.0,
-    "Qwen3.6-35B-A3B-MTP-UD-Q4_K_M": 22.0,
-    "Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL": 23.0,
-    "Qwen3.6-35B-A3B-MTP-UD-Q4_K_XL": 22.0,
-    "Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL": 21.0,
-    "Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL": 17.0,
-    "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL": 26.0,
-    "Qwen3.8-27B-Q4_K_M-MTP": 21.0,
-    "Qwen3.8-27B-Q4_K_M-MTP-VL": 22.0,
-    "Qwen3.8-27B-UD-Q4_K_M-MTP": 21.0,
-    "Qwen3.8-27B-UD-Q4_K_M-MTP-VL": 22.0,
-    "Qwen3.8-27B-Q8_0-MTP": 32.0,
-    "Qwen3.8-27B-Q8_0-MTP-VL": 33.0,
-    "Qwen3.8-Flash-Next-UD-Q4_K_XL-MTP": 100.0,
-    "Qwen3.8-Flash-Next-UD-Q4_K_XL-MTP-VL": 101.0,
-}
+root = Path(out_path).resolve().parents[2]  # …/output/bench/planner.html → repo root
+models_dir = root / "models"
 
 KV_RANK = {"q8_0": 4, "q5_1": 3, "q5_0": 2, "q4_0": 1, "q4_1": 1, "iq4_nl": 1, "f16": 0}
+
+def parse_ini_model_paths(path: Path):
+    """section → {model, mmproj} paths from INI (container /models/… or relative)."""
+    if not path.is_file():
+        return {}
+    out = {}
+    cur = None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith(";"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            cur = line[1:-1].strip()
+            out.setdefault(cur, {})
+            continue
+        if cur is None or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        k, v = k.strip(), v.strip()
+        if k in ("model", "mmproj"):
+            out[cur][k] = v
+    return out
+
+def host_gguf_path(rel: str):
+    if not rel:
+        return None
+    p = rel
+    if p.startswith("/models/"):
+        p = p[len("/models/"):]
+    elif p.startswith("models/"):
+        p = p[len("models/"):]
+    return models_dir / p
+
+def gguf_bytes(path: Path) -> int:
+    """Single file or sum of multipart shards *-00001-of-N.gguf …"""
+    if path is None:
+        return 0
+    if path.is_file():
+        name = path.name
+        m = re.match(r"^(.*?)-(\d+)-of-(\d+)\.gguf$", name, re.I)
+        if m:
+            stem, idx, total = m.group(1), int(m.group(2)), int(m.group(3))
+            total_b = 0
+            width = len(m.group(2))
+            for i in range(1, total + 1):
+                shard = path.with_name(f"{stem}-{i:0{width}d}-of-{total:0{width}d}.gguf")
+                if not shard.is_file():
+                    return path.stat().st_size if i == 1 else total_b
+                total_b += shard.stat().st_size
+            return total_b
+        return path.stat().st_size
+    return 0
+
+def discover_weights_gib() -> dict:
+    """Build section→GiB from live INIs + on-disk GGUF sizes (no hardcoded model names)."""
+    weights = {}
+    ini_files = [
+        root / "models.ini",
+        root / "models-coder.ini",
+        root / "models-lab.ini",
+        root / "models-bench.ini",
+    ]
+    for ini in ini_files:
+        for section, keys in parse_ini_model_paths(ini).items():
+            total = 0
+            for key in ("model", "mmproj"):
+                rel = keys.get(key)
+                if not rel:
+                    continue
+                hp = host_gguf_path(rel)
+                total += gguf_bytes(hp) if hp else 0
+            if total > 0:
+                gib = round(total / (1024.0 ** 3), 2)
+                if section not in weights or gib > weights[section]:
+                    weights[section] = gib
+    # Also index by GGUF stem for fuzzy JS fallback
+    if models_dir.is_dir():
+        for p in models_dir.rglob("*.gguf"):
+            name = p.name
+            if re.search(r"-0*\d*[2-9]\d*-of-\d+\.gguf$", name, re.I):
+                # skip non-first multipart shards (…-00002-of-… etc.)
+                m = re.search(r"-(\d+)-of-(\d+)\.gguf$", name, re.I)
+                if m and int(m.group(1)) != 1:
+                    continue
+            if "mmproj" in name.lower() or name.lower().startswith("mtp-"):
+                continue
+            stem = re.sub(r"-\d+-of-\d+\.gguf$", "", name, flags=re.I)
+            stem = stem[: -5] if stem.lower().endswith(".gguf") else stem
+            if name.lower().endswith(".gguf") and stem == name:
+                stem = name[:-5]
+            b = gguf_bytes(p)
+            if b <= 0:
+                continue
+            gib = round(b / (1024.0 ** 3), 2)
+            if stem not in weights or gib > weights[stem]:
+                weights[stem] = gib
+    return weights
+
+WEIGHTS = discover_weights_gib()
 
 def load_capacity(path: str):
     """Per model: solo/dual max ok c + best kv at that c."""
@@ -92,7 +175,6 @@ def load_capacity(path: str):
             if r.get("skipped") and not r.get("ok"):
                 continue
             if not r.get("ok"):
-                # still record fail ceiling? skip
                 continue
             model = r.get("model")
             mode = r.get("mode") or "solo"
@@ -108,19 +190,16 @@ def load_capacity(path: str):
             prev = bucket.get(kv)
             if prev is None or c > prev:
                 bucket[kv] = c
-            # weight hint from GTT peak minus rough OS — optional
+            # Fallback weight from low-ctx GTT peak if disk size unknown
             peak = (r.get("metrics_peak") or {}).get("gtt_used_mb")
             if peak and model not in WEIGHTS and mode == "solo" and c <= 65536:
-                # crude floor at small ctx
                 WEIGHTS[model] = round(float(peak) / 1024.0, 1)
-    # summarize
     out = {}
     for model, modes in cap.items():
         sm = {}
         for mode, by_kv in modes.items():
             if not by_kv:
                 continue
-            # pick: max c; tie-break higher quality kv
             best_c = max(by_kv.values())
             candidates = [kv for kv, c in by_kv.items() if c == best_c]
             best_kv = max(candidates, key=lambda k: KV_RANK.get(k, 0))
@@ -134,11 +213,51 @@ def load_capacity(path: str):
 
 capacity = load_capacity(cells_path)
 
+# Sticky advice: high-RAM hosts usually want 2 containers (models ~256k context ceiling),
+# not one oversized sticky. Don't push dual on tight hosts without dual capacity proof.
+any_dual_ok = any((v.get("dual") or {}).get("max_c") for v in capacity.values())
+any_solo_ok = any((v.get("solo") or {}).get("max_c") for v in capacity.values())
+ram = float(host["ram_gib"])
+gtt = float(host["gtt_gib"])
+high_mem = ram >= 64.0 or gtt >= 48.0
+allow_dual = bool(any_dual_ok) or high_mem
+if any_solo_ok and not any_dual_ok and not high_mem:
+    allow_dual = False
+# Prefer 2 stickys whenever allowed on high-mem (256k ceiling → second model beats one sticky)
+# or whenever dual capacity already proved fit.
+prefer_dual = allow_dual and (high_mem or any_dual_ok)
+
+if prefer_dual and high_mem:
+    reason = (
+        "High RAM/GTT: prefer 2 stickys (chat+coder). One model tops out near ~256k context — "
+        "a second container uses headroom better than one mega sticky."
+    )
+elif prefer_dual and any_dual_ok:
+    reason = "Dual capacity passed — 2 stickys are feasible; prefer chat+coder over one mega sticky."
+elif not allow_dual:
+    reason = (
+        "No dual capacity ok on this host class — stay on 1 sticky "
+        "(or run ./bench capacity dual after freeing GTT)."
+    )
+else:
+    reason = "1 sticky is fine; switch to 2 stickys only if dual capacity / GTT allows."
+
+advice = {
+    "prefer_mode": "dual" if prefer_dual else "solo",
+    "allow_dual": allow_dual,
+    "prefer_dual": prefer_dual,
+    "any_dual_ok": any_dual_ok,
+    "any_solo_ok": any_solo_ok,
+    "high_mem": high_mem,
+    "reason": reason,
+}
+
 payload = {
     "host": host,
     "weights_gib": WEIGHTS,
     "recommendations": recs,
     "capacity": capacity,
+    "advice": advice,
 }
 
 html = r'''<!DOCTYPE html>
@@ -181,23 +300,29 @@ th, td { padding: .35rem .45rem; border-bottom: 1px solid var(--line); text-alig
 th { color: var(--muted); font-weight: 600; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
 button.copy, button.dl { background:#2a3444;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:.4rem .7rem;cursor:pointer;font:inherit;margin-right:.4rem; }
-.coder-wrap.hidden { display: none; }
+.modes button:disabled { opacity: .45; cursor: not-allowed; }
+.banner { background: #12141a; border: 1px solid var(--line); border-radius: 8px; padding: .75rem 1rem; margin: 0 0 1rem; font-size: .92rem; }
+.banner.prefer { border-color: var(--ok); }
+.banner.warn { border-color: var(--warn); }
 .cap-pill { display:inline-block; font-size:.75rem; padding:.1rem .45rem; border-radius:999px; border:1px solid var(--line); margin-left:.35rem; }
 .cap-pill.ok { border-color: var(--ok); color: var(--ok); }
 .cap-pill.bad { border-color: var(--bad); color: var(--bad); }
 </style></head><body>
 <main>
   <h1>Recommendation planner</h1>
-  <p class="meta">Pick <strong>1 sticky</strong> or <strong>2 stickys</strong> (chat + coder). Defaults: sched ★ + capacity max <code>c</code> that passed.
-  GTT from <code>host.json</code>. Pages = view/copy only — apply on the host with CLI below.
+  <p class="meta">Defaults from host RAM/GTT + capacity dual: high-memory hosts prefer <strong>2 stickys</strong>
+  (models top out near ~256k context — better a second container than one mega sticky).
+  Tight hosts without dual capacity stay on <strong>1 sticky</strong>.
+  Sched ★ + capacity max <code>c</code>. Pages = view/copy — apply on the host.
   <a href="index.html">Dashboard</a> · <a href="capacity/latest/compare.md">Capacity</a> · <a href="scheduling/latest/compare.html">Sweeps</a></p>
+  <div class="banner" id="adviceBanner"></div>
 
   <div class="grid">
     <section class="card">
       <h2>Scenario</h2>
       <div class="modes" id="modes">
-        <button type="button" data-mode="solo" class="active">1 sticky</button>
-        <button type="button" data-mode="dual">2 stickys (chat + coder)</button>
+        <button type="button" data-mode="solo">1 sticky</button>
+        <button type="button" data-mode="dual" id="btnDual">2 stickys (chat + coder)</button>
         <button type="button" data-mode="lab">Lab only</button>
       </div>
       <label for="chatModel">Chat / sticky model</label>
@@ -283,6 +408,7 @@ function capFor(name) {
   return (DATA.capacity || {})[name] || {};
 }
 function weightGiB(name) {
+  // From on-disk GGUF sizes / INI paths (built at index time). Last resort ≈24 GiB.
   if (DATA.weights_gib[name] != null) return DATA.weights_gib[name];
   const base = name.replace(/-VL$/, "");
   if (base !== name && DATA.weights_gib[base] != null) return DATA.weights_gib[base] + 1;
@@ -316,9 +442,16 @@ function esc(s) {
 function defaultC(model) {
   const r = recFor(model) || {};
   const solo = (capFor(model).solo || {}).max_c;
+  const dual = (capFor(model).dual || {}).max_c;
   let c = num(r.best_c, solo || 131072);
-  if (solo && c > solo) c = solo;
-  if (!solo && dash(r.best_c)) c = 131072;
+  if (mode === "dual" && dual) {
+    // Prefer proven dual ceiling; don't default above what dual capacity passed
+    c = Math.min(c, dual);
+    if (!solo && dash(r.best_c)) c = dual;
+  } else if (solo && c > solo) {
+    c = solo;
+  }
+  if (!solo && !dual && dash(r.best_c)) c = 131072;
   return c;
 }
 function defaultKv(model) {
@@ -347,7 +480,37 @@ function effective(model, role) {
   return { model, np, c, ub, b, cont, kv, decode: r.decode_ms, prefill: r.prefill_tps, missing, soloMax, dualMax };
 }
 
-let mode = "solo";
+let mode = (DATA.advice && DATA.advice.prefer_mode) || "solo";
+
+function setMode(next) {
+  const advice = DATA.advice || {};
+  if (next === "dual" && advice.allow_dual === false) return;
+  mode = next;
+  document.querySelectorAll("#modes button").forEach(b => {
+    b.classList.toggle("active", b.dataset.mode === mode);
+  });
+  render();
+}
+
+function updateAdviceBanner() {
+  const a = DATA.advice || {};
+  const el = document.getElementById("adviceBanner");
+  if (!el) return;
+  const prefer = a.prefer_mode || "solo";
+  el.className = "banner " + (a.prefer_dual ? "prefer" : "warn");
+  const dualNote = a.any_dual_ok
+    ? " Dual capacity has ok cells."
+    : (a.high_mem ? " Run ./bench capacity dual to confirm 2× fit." : "");
+  el.innerHTML = `<strong>Host advice:</strong> prefer <code>${esc(prefer)}</code>. ${esc(a.reason || "")}${esc(dualNote)}`
+    + ` <span class="meta">(RAM ${DATA.host.ram_gib} GiB · GTT ${DATA.host.gtt_gib} GiB)</span>`;
+  const btn = document.getElementById("btnDual");
+  if (btn) {
+    btn.disabled = a.allow_dual === false;
+    btn.title = a.allow_dual === false
+      ? "Disabled: no dual capacity ok on this host class"
+      : "Two containers — recommended when RAM/GTT allows (256k context ceiling per model)";
+  }
+}
 
 function buildPlan(chat, coder) {
   const sticky = mode === "dual" ? 2 : 1;
@@ -402,7 +565,16 @@ function render() {
     used += weightGiB(coder.model) + kvGiB(coder.c, coder.np);
     parts.push(chat, coder);
     notes.push("2 stickys: models.ini → :11535 + models-coder.ini → :11538.");
-    if (chat.c >= 262144 && coder.c >= 262144) notes.push("Both at 256k is usually too much.");
+    if (chat.model === coder.model) {
+      notes.push("Same model twice is fine for capacity proof; for daily use pick distinct chat + coder.");
+    }
+    if (chat.c >= 262144 && coder.c >= 262144) {
+      notes.push("Both at 256k is the training ceiling — expect long prefills; np=1 is safer.");
+    }
+    if (chat.dualMax) notes.push(`${chat.model}: dual capacity ok ≤ ${chat.dualMax}.`);
+    if (coder.dualMax && coder.model !== chat.model) {
+      notes.push(`${coder.model}: dual capacity ok ≤ ${coder.dualMax}.`);
+    }
   }
 
   // capacity warnings
@@ -530,14 +702,24 @@ fit = off
 }
 
 function bind() {
-  fillSelect(document.getElementById("chatModel"), "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL");
-  fillSelect(document.getElementById("coderModel"), "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL");
+  updateAdviceBanner();
+  const list = models();
+  const preferChat = list.find(m => /Qwen3\.6.*35B/.test(m) && !m.endsWith("-VL"))
+    || list.find(m => /Qwen3\.6/.test(m))
+    || list[0];
+  const preferCoder = list.find(m => /Cyber-Tiel/.test(m) && !m.endsWith("-VL"))
+    || list.find(m => /Tiel-Coder/.test(m) && !m.endsWith("-VL"))
+    || list.find(m => m !== preferChat)
+    || list[0];
+  fillSelect(document.getElementById("chatModel"), preferChat);
+  fillSelect(document.getElementById("coderModel"), preferCoder);
+  document.querySelectorAll("#modes button").forEach(b => {
+    b.classList.toggle("active", b.dataset.mode === mode);
+  });
   document.getElementById("modes").addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-mode]");
-    if (!btn) return;
-    mode = btn.dataset.mode;
-    document.querySelectorAll("#modes button").forEach(b => b.classList.toggle("active", b === btn));
-    render();
+    if (!btn || btn.disabled) return;
+    setMode(btn.dataset.mode);
   });
   ["chatModel","coderModel","npChat","npCoder","cChat","cCoder"].forEach(id => {
     document.getElementById(id).addEventListener("input", render);

@@ -10,8 +10,8 @@ CAPACITY_SYNC_SOURCES="${CAPACITY_SYNC_SOURCES:-coder,chat}"
 sync_bench_inis() {
   local sources="${1:-$CAPACITY_SYNC_SOURCES}"
   local models_root="${PROJECT_ROOT}/models"
-  local out_a="${CAPACITY_INI_A}"
-  local out_b="${CAPACITY_INI_B}"
+  local out_a="${CAPACITY_INI_A:-$PROJECT_ROOT/models-bench.ini}"
+  local out_b="${CAPACITY_INI_B:-$PROJECT_ROOT/models-bench-b.ini}"
 
   bench_python - "$PROJECT_ROOT" "$sources" "$out_a" "$out_b" "$models_root" <<'PY'
 import os, sys

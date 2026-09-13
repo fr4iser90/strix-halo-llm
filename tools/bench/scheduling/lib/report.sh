@@ -606,7 +606,7 @@ lines = [
     "# Scheduling — compare & recommendations",
     "",
     "Decode latency and prefill throughput **under load** (2 slots, rolling prefill). "
-    "Lab-Router `:11537`, `np=2`.",
+    "Bench-a `:11601`, `np=2`.",
     "",
     "## Metrics",
     "",

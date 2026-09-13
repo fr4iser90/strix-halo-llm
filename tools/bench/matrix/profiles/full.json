@@ -1,6 +1,6 @@
 {
   "name": "full",
-  "description": "Complete multi-day matrix: all models × capacity KV×c × dual (auto c) × all sched sweeps × throughput × quality",
+  "description": "Multi-day matrix: solo capacity KV×c + all sched sweeps + throughput + HumanEval (no dual — run capacity dual separately if needed)",
   "sync_from": "coder,chat,lab",
   "suites": {
     "capacity": {
@@ -8,9 +8,11 @@
       "kv": ["q8_0", "q5_0", "q4_0"],
       "c": [32768, 65536, 131072, 196608, 262144],
       "dual": {
-        "enabled": true,
+        "enabled": false,
         "kv": ["q8_0", "q5_0", "q4_0"],
-        "c": "auto"
+        "c": "auto",
+        "skip_below_ram_gib": 64,
+        "skip_below_gtt_gib": 48
       }
     },
     "sched": {
@@ -27,7 +29,7 @@
     "throughput": {
       "enabled": true,
       "backends": ["vulkan"],
-      "scope": "lab"
+      "scope": "bench"
     },
     "quality": {
       "enabled": true,

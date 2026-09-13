@@ -5,14 +5,15 @@ set -euo pipefail
 SCHED_BENCH_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_ROOT="$(cd "$SCHED_BENCH_ROOT/../../.." && pwd)"
 
-SCHED_BASE_URL="${SCHED_BASE_URL:-http://localhost:11537}"
+SCHED_BASE_URL="${SCHED_BASE_URL:-http://127.0.0.1:11601}"
 SCHED_MODEL="${SCHED_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL}"
 SCHED_OUT="${SCHED_OUT:-$PROJECT_ROOT/output/bench/scheduling}"
 SCHED_NP="${SCHED_NP:-}"
 SCHED_UB="${SCHED_UB:-}"
 SCHED_B="${SCHED_B:-64}"
 SCHED_UB_LIST="${SCHED_UB_LIST:-32,64,128,256}"
-SCHED_LAB_INI="${SCHED_LAB_INI:-$PROJECT_ROOT/models-lab.ini}"
+# Patches go to models-bench.ini (bench-a).
+SCHED_BENCH_INI="${SCHED_BENCH_INI:-$PROJECT_ROOT/models-bench.ini}"
 VK_COMPOSE="${VK_COMPOSE:-$PROJECT_ROOT/compose.yaml}"
 ROCM_COMPOSE="${ROCM_COMPOSE:-$PROJECT_ROOT/compose.rocm.yaml}"
 
@@ -20,8 +21,10 @@ STREAM_CLIENT="${SCHED_BENCH_ROOT}/lib/stream_client.py"
 
 # shellcheck source=../../lib/python.sh
 source "$PROJECT_ROOT/tools/bench/lib/python.sh"
+# shellcheck source=server.sh
+source "$SCHED_BENCH_ROOT/lib/server.sh"
 
-# Router state for restore after run
+# Router state (coexist)
 SCHED_STOPPED_DAILY=0
 SCHED_STOPPED_EMB=0
 SCHED_STARTED_LAB=0
@@ -97,39 +100,20 @@ container_running() {
   docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null | grep -qx true
 }
 
-# Stop Daily (+ optional embeddings/extractor) so Lab owns the GPU; ensure lab is up.
-prepare_lab_gpu() {
-  local stop_emb="${SCHED_STOP_EMBEDDINGS:-1}"
-  need_cmd docker
-  if container_running llama-router; then
-    log "stop daily router (llama) — free GPU for lab"
-    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama) || true
-    if [[ -f "$ROCM_COMPOSE" ]]; then
-      (cd "$PROJECT_ROOT" && docker compose -f "$ROCM_COMPOSE" stop llama 2>/dev/null) || true
-    fi
-    SCHED_STOPPED_DAILY=1
-  fi
-  if [[ "$stop_emb" == "1" ]] && container_running llama-embeddings; then
-    log "stop embeddings — free GPU"
-    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama-embeddings) || true
-    SCHED_STOPPED_EMB=1
-  fi
-  if [[ "$stop_emb" == "1" ]] && container_running llama-extractor; then
-    log "stop extractor — free GPU"
-    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama-extractor) || true
-    SCHED_STOPPED_EXTRACTOR=1
-  fi
-  log "ensure lab router up (:11537)"
-  (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" --profile lab up -d llama-lab)
-  SCHED_STARTED_LAB=1
-  sleep 2
+# Deprecated name — use sched_bench_prepare.
+prepare_bench_gpu() {
+  sched_bench_prepare
 }
 
 restore_routers() {
   [[ "${SCHED_NO_RESTORE:-0}" == "1" ]] && return 0
-  # shellcheck source=../../lib/routers.sh
-  source "$PROJECT_ROOT/tools/bench/lib/routers.sh"
-  bench_restore_after_sched
+  if [[ "${SCHED_COEXIST:-0}" == "1" ]]; then
+    # shellcheck source=../../lib/routers.sh
+    source "$PROJECT_ROOT/tools/bench/lib/routers.sh"
+    bench_restore_after_sched
+    return 0
+  fi
+  sched_bench_cleanup
 }
 
 wait_for_server() {
@@ -143,11 +127,16 @@ wait_for_server() {
     i=$((i + 1))
     sleep 1
   done
-  die "lab server not reachable at $SCHED_BASE_URL"
+  die "bench server not reachable at $SCHED_BASE_URL"
 }
 
 ensure_model_loaded() {
   local model="$SCHED_MODEL"
+  if declare -F ensure_model_on_url >/dev/null 2>&1; then
+    ensure_model_on_url "$SCHED_BASE_URL" "$model" "sched|$model" \
+      || die "failed to load $model on $SCHED_BASE_URL (is it in models-bench.ini?)"
+    return 0
+  fi
   local list
   list="$(curl -sfS "$SCHED_BASE_URL/v1/models")" || die "GET /v1/models failed"
   if printf '%s' "$list" | grep -q "\"id\"[[:space:]]*:[[:space:]]*\"$model\""; then
@@ -157,7 +146,7 @@ ensure_model_loaded() {
   curl -sfS -X POST "$SCHED_BASE_URL/models/load" \
     -H "Content-Type: application/json" \
     -d "{\"model\":\"$model\"}" >/dev/null \
-    || die "POST /models/load failed for $model (is it in models-lab.ini?)"
+    || die "POST /models/load failed for $model (is it in models-bench.ini?)"
   sleep 2
 }
 

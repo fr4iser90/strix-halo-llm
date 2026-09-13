@@ -13,7 +13,7 @@ fix_np="${SCHED_SWEEP_NP:-2}"
 restart="${SCHED_RESTART_LAB:-0}"
 
 if [[ "$restart" == "1" ]]; then
-  patch_lab_ini np "$fix_np"
+  patch_bench_ini np "$fix_np"
 fi
 
 for ub in "${UB_VALUES[@]}"; do
@@ -25,8 +25,8 @@ for ub in "${UB_VALUES[@]}"; do
 
   if [[ "$restart" == "1" ]]; then
     log "patch ini ub=$ub np=$fix_np and restart lab router"
-    patch_lab_ini ub "$ub"
-    restart_lab_patched
+    patch_bench_ini ub "$ub"
+    restart_bench_patched
   else
     log "ub=$ub (set SCHED_RESTART_LAB=1 to auto-patch ini)"
   fi

@@ -219,8 +219,32 @@ restart_sticky() {
   wait_for_url "$COEXIST_CHAT_URL" 90 || die "sticky restart failed"
 }
 
-restart_lab_only() {
-  restart_lab_server auto
+# Lab router (:11537) — coexist only. Sched sweeps use restart_bench_* on :11601.
+restart_lab_server() {
+  local mode="${1:-0}"
+  local nocb=0
+  case "$mode" in
+    1|nocb|off|cont_off) nocb=1 ;;
+    0|on|cont_on|auto|"") nocb=0 ;;
+    *) nocb=0 ;;
+  esac
+  # shellcheck source=../../lib/compose_overlay.sh
+  source "$PROJECT_ROOT/tools/bench/lib/compose_overlay.sh"
+  local base="${VK_COMPOSE:-$PROJECT_ROOT/compose.yaml}"
+  local overlay=""
+  local -a args=(-f "$base")
+  if [[ "$nocb" == "1" ]]; then
+    overlay="$(bench_write_nocb_overlay llama-lab 900)"
+    args+=(-f "$overlay")
+  fi
+  log "lab restart cont-batching=$([[ "$nocb" == "1" ]] && echo off || echo on)"
+  (
+    cd "$PROJECT_ROOT" || exit 1
+    docker compose "${args[@]}" --profile lab up -d --force-recreate llama-lab
+  )
+  bench_rm_overlay "$overlay"
+  sleep 5
+  wait_for_url "$COEXIST_CODER_URL" 90 || die "lab not reachable after restart"
 }
 
 coexist_over_budget() {

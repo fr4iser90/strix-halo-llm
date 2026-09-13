@@ -22,7 +22,9 @@ Commands:
   fingerprint              show current llama-server / image fingerprint
   stale                    list ledger cells stale vs current fingerprint
   kv-ctx | kv              solo KV×ctx (default: ALL synced models)
-  dual                     two bench instances concurrent (c auto from host)
+  dual                     two bench instances concurrent (c auto from host;
+                           auto-skips if RAM/GTT below ~64/48 GiB —
+                           CAPACITY_FORCE_DUAL=1 to override)
   compare                  rebuild latest compare from cells.jsonl
   help
 

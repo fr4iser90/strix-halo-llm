@@ -19,9 +19,9 @@ for c in "${C_VALUES[@]}"; do
 
   if [[ "$restart" == "1" ]]; then
     log "patch ini c=$c and restart lab router"
-    patch_lab_ini c "$c"
-    patch_lab_ini fit off
-    restart_lab_server 0
+    patch_bench_ini c "$c"
+    patch_bench_ini fit off
+    restart_bench_server 0
   else
     log "c=$c (set SCHED_RESTART_LAB=1 to auto-patch ini)"
   fi

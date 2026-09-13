@@ -8,6 +8,10 @@ setup” decisions. Items below are polish — track here so they are not forgot
 - [x] Capacity cell progress `N/total` + honest ETA (`runs_left × session wall`; omit ETA until first real run)
 - [x] `./bench matrix status` shows capacity progress + ETA when available
 - [x] `--model A,B,C` / `--no-vl` filter for capacity + matrix (sched/quality)
+- [x] Goal-based `./bench` menu + `./bench recipes` (time estimates; dual marked optional)
+- [x] Move `./bench sched` from lab `:11537` onto bench-a (same isolation as capacity/quality)
+- [x] Throughput default suite = models-bench.ini (same model pool); stickys stopped like other benches
+- [x] Naming: bench / lab / sticky only — no “real”/adjective wrappers that blur routers
 - [ ] Suite-level ETA for sched / throughput / quality (after first samples)
 - [ ] Live line on Pages dashboard (poll `matrix/progress.json`)
 
@@ -16,16 +20,18 @@ setup” decisions. Items below are polish — track here so they are not forgot
 - [ ] Subset filter (coder/Tiel only — skip pure VL/chat for HumanEval)
 - [ ] Resume / skip completed `(suite, model)` like capacity ledger
 - [ ] Second suite (e.g. MBPP) via `plugins/`
-- [ ] Vision smoke (1 image prompt for `*-VL`)
+- [ ] Vision smoke (3 images prompt for `*-VL`)
 
 ## Capacity / dual
 
 - [ ] True chat+coder dual (two different models), not only 2× same model
 - [ ] Optional descending `c` ladder (fail-fast from high context)
+- [x] Auto-skip dual when host RAM/GTT below thresholds (~64 / ~48 GiB); `--skip-dual` / `--force-dual`
+- [x] `full` matrix omits dual (optional suite — `capacity dual` / profile `default`)
 
 ## Planner / apply
 
-- [ ] Auto-pick sticky_count=1|2 from capacity+sched into `plan.json`
+- [x] Auto-pick sticky_count=1|2 from host RAM/GTT + capacity dual into planner (high-mem → prefer 2; tight without dual → 1 only)
 - [ ] Quality pass@1 as tie-breaker in planner catalogue
 
 ## Docs / forks
