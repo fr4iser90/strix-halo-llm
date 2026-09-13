@@ -154,7 +154,7 @@ wait_for_url() {
 }
 
 ensure_model_on_url() {
-  local base_url="$1" model="$2"
+  local base_url="$1" model="$2" label="${3:-}"
   local list status
   list="$(curl -sfS --max-time 30 "$base_url/v1/models")" || return 1
   status="$(bench_python -c "
@@ -171,7 +171,11 @@ else:
   if [[ "$status" == "loaded" || "$status" == "present" ]]; then
     [[ "$status" == "loaded" ]] && return 0
   fi
-  log "load $model on $base_url"
+  if [[ -n "$label" ]]; then
+    log "load $label"
+  else
+    log "load $model"
+  fi
   curl -sfS --max-time 600 -X POST "$base_url/models/load" \
     -H "Content-Type: application/json" \
     -d "{\"model\":\"$model\"}" >/dev/null || return 1

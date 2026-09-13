@@ -76,9 +76,9 @@ run_dual_cell() {
   patch_bench_section "$CAPACITY_INI_B" "$MODEL" "$kv" "$C_VAL"
   restart_bench_ab
 
-  if ! ensure_model_on_url "$CAPACITY_URL_A" "$MODEL"; then
+  if ! ensure_model_on_url "$CAPACITY_URL_A" "$MODEL" "$key (a)"; then
     ok=0; phase="load_a"
-  elif ! ensure_model_on_url "$CAPACITY_URL_B" "$MODEL"; then
+  elif ! ensure_model_on_url "$CAPACITY_URL_B" "$MODEL" "$key (b)"; then
     ok=0; phase="load_b"
   fi
 

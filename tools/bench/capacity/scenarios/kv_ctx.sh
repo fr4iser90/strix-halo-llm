@@ -75,7 +75,7 @@ run_cell() {
   patch_bench_section "$CAPACITY_INI_A" "$MODEL" "$kv" "$c"
   restart_bench_a
 
-  if ! ensure_model_on_url "$CAPACITY_URL_A" "$MODEL"; then
+  if ! ensure_model_on_url "$CAPACITY_URL_A" "$MODEL" "$key"; then
     ok=0
     phase="load"
   fi

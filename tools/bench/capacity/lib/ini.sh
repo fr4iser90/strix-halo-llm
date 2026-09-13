@@ -44,7 +44,9 @@ if not section_found:
     raise SystemExit(f"section [{section}] not found in {ini}")
 open(ini, "w", encoding="utf-8").writelines(out)
 PY
-  log "patched $(basename "$ini") [${section}] ${key}=${val}"
+  if [[ "${CAPACITY_PATCH_VERBOSE:-0}" == "1" ]]; then
+    log "patched $(basename "$ini") [${section}] ${key}=${val}"
+  fi
 }
 
 get_ini_section_key() {
