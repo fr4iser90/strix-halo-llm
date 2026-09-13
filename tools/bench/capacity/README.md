@@ -8,7 +8,7 @@ Auto-syncs `models-bench.ini` (+ `-b`) from sticky sources, then runs KV×ctx / 
 ./bench capacity stale
 ./bench capacity kv-ctx                 # solo: all models × KV × c
 ./bench capacity dual                   # 2× servers; c auto from GTT/RAM
-CAPACITY_DUAL_C=65536,131072 ./bench capacity dual --kv q5_k,q6_k
+CAPACITY_DUAL_C=65536,131072 ./bench capacity dual --kv q5_0,q4_0
 ```
 
 **Dual `c`:** default `auto` picks a ladder from host memory (small boxes → 8k–64k,

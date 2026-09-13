@@ -42,6 +42,9 @@ CAPACITY_MODEL_LIST="$(IFS=,; echo "${MODELS[*]}")"
 prepare_capacity_gpu
 start_bench_a
 detect_server_fingerprint
+probe_kv_cache_types
+filter_kv_list_inplace "${CAPACITY_KV_LIST}"
+KV_LIST="$CAPACITY_KV_LIST"
 init_capacity_run "kv-ctx"
 IFS=',' read -ra KV_VALUES <<< "$KV_LIST"
 IFS=',' read -ra C_VALUES <<< "$C_LIST"
@@ -61,8 +64,8 @@ run_cell() {
     return 0
   fi
 
-  if [[ "$kv" == "q4_k" && "$c" -lt "$q4_min_c" ]]; then
-    log "skip $key (q4 below min c=$q4_min_c)"
+  if [[ "$kv" == q4_0 || "$kv" == q4_1 || "$kv" == iq4_nl ]] && [[ "$c" -lt "$q4_min_c" ]]; then
+    log "skip $key (q4-family below min c=$q4_min_c)"
     echo "{\"key\":\"$key\",\"skipped\":true,\"reason\":\"q4_min_c\",\"ok\":true,\"mode\":\"solo\",\"model\":\"$MODEL\",\"kv\":\"$kv\",\"c\":$c}" \
       >>"$CAPACITY_RUN_DIR/matrix.jsonl"
     return 0

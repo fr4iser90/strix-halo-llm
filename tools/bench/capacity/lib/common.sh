@@ -23,8 +23,11 @@ CAPACITY_URL_B="${CAPACITY_URL_B:-http://localhost:11602}"
 # Empty → all models in models-bench.ini (after auto-sync)
 CAPACITY_MODEL="${CAPACITY_MODEL:-}"
 CAPACITY_BACKEND="${CAPACITY_BACKEND:-vulkan}"
-CAPACITY_KV_LIST="${CAPACITY_KV_LIST:-q8_0,q6_k,q5_k,q4_k}"
+CAPACITY_KV_LIST="${CAPACITY_KV_LIST:-q8_0,q5_0,q4_0}"
 CAPACITY_C_LIST="${CAPACITY_C_LIST:-32768,65536,131072,196608,262144}"
+# Fallback if help probe fails (matches current llama.cpp --cache-type-k)
+CAPACITY_KV_FALLBACK_ALLOWED="${CAPACITY_KV_FALLBACK_ALLOWED:-f32,f16,bf16,q8_0,q4_0,q4_1,iq4_nl,q5_0,q5_1}"
+CAPACITY_KV_ALLOWED="${CAPACITY_KV_ALLOWED:-}"
 CAPACITY_FILL_RATIO="${CAPACITY_FILL_RATIO:-0.90}"
 CAPACITY_MAX_TOKENS="${CAPACITY_MAX_TOKENS:-32}"
 CAPACITY_SKIP_EXISTING="${CAPACITY_SKIP_EXISTING:-1}"
@@ -314,6 +317,109 @@ detect_server_fingerprint() {
   CAPACITY_IMAGE_ID="$img"
   export CAPACITY_SERVER_VERSION CAPACITY_IMAGE_ID CAPACITY_IMAGE_NAME
   log "fingerprint server=${CAPACITY_SERVER_VERSION} image=${CAPACITY_IMAGE_ID}"
+}
+
+# Parse --cache-type-k allowed values from llama-server -h (inside image).
+probe_kv_cache_types() {
+  local help="" raw="" help_file
+  CAPACITY_IMAGE_NAME="${CAPACITY_IMAGE_NAME:-llama-cpp-vulkan-nix}"
+  if command -v docker >/dev/null 2>&1; then
+    if container_running llama-bench-a; then
+      help="$(docker exec llama-bench-a /bin/llama-server -h 2>&1 || true)"
+    else
+      help="$(docker run --rm --pull=never --entrypoint /bin/llama-server "$CAPACITY_IMAGE_NAME" -h 2>&1 || true)"
+    fi
+  fi
+  help_file="$(mktemp)"
+  printf '%s\n' "$help" >"$help_file"
+  raw="$(bench_python - "$help_file" <<'PY'
+import re, sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+# Main -ctk / --cache-type-k (not -draft)
+m = re.search(
+    r"(?:-ctk,\s*)?--cache-type-k(?!-draft)\b.*?allowed values:\s*([^\n(]+)",
+    text,
+    flags=re.I | re.S,
+)
+if not m:
+    sys.exit(0)
+vals = [v.strip().lower() for v in m.group(1).split(",") if v.strip()]
+print(",".join(vals))
+PY
+)"
+  rm -f "$help_file"
+  if [[ -n "$raw" ]]; then
+    CAPACITY_KV_ALLOWED="$raw"
+  else
+    CAPACITY_KV_ALLOWED="$CAPACITY_KV_FALLBACK_ALLOWED"
+    log "warn: could not parse --cache-type-k from llama-server -h — using fallback: $CAPACITY_KV_ALLOWED"
+  fi
+  export CAPACITY_KV_ALLOWED
+  log "KV cache types allowed: $CAPACITY_KV_ALLOWED"
+}
+
+# Map legacy weight-quant names → real KV types; drop unsupported.
+# Requires probe_kv_cache_types (or CAPACITY_KV_ALLOWED). Updates CAPACITY_KV_LIST.
+filter_kv_list_inplace() {
+  local requested="${1:-$CAPACITY_KV_LIST}"
+  local tmp_err out
+  [[ -n "${CAPACITY_KV_ALLOWED:-}" ]] || probe_kv_cache_types
+  tmp_err="$(mktemp)"
+  out="$(
+    bench_python - "$requested" "$CAPACITY_KV_ALLOWED" 2>"$tmp_err" <<'PY'
+import sys
+req, allowed_csv = sys.argv[1], sys.argv[2]
+allowed = {x.strip().lower() for x in allowed_csv.split(",") if x.strip()}
+# GGUF weight quants ≠ KV cache types (common matrix footgun)
+aliases = {
+    "q4_k": "q4_0",
+    "q5_k": "q5_0",
+    "q6_k": None,
+    "q4": "q4_0",
+    "q5": "q5_0",
+    "q8": "q8_0",
+}
+out, seen = [], set()
+for raw in req.split(","):
+    t = raw.strip().lower()
+    if not t:
+        continue
+    orig = t
+    if t in aliases:
+        mapped = aliases[t]
+        if mapped is None:
+            print(f"kv drop {orig}: weight quant, not a KV cache type (try q5_0)", file=sys.stderr)
+            continue
+        if mapped != t:
+            print(f"kv alias {orig} → {mapped}", file=sys.stderr)
+        t = mapped
+    if t not in allowed:
+        print(f"kv drop {t}: not in llama-server allow-list", file=sys.stderr)
+        continue
+    if t in seen:
+        continue
+    seen.add(t)
+    out.append(t)
+if not out:
+    for prefer in ("q8_0", "q5_0", "q4_0", "f16"):
+        if prefer in allowed:
+            out = [prefer]
+            break
+    if not out and allowed:
+        out = [sorted(allowed)[0]]
+    print(f"kv fallback → {','.join(out)}", file=sys.stderr)
+print(",".join(out))
+PY
+  )"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] && log "$line"
+  done <"$tmp_err"
+  rm -f "$tmp_err"
+  [[ -n "$out" ]] || die "no usable KV cache types after filter (requested=$requested allowed=$CAPACITY_KV_ALLOWED)"
+  CAPACITY_KV_LIST="$out"
+  export CAPACITY_KV_LIST
+  log "KV list: $CAPACITY_KV_LIST"
 }
 
 # Returns 0 if cell should be skipped (same key + ok + matching fingerprint).

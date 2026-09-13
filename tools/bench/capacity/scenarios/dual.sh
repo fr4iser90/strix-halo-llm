@@ -4,14 +4,14 @@
 #
 #   ./bench capacity dual
 #   CAPACITY_DUAL_C=131072 ./bench capacity dual
-#   CAPACITY_DUAL_C=32768,65536,131072 ./bench capacity dual --kv q5_k,q6_k
+#   CAPACITY_DUAL_C=32768,65536,131072 ./bench capacity dual --kv q5_0,q4_0
 set -euo pipefail
 
 CAPACITY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "$CAPACITY_ROOT/lib/common.sh"
 
-KV_LIST="${CAPACITY_DUAL_KV_LIST:-${CAPACITY_KV_LIST:-q8_0,q6_k,q5_k}}"
+KV_LIST="${CAPACITY_DUAL_KV_LIST:-${CAPACITY_KV_LIST:-q8_0,q5_0,q4_0}}"
 C_LIST="$(resolve_dual_c_list)"
 export CAPACITY_DUAL_C_LIST="$C_LIST"
 
@@ -50,6 +50,9 @@ compose_bench up -d llama-bench-a llama-bench-b
 wait_for_url "$CAPACITY_URL_A" 120 || die "bench-a not reachable"
 wait_for_url "$CAPACITY_URL_B" 120 || die "bench-b not reachable"
 detect_server_fingerprint
+probe_kv_cache_types
+filter_kv_list_inplace "$KV_LIST"
+KV_LIST="$CAPACITY_KV_LIST"
 init_capacity_run "dual"
 IFS=',' read -ra KV_VALUES <<< "$KV_LIST"
 IFS=',' read -ra C_VALUES <<< "$C_LIST"

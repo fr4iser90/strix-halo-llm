@@ -41,7 +41,7 @@ Auto (default):
 Options:
   --model NAME             only this model (default: all in bench ini)
   --from LIST              sync sources: coder,chat,lab  (default coder,chat)
-  --kv LIST                default q8_0,q6_k,q5_k,q4_k
+  --kv LIST                KV cache types (default q8_0,q5_0,q4_0; probed vs llama-server -h)
   --c LIST                 solo kv-ctx contexts (default 32k…256k)
   --force                  re-run even if ledger has ok cell
   --no-skip                disable skip-existing
@@ -55,7 +55,7 @@ Examples:
   ./bench capacity sync
   ./bench capacity kv-ctx
   ./bench capacity dual
-  CAPACITY_DUAL_C=65536 ./bench capacity dual --kv q5_k,q6_k
+  CAPACITY_DUAL_C=65536 ./bench capacity dual --kv q5_0,q4_0
 EOF
 }
 

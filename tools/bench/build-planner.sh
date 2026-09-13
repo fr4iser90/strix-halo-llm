@@ -73,7 +73,7 @@ WEIGHTS = {
     "Qwen3.8-Flash-Next-UD-Q4_K_XL-MTP-VL": 101.0,
 }
 
-KV_RANK = {"q8_0": 4, "q6_k": 3, "q5_k": 2, "q4_k": 1}
+KV_RANK = {"q8_0": 4, "q5_1": 3, "q5_0": 2, "q4_0": 1, "q4_1": 1, "iq4_nl": 1, "f16": 0}
 
 def load_capacity(path: str):
     """Per model: solo/dual max ok c + best kv at that c."""

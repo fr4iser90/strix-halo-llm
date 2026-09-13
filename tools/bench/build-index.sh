@@ -418,7 +418,7 @@ if os.path.isfile(cap_cmp):
         "",
         "```bash",
         "./bench capacity kv-ctx --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
-        "./bench capacity dual --kv q5_k,q6_k   # c auto from RAM/GTT",
+        "./bench capacity dual --kv q5_0,q4_0   # c auto from RAM/GTT",
         "```",
     ]
 else:
