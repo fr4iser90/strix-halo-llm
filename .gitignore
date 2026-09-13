@@ -12,6 +12,16 @@ result-*
 !.env.example
 !**/*.env.example
 
+# Live model presets (machine-local). Templates: examples/ini/
+# Regenerated: ./bench sync-models  +  ./bench capacity sync
+/models.ini
+/models-coder.ini
+/models-lab.ini
+/models-embeddings.ini
+/models-extractor.ini
+/models-bench.ini
+/models-bench-b.ini
+
 # Python / tooling
 __pycache__/
 *.py[cod]

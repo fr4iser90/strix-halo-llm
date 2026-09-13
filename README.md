@@ -38,6 +38,9 @@ The API model name is the INI section name (filename without `.gguf`).
 ```bash
 # 1. Dirs + models (optional)
 ./model-dl.sh init-dirs
+cp examples/ini/models.ini examples/ini/models-coder.ini .   # sticky (gitignored live)
+# edit paths to match your GGUFs, then:
+./bench sync-models             # lab/emb/extractor from ./models/ (+ *-VL if mmproj)
 ./model-dl.sh download          # missing models referenced by models.ini
 
 # Optional API-only (no Web UI): cp .env.example .env && set LLAMA_WEBUI=false
@@ -304,11 +307,11 @@ curl -X POST http://localhost:11535/models/unload \
 ## Add a new model
 
 1. Place the GGUF in the matching folder (e.g. `models/chat/small/`)
-2. Add a section in `models.ini`, `models-lab.ini`, `models-embeddings.ini`, or `models-extractor.ini`
+2. Run `./bench sync-models` — adds lab (+ `*-VL` if a matching mmproj exists). Sticky: edit `models.ini` / `models-coder.ini` yourself (templates in `examples/ini/`).
 3. Optional: catalog row in `models.catalog.tsv` for HF download
 4. `docker compose up -d` (INI remounted)
 
-Example `models.ini`:
+Example sticky `models.ini` (also under `examples/ini/`):
 
 ```ini
 [My-Model-Q4_K_M]
@@ -316,6 +319,7 @@ model = /models/chat/small/My-Model-Q4_K_M.gguf
 np = 4
 c = 16384
 b = 512
+load-on-startup = true
 ```
 
 **Context:** One model name per GGUF. Large daily/lab presets often use high `c` (see live INI / [`setup.md`](setup.md)). Clients should read **`context_length`** from `GET /v1/models` (gateway).
@@ -361,11 +365,13 @@ Startup model: `load-on-startup = true` in the desired sticky INI section
 | `compose.rocm.yaml` | ROCm stack |
 | `build-nix-image.sh` | Canonical Vulkan image build |
 | `Dockerfile*` | Legacy / ROCm — see comments in file |
-| `models.ini` | Daily sticky chat presets |
-| `models-lab.ini` | Lab router (`:11537`, profile `lab`) |
-| `models-coder.ini` | Sticky coder (`:11538`) |
-| `models-embeddings.ini` | Embedding models |
-| `models-extractor.ini` | Knowledge extractor (Agents-K1, `:11539`) |
+| `examples/ini/` | Committed sticky templates (copy → root) |
+| `models.ini` | Daily sticky chat — **local / gitignored** |
+| `models-lab.ini` | Lab — **local**; `./bench sync-models` from disk |
+| `models-coder.ini` | Sticky coder — **local / gitignored** |
+| `models-embeddings.ini` | Embeddings — **local**; sync-models |
+| `models-extractor.ini` | Extractor — **local**; sync-models |
+| `models-bench.ini` (+ `-b`) | Capacity — **local**; `./bench capacity sync` |
 | `models.catalog.tsv` | HF download sources |
 | `model-dl.sh` | Download script |
 | `vulkan-host-env.sh` | Legacy Mesa preload (unused by Nix image) |

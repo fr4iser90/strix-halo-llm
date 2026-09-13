@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply scheduling benchmark recommendations to models-lab.ini / models.ini.
+# Apply scheduling / planner recommendations to models*.ini.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,7 +12,9 @@ TARGET="lab"
 SUMMARY="${BENCH_APPLY_SUMMARY:-$PROJECT_ROOT/output/bench/scheduling/latest/summary.json}"
 INI_LAB="$PROJECT_ROOT/models-lab.ini"
 INI_DAILY="$PROJECT_ROOT/models.ini"
+INI_CODER="$PROJECT_ROOT/models-coder.ini"
 BACKUP=1
+PLAN_FILE=""
 
 die() { printf '[bench apply-ini] error: %s\n' "$*" >&2; exit 1; }
 
@@ -20,28 +22,27 @@ usage() {
   cat <<'EOF'
 Usage: ./bench apply-ini [options]
 
-Patch model sections in models-lab.ini (and optionally models.ini) from
-output/bench/scheduling/latest/summary.json + latest ctx/cont_batch runs.
+Patch model sections from sched recommendations OR from planner plan.json.
 
 Options:
   --dry-run          show plan only, do not write
-  --lab              patch models-lab.ini only (default)
+  --lab              patch models-lab.ini only (default; sched mode)
   --daily            patch models.ini only (matching sections)
   --both             patch lab + daily where section exists
+  --plan FILE        apply planner export (plan.json) → sticky INIs
   --summary FILE     recommendations JSON (default: scheduling/latest/summary.json)
   --no-backup        skip .bak.<timestamp> before write
 
-Keys applied per model (when bench data exists):
-  np, ub, b          from scheduling sweeps
-  c                  from 08_ctx_sweep (largest ctx with valid run, else keep)
-  fit                off (bench uses explicit c); see 09_fit_probe for hint
+Planner (--plan): writes np/c/ub/b/ctk/ctv/fit into:
+  mode solo → models.ini
+  mode dual → models.ini + models-coder.ini
+  mode lab  → models-lab.ini
+Section must already exist (or only keys present are updated; missing section = warn).
 
-Cont-batching is NOT applied to any file (process CLI flag, not INI).
-Scenario 07 measures on/off; the recommendation stays in apply-plan.json
-for the dashboard. Daily/lab keep llama.cpp default (cont-batching ON).
+Sched mode keys: np, ub, b, c, fit=off. Cont-batching is advisory only.
 
-After apply: restart routers manually or ./bench sched triggers lab restart.
-
+After apply: recreate routers, e.g.
+  docker compose up -d --force-recreate llama
 EOF
 }
 
@@ -53,6 +54,10 @@ while [[ $# -gt 0 ]]; do
     --lab) TARGET="lab" ;;
     --daily) TARGET="daily" ;;
     --both) TARGET="both" ;;
+    --plan)
+      shift
+      PLAN_FILE="${1:?--plan needs file}"
+      ;;
     --summary)
       shift
       SUMMARY="${1:?--summary needs file}"
@@ -61,6 +66,139 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+# --- Planner plan.json path -------------------------------------------------
+if [[ -n "$PLAN_FILE" ]]; then
+  [[ -f "$PLAN_FILE" ]] || die "missing plan: $PLAN_FILE"
+  bench_python - "$PROJECT_ROOT" "$PLAN_FILE" "$INI_DAILY" "$INI_CODER" "$INI_LAB" "$DRY_RUN" "$BACKUP" <<'PY'
+import json, os, re, shutil, sys
+from datetime import datetime, timezone
+
+root, plan_path, ini_daily, ini_coder, ini_lab, dry_run, backup = sys.argv[1:8]
+dry_run = dry_run == "1"
+backup = backup == "1"
+
+with open(plan_path, encoding="utf-8") as f:
+    plan = json.load(f)
+
+mode = plan.get("mode") or "solo"
+chat = plan.get("chat") or {}
+coder = plan.get("coder")
+
+def patch_ini(path, updates_by_section):
+    if not os.path.isfile(path):
+        print(f"  warn: missing {path}", file=sys.stderr)
+        return []
+    with open(path, encoding="utf-8") as f:
+        lines = f.readlines()
+    changes = []
+    current = None
+    out = []
+    key_re = re.compile(r"^([A-Za-z0-9_-]+)\s*=")
+    wanted = set(updates_by_section.keys())
+    found = set()
+    for line in lines:
+        sec = re.match(r"^\[([^\]]+)\]\s*$", line)
+        if sec:
+            current = sec.group(1)
+            if current in wanted:
+                found.add(current)
+            out.append(line)
+            continue
+        if current in updates_by_section:
+            m = key_re.match(line)
+            if m:
+                key = m.group(1)
+                if key in updates_by_section[current]:
+                    new = str(updates_by_section[current][key])
+                    old = line.strip().split("=", 1)[-1].strip()
+                    if old != new:
+                        changes.append((current, key, old, new))
+                        line = f"{key} = {new}\n"
+        out.append(line)
+    missing = wanted - found
+    for m in missing:
+        print(f"  warn: section [{m}] not in {os.path.basename(path)} — skip (add section or sync-models)", file=sys.stderr)
+    if not changes:
+        return []
+    if dry_run:
+        return changes
+    if backup:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        shutil.copy2(path, f"{path}.bak.{ts}")
+    with open(path, "w", encoding="utf-8") as f:
+        f.writelines(out)
+    return changes
+
+def section_upd(block):
+    if not block or not block.get("model"):
+        return None, {}
+    name = block["model"]
+    upd = {"fit": "off"}
+    for k in ("np", "c", "ub", "b"):
+        if block.get(k) is not None:
+            upd[k] = block[k]
+    kv = block.get("kv")
+    if kv:
+        upd["ctk"] = kv
+        upd["ctv"] = kv
+    if mode in ("solo", "dual") and block.get("ini") != "models-lab.ini":
+        upd["load-on-startup"] = "true"
+    return name, upd
+
+jobs = []
+if mode == "lab":
+    name, upd = section_upd(chat)
+    if name:
+        jobs.append((ini_lab, {name: upd}))
+elif mode == "dual":
+    name, upd = section_upd(chat)
+    if name:
+        jobs.append((ini_daily, {name: upd}))
+    if coder:
+        name2, upd2 = section_upd(coder)
+        if name2:
+            jobs.append((ini_coder, {name2: upd2}))
+else:  # solo
+    name, upd = section_upd(chat)
+    if name:
+        jobs.append((ini_daily, {name: upd}))
+
+print(f"plan mode={mode} sticky_count={plan.get('sticky_count')}")
+all_changes = []
+for path, updates in jobs:
+    ch = patch_ini(path, updates)
+    for section, key, old, new in ch:
+        all_changes.append((path, section, key, old, new))
+
+# stash copy under output for audit
+out_dir = os.path.join(root, "output/bench/scheduling/latest")
+os.makedirs(out_dir, exist_ok=True)
+audit = os.path.join(out_dir, "planner-plan-applied.json")
+if not dry_run:
+    with open(audit, "w", encoding="utf-8") as f:
+        json.dump(plan, f, indent=2)
+        f.write("\n")
+    print(f"Wrote {audit}")
+
+if dry_run:
+    print("DRY RUN — no files written.")
+elif not all_changes:
+    print("No ini changes (already up to date or sections missing).")
+else:
+    print("Applied changes:")
+    for path, section, key, old, new in all_changes:
+        print(f"  {os.path.basename(path)} [{section}] {key}: {old} → {new}")
+
+if mode == "solo":
+    print("Restart: docker compose up -d --force-recreate llama")
+elif mode == "dual":
+    print("Restart: docker compose up -d --force-recreate llama llama-coder")
+else:
+    print("Restart: docker compose --profile lab up -d --force-recreate llama-lab")
+PY
+  exit $?
+fi
 
 [[ -f "$SUMMARY" ]] || die "missing summary: $SUMMARY (run ./bench compare-sched first)"
 

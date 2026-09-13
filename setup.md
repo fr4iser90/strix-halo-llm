@@ -19,10 +19,10 @@ With Sticky loaded (Qwen3.6 Q5 VL, `c=262144`, `np=4`): ~57 GiB used / ~67 G
 
 | Router | Port | INI | Behavior |
 |---|---|---|---|
-| **Sticky chat** (`llama-router`) | `:11535` | `models.ini` | Chat VL, `load-on-startup`, always warm |
-| **Sticky coder** (`llama-router-coder`) | `:11538` | `models-coder.ini` | Coder/Tiel, always warm |
-| **Lab** (`llama-router-lab`) | `:11537` | `models-lab.ini` | Swap pool / experiments |
-| **Bench A/B** (`llama-bench-a/b`) | `:11601` / `:11602` | `models-bench.ini` (+ `-b`) | Capacity sweeps — stickys untouched |
+| **Sticky chat** (`llama-router`) | `:11535` | `models.ini` (local; template `examples/ini/`) | Chat VL, `load-on-startup`, always warm |
+| **Sticky coder** (`llama-router-coder`) | `:11538` | `models-coder.ini` (local) | Coder/Tiel, always warm |
+| **Lab** (`llama-router-lab`) | `:11537` | `models-lab.ini` ← `./bench sync-models` | Swap pool / experiments (+ VL twins) |
+| **Bench A/B** (`llama-bench-a/b`) | `:11601` / `:11602` | `models-bench.ini` ← capacity sync | Capacity sweeps — stickys untouched |
 | **Embeddings** | `:11536` | `models-embeddings.ini` | Small; can run in parallel |
 | **Extractor** | `:11539` | `models-extractor.ini` | Agents-K1; parallel |
 

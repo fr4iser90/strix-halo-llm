@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build interactive dual/solo recommendation planner HTML from bench summary.json
+# Build interactive sticky planner (capacity + sched ★) → output/bench/planner.html
+# Published to docs/ via ./bench publish.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,20 +11,48 @@ source "$SCRIPT_DIR/lib/python.sh"
 OUT="$PROJECT_ROOT/output/bench"
 SCH="$OUT/scheduling/latest"
 SUMMARY="$SCH/summary.json"
+HOST_JSON="$OUT/host.json"
+CELLS="$OUT/capacity/cells.jsonl"
 PLANNER="$OUT/planner.html"
 
 mkdir -p "$OUT" "$SCH"
 
-bench_python - "$SUMMARY" "$PLANNER" <<'PY'
+bench_python - "$SUMMARY" "$PLANNER" "$HOST_JSON" "$CELLS" <<'PY'
 import json, os, sys
 from pathlib import Path
 
-summary_path, out_path = sys.argv[1], sys.argv[2]
+summary_path, out_path, host_path, cells_path = sys.argv[1:5]
+
 recs = []
 if os.path.isfile(summary_path):
     with open(summary_path, encoding="utf-8") as f:
         data = json.load(f)
     recs = data.get("recommendations") or []
+
+host = {
+    "gtt_gib": 100.0,
+    "ram_gib": 124.0,
+    "os_reserve_gib": 16.0,
+    "kv_gib_per_token_slot": 30.0 / (262144 * 4),
+}
+if os.path.isfile(host_path):
+    with open(host_path, encoding="utf-8") as f:
+        hj = json.load(f)
+    # probe-host uses various shapes — be tolerant
+    gtt = hj.get("gtt_total_gib") or hj.get("gtt_gib")
+    ram = hj.get("ram_gib") or hj.get("mem_total_gib")
+    if gtt is None and hj.get("gtt_total_mib"):
+        gtt = float(hj["gtt_total_mib"]) / 1024.0
+    if ram is None and hj.get("ram_mib"):
+        ram = float(hj["ram_mib"]) / 1024.0
+    if gtt is None and hj.get("gtt_total_mb"):
+        gtt = float(hj["gtt_total_mb"]) / 1024.0
+    if ram is None and hj.get("mem_total_mb"):
+        ram = float(hj["mem_total_mb"]) / 1024.0
+    if gtt:
+        host["gtt_gib"] = float(gtt)
+    if ram:
+        host["ram_gib"] = float(ram)
 
 WEIGHTS = {
     "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL": 26.0,
@@ -33,27 +62,89 @@ WEIGHTS = {
     "Qwen3.6-35B-A3B-MTP-UD-Q4_K_XL": 22.0,
     "Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL": 21.0,
     "Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL": 17.0,
+    "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL": 26.0,
     "Qwen3.8-27B-Q4_K_M-MTP": 21.0,
     "Qwen3.8-27B-Q4_K_M-MTP-VL": 22.0,
+    "Qwen3.8-27B-UD-Q4_K_M-MTP": 21.0,
+    "Qwen3.8-27B-UD-Q4_K_M-MTP-VL": 22.0,
     "Qwen3.8-27B-Q8_0-MTP": 32.0,
     "Qwen3.8-27B-Q8_0-MTP-VL": 33.0,
+    "Qwen3.8-Flash-Next-UD-Q4_K_XL-MTP": 100.0,
+    "Qwen3.8-Flash-Next-UD-Q4_K_XL-MTP-VL": 101.0,
 }
 
+KV_RANK = {"q8_0": 4, "q6_k": 3, "q5_k": 2, "q4_k": 1}
+
+def load_capacity(path: str):
+    """Per model: solo/dual max ok c + best kv at that c."""
+    cap = {}
+    if not os.path.isfile(path):
+        return cap
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if r.get("skipped") and not r.get("ok"):
+                continue
+            if not r.get("ok"):
+                # still record fail ceiling? skip
+                continue
+            model = r.get("model")
+            mode = r.get("mode") or "solo"
+            kv = r.get("kv") or ""
+            try:
+                c = int(r.get("c") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not model or c <= 0:
+                continue
+            entry = cap.setdefault(model, {"solo": {}, "dual": {}})
+            bucket = entry.setdefault(mode if mode in ("solo", "dual") else "solo", {})
+            prev = bucket.get(kv)
+            if prev is None or c > prev:
+                bucket[kv] = c
+            # weight hint from GTT peak minus rough OS — optional
+            peak = (r.get("metrics_peak") or {}).get("gtt_used_mb")
+            if peak and model not in WEIGHTS and mode == "solo" and c <= 65536:
+                # crude floor at small ctx
+                WEIGHTS[model] = round(float(peak) / 1024.0, 1)
+    # summarize
+    out = {}
+    for model, modes in cap.items():
+        sm = {}
+        for mode, by_kv in modes.items():
+            if not by_kv:
+                continue
+            # pick: max c; tie-break higher quality kv
+            best_c = max(by_kv.values())
+            candidates = [kv for kv, c in by_kv.items() if c == best_c]
+            best_kv = max(candidates, key=lambda k: KV_RANK.get(k, 0))
+            sm[mode] = {
+                "max_c": best_c,
+                "kv": best_kv,
+                "by_kv": by_kv,
+            }
+        out[model] = sm
+    return out
+
+capacity = load_capacity(cells_path)
+
 payload = {
-    "host": {
-        "gtt_gib": 100.0,
-        "ram_gib": 124.0,
-        "os_reserve_gib": 16.0,
-        "kv_gib_per_token_slot": 30.0 / (262144 * 4),
-    },
+    "host": host,
     "weights_gib": WEIGHTS,
     "recommendations": recs,
+    "capacity": capacity,
 }
 
 html = r'''<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bench planner — sticky / dual recommendations</title>
+<title>Bench planner — sticky recommendations</title>
 <style>
 :root { color-scheme: dark; --bg:#12141a; --card:#1a1d24; --line:#2a2e37; --muted:#9aa0a6; --text:#e8eaed; --accent:#8ab4f8; --ok:#7ddea5; --warn:#f0c674; --bad:#f0a0a0; }
 * { box-sizing: border-box; }
@@ -89,27 +180,32 @@ table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: .
 th, td { padding: .35rem .45rem; border-bottom: 1px solid var(--line); text-align: left; }
 th { color: var(--muted); font-weight: 600; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
-button.copy { background:#2a3444;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:.4rem .7rem;cursor:pointer;font:inherit; }
+button.copy, button.dl { background:#2a3444;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:.4rem .7rem;cursor:pointer;font:inherit;margin-right:.4rem; }
+.coder-wrap.hidden { display: none; }
+.cap-pill { display:inline-block; font-size:.75rem; padding:.1rem .45rem; border-radius:999px; border:1px solid var(--line); margin-left:.35rem; }
+.cap-pill.ok { border-color: var(--ok); color: var(--ok); }
+.cap-pill.bad { border-color: var(--bad); color: var(--bad); }
 </style></head><body>
 <main>
   <h1>Recommendation planner</h1>
-  <p class="meta">Select models and tweak <code>np</code>/<code>c</code> live. Bench ★ values come from
-  <code>scheduling/latest/summary.json</code>. Dual budget uses GTT=100 GiB heuristic
-  (<a href="../../setup.md">setup.md</a>).
-  <a href="index.html">Dashboard</a> · <a href="scheduling/latest/compare.html">Sweeps</a></p>
+  <p class="meta">Pick <strong>1 sticky</strong> or <strong>2 stickys</strong> (chat + coder). Defaults: sched ★ + capacity max <code>c</code> that passed.
+  GTT from <code>host.json</code>. Pages = view/copy only — apply on the host with CLI below.
+  <a href="index.html">Dashboard</a> · <a href="capacity/latest/compare.md">Capacity</a> · <a href="scheduling/latest/compare.html">Sweeps</a></p>
 
   <div class="grid">
     <section class="card">
       <h2>Scenario</h2>
       <div class="modes" id="modes">
-        <button type="button" data-mode="solo" class="active">Solo sticky</button>
-        <button type="button" data-mode="dual">Dual warm (chat + coder)</button>
+        <button type="button" data-mode="solo" class="active">1 sticky</button>
+        <button type="button" data-mode="dual">2 stickys (chat + coder)</button>
         <button type="button" data-mode="lab">Lab only</button>
       </div>
       <label for="chatModel">Chat / sticky model</label>
       <select id="chatModel"></select>
-      <label for="coderModel">Coder model</label>
-      <select id="coderModel"></select>
+      <div class="coder-wrap" id="coderWrap">
+        <label for="coderModel">Coder sticky model</label>
+        <select id="coderModel"></select>
+      </div>
       <div class="row">
         <div>
           <label for="npChat">np chat override</label>
@@ -123,14 +219,14 @@ button.copy { background:#2a3444;color:var(--text);border:1px solid var(--line);
       <div class="row">
         <div>
           <label for="cChat">c chat override</label>
-          <input id="cChat" type="number" min="4096" max="262144" step="4096" placeholder="use ★ / 131072">
+          <input id="cChat" type="number" min="4096" max="262144" step="4096" placeholder="★ / capacity">
         </div>
         <div>
           <label for="cCoder">c coder override</label>
-          <input id="cCoder" type="number" min="4096" max="262144" step="4096" placeholder="use ★ / 131072">
+          <input id="cCoder" type="number" min="4096" max="262144" step="4096" placeholder="★ / capacity">
         </div>
       </div>
-      <p class="meta" style="margin-top:.75rem">Leave overrides empty to use bench ★ (or 131072 / np=2 if ★ missing).</p>
+      <p class="meta" style="margin-top:.75rem">Empty overrides → sched ★, capped by capacity solo max <code>c</code> when available.</p>
     </section>
 
     <section class="card">
@@ -141,13 +237,28 @@ button.copy { background:#2a3444;color:var(--text);border:1px solid var(--line);
       <ul class="notes" id="notes"></ul>
       <h2 style="margin-top:1.1rem">INI snippet</h2>
       <pre id="snippet"></pre>
-      <p class="meta"><button type="button" class="copy" id="copyBtn">Copy snippet</button></p>
+      <p class="meta" style="margin-top:.6rem">
+        <button type="button" class="copy" id="copyBtn">Copy snippet</button>
+        <button type="button" class="dl" id="dlPlan">Download plan.json</button>
+      </p>
+      <h2 style="margin-top:1.1rem">Apply on host</h2>
+      <pre id="applyCmd"></pre>
+      <p class="meta"><button type="button" class="copy" id="copyApply">Copy apply command</button></p>
     </section>
   </div>
 
   <section class="card" style="margin-top:1rem">
-    <h2>Bench ★ catalogue</h2>
-    <p class="meta">Missing ★ = that sweep was not run yet (e.g. Coder <code>c</code>).</p>
+    <h2>Capacity (ok cells)</h2>
+    <p class="meta">Max context that loaded + streamed. Dual = two containers, same model.</p>
+    <table>
+      <thead><tr><th>Model</th><th>solo max c</th><th>solo kv</th><th>dual max c</th><th>dual kv</th></tr></thead>
+      <tbody id="capTable"></tbody>
+    </table>
+  </section>
+
+  <section class="card" style="margin-top:1rem">
+    <h2>Sched ★ catalogue</h2>
+    <p class="meta">Missing ★ = sweep not run yet.</p>
     <table>
       <thead><tr><th>Model</th><th class="n">np</th><th class="n">ub</th><th class="n">b</th><th class="n">c</th><th>cont</th><th class="n">decode ms</th><th class="n">GiB</th></tr></thead>
       <tbody id="catalog"></tbody>
@@ -168,6 +279,9 @@ function num(v, fallback) {
 function recFor(name) {
   return (DATA.recommendations || []).find(r => r.model === name) || null;
 }
+function capFor(name) {
+  return (DATA.capacity || {})[name] || {};
+}
 function weightGiB(name) {
   if (DATA.weights_gib[name] != null) return DATA.weights_gib[name];
   const base = name.replace(/-VL$/, "");
@@ -180,14 +294,17 @@ function kvGiB(c, np) {
 function models() {
   const fromRec = (DATA.recommendations || []).map(r => r.model);
   const fromW = Object.keys(DATA.weights_gib);
-  return [...new Set([...fromRec, ...fromW])].sort();
+  const fromCap = Object.keys(DATA.capacity || {});
+  return [...new Set([...fromCap, ...fromRec, ...fromW])].sort();
 }
 function fillSelect(sel, preferred) {
   const list = models();
   sel.innerHTML = "";
   for (const m of list) {
     const o = document.createElement("option");
-    o.value = m; o.textContent = m;
+    o.value = m;
+    const solo = (capFor(m).solo || {}).max_c;
+    o.textContent = solo ? `${m}  (solo≤${solo})` : m;
     sel.appendChild(o);
   }
   if (preferred && list.includes(preferred)) sel.value = preferred;
@@ -196,6 +313,17 @@ function fillSelect(sel, preferred) {
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 }
+function defaultC(model) {
+  const r = recFor(model) || {};
+  const solo = (capFor(model).solo || {}).max_c;
+  let c = num(r.best_c, solo || 131072);
+  if (solo && c > solo) c = solo;
+  if (!solo && dash(r.best_c)) c = 131072;
+  return c;
+}
+function defaultKv(model) {
+  return (capFor(model).solo || {}).kv || "q8_0";
+}
 function effective(model, role) {
   const r = recFor(model) || {};
   const npEl = role === "chat" ? document.getElementById("npChat") : document.getElementById("npCoder");
@@ -203,20 +331,54 @@ function effective(model, role) {
   const npO = npEl.value === "" ? null : Number(npEl.value);
   const cO = cEl.value === "" ? null : Number(cEl.value);
   const np = (npO != null && Number.isFinite(npO)) ? npO : num(r.best_np, 2);
-  const c = (cO != null && Number.isFinite(cO)) ? cO : num(r.best_c, 131072);
+  let c = (cO != null && Number.isFinite(cO)) ? cO : defaultC(model);
+  const soloMax = (capFor(model).solo || {}).max_c;
+  const dualMax = (capFor(model).dual || {}).max_c;
   const ub = num(r.best_ub, 128);
   const b = num(r.best_b, 64);
   let cont = "on";
   if (r.cont_batch_recommended) cont = r.cont_batch_recommended;
   else if (String(r.cont_batching || "").includes("off")) cont = "off";
   const missing = [];
-  if (dash(r.best_c)) missing.push("c");
+  if (dash(r.best_c) && !soloMax) missing.push("c");
   if (dash(r.best_b)) missing.push("b");
   if (!r.cont_batch_recommended) missing.push("cont-batch A/B");
-  return { model, np, c, ub, b, cont, decode: r.decode_ms, prefill: r.prefill_tps, missing };
+  const kv = defaultKv(model);
+  return { model, np, c, ub, b, cont, kv, decode: r.decode_ms, prefill: r.prefill_tps, missing, soloMax, dualMax };
 }
 
 let mode = "solo";
+
+function buildPlan(chat, coder) {
+  const sticky = mode === "dual" ? 2 : 1;
+  const plan = {
+    version: 1,
+    sticky_count: mode === "lab" ? 0 : sticky,
+    mode,
+    host: DATA.host,
+    chat: {
+      model: chat.model, np: chat.np, c: chat.c, ub: chat.ub, b: chat.b,
+      kv: chat.kv, cont_batch: chat.cont,
+      ini: mode === "lab" ? "models-lab.ini" : "models.ini",
+    },
+    coder: null,
+    apply: {
+      cmd: "",
+    },
+  };
+  if (mode === "dual") {
+    plan.coder = {
+      model: coder.model, np: coder.np, c: coder.c, ub: coder.ub, b: coder.b,
+      kv: coder.kv, cont_batch: coder.cont, ini: "models-coder.ini",
+    };
+    plan.apply.cmd = "./bench apply-ini --plan plan.json";
+  } else if (mode === "lab") {
+    plan.apply.cmd = "./bench apply-ini --plan plan.json";
+  } else {
+    plan.apply.cmd = "./bench apply-ini --plan plan.json";
+  }
+  return plan;
+}
 
 function render() {
   const chat = effective(document.getElementById("chatModel").value, "chat");
@@ -225,19 +387,34 @@ function render() {
   let used = DATA.host.os_reserve_gib;
   const parts = [];
 
+  document.getElementById("coderWrap").classList.toggle("hidden", mode !== "dual");
+  document.getElementById("npCoder").disabled = mode !== "dual";
+  document.getElementById("cCoder").disabled = mode !== "dual";
+
   if (mode === "solo" || mode === "lab") {
     used += weightGiB(chat.model) + kvGiB(chat.c, chat.np);
     parts.push(chat);
     notes.push(mode === "lab"
-      ? "Lab-only: stop sticky for heavy MoE / full GTT."
-      : "Solo sticky: one always-on model on :11535.");
+      ? "Lab-only: stop sticky for heavy MoE / full GTT. Compose: --profile lab."
+      : "1 sticky: only llama (:11535). Leave llama-coder stopped.");
   } else {
     used += weightGiB(chat.model) + kvGiB(chat.c, chat.np);
     used += weightGiB(coder.model) + kvGiB(coder.c, coder.np);
     parts.push(chat, coder);
-    notes.push("Dual warm: chat sticky :11535 + coder lab :11537 (or --models-max 2).");
-    if (chat.np === 2 && coder.np === 2) notes.push("2/2 matches the dual-sticky sweet spot.");
+    notes.push("2 stickys: models.ini → :11535 + models-coder.ini → :11538.");
     if (chat.c >= 262144 && coder.c >= 262144) notes.push("Both at 256k is usually too much.");
+  }
+
+  // capacity warnings
+  for (const p of parts) {
+    if (p.soloMax && p.c > p.soloMax) {
+      notes.push(`${p.model}: c=${p.c} above capacity solo max ${p.soloMax} — may OOM.`);
+    } else if (p.soloMax) {
+      notes.push(`${p.model}: capacity solo ok ≤ ${p.soloMax} (${p.kv}).`);
+    }
+    if (mode === "dual" && p.dualMax && p.c > p.dualMax) {
+      notes.push(`${p.model}: dual capacity only ≤ ${p.dualMax}.`);
+    }
   }
 
   const budget = DATA.host.gtt_gib;
@@ -252,19 +429,22 @@ function render() {
 
   document.getElementById("status").innerHTML =
     `<span class="${cls}">Est. footprint ~${used.toFixed(1)} GiB / GTT ${budget} GiB (${pct.toFixed(0)}%)</span>` +
-    ` · includes OS reserve ${DATA.host.os_reserve_gib} GiB`;
+    ` · OS reserve ${DATA.host.os_reserve_gib} GiB`;
 
   document.getElementById("kpis").innerHTML = parts.map(p => {
     const short = p.model.length > 42 ? p.model.slice(0, 40) + "…" : p.model;
-    return `<div><span>${esc(short)}</span><strong>np=${p.np} · c=${p.c}</strong>` +
-      `<span>ub=${p.ub} · b=${p.b} · cont=${p.cont}</span></div>`;
+    const pill = p.soloMax
+      ? `<span class="cap-pill ${p.c <= p.soloMax ? "ok" : "bad"}">cap≤${p.soloMax}</span>`
+      : `<span class="cap-pill">no cap data</span>`;
+    return `<div><span>${esc(short)}${pill}</span><strong>np=${p.np} · c=${p.c}</strong>` +
+      `<span>ub=${p.ub} · b=${p.b} · kv=${p.kv} · cont=${p.cont}</span></div>`;
   }).join("") + `<div><span>decode ms</span><strong>${parts.map(p => p.decode != null ? Number(p.decode).toFixed(1) : "—").join(" / ")}</strong>
     <span>prefill ${parts.map(p => p.prefill != null ? Number(p.prefill).toFixed(1) : "—").join(" · ")} tok/s</span></div>`;
 
   for (const p of parts) {
     for (const m of p.missing) notes.push(`${p.model}: missing ★ ${m}`);
   }
-  if (cls === "bad") notes.push("Over budget — lower c/np or unload one model.");
+  if (cls === "bad") notes.push("Over budget — lower c/np or use 1 sticky.");
   if (cls === "warn") notes.push("Tight — OK idle; watch GTT when contexts are filled.");
 
   document.getElementById("notes").innerHTML = notes.map(n => `<li>${esc(n)}</li>`).join("");
@@ -272,20 +452,27 @@ function render() {
   let snip = "";
   if (mode === "dual") {
     snip =
-`; models.ini — sticky chat
+`; models.ini — sticky chat (:11535)
 [${chat.model}]
 np = ${chat.np}
 c = ${chat.c}
 ub = ${chat.ub}
 b = ${chat.b}
+ctk = ${chat.kv}
+ctv = ${chat.kv}
+fit = off
 load-on-startup = true
 
-; models-lab.ini — warm coder (keep lab up)
+; models-coder.ini — sticky coder (:11538)
 [${coder.model}]
 np = ${coder.np}
 c = ${coder.c}
 ub = ${coder.ub}
 b = ${coder.b}
+ctk = ${coder.kv}
+ctv = ${coder.kv}
+fit = off
+load-on-startup = true
 `;
   } else {
     const file = mode === "lab" ? "models-lab.ini" : "models.ini";
@@ -296,9 +483,36 @@ np = ${chat.np}
 c = ${chat.c}
 ub = ${chat.ub}
 b = ${chat.b}
+ctk = ${chat.kv}
+ctv = ${chat.kv}
+fit = off
 ` + (mode === "solo" ? "load-on-startup = true\n" : "");
   }
   document.getElementById("snippet").textContent = snip;
+
+  const plan = buildPlan(chat, coder);
+  window.__PLAN__ = plan;
+  const applyLines = [
+    "# save Download → plan.json in repo root, then:",
+    plan.apply.cmd,
+    mode === "solo" ? "docker compose up -d --force-recreate llama" :
+      mode === "dual" ? "docker compose up -d --force-recreate llama llama-coder" :
+      "docker compose --profile lab up -d --force-recreate llama-lab",
+  ].join("\n");
+  document.getElementById("applyCmd").textContent = applyLines;
+
+  // capacity table
+  const capRows = Object.keys(DATA.capacity || {}).sort().map(m => {
+    const s = DATA.capacity[m].solo || {};
+    const d = DATA.capacity[m].dual || {};
+    return `<tr><td>${esc(m)}</td>
+      <td class="n">${s.max_c != null ? s.max_c : "—"}</td>
+      <td>${esc(s.kv || "—")}</td>
+      <td class="n">${d.max_c != null ? d.max_c : "—"}</td>
+      <td>${esc(d.kv || "—")}</td></tr>`;
+  }).join("");
+  document.getElementById("capTable").innerHTML = capRows ||
+    `<tr><td colspan="5" class="meta">No capacity cells yet — run ./bench capacity / matrix</td></tr>`;
 
   const rows = (DATA.recommendations || []).map(r => {
     const w = weightGiB(r.model);
@@ -312,12 +526,12 @@ b = ${chat.b}
       <td class="n">${w.toFixed(1)}</td></tr>`;
   }).join("");
   document.getElementById("catalog").innerHTML = rows ||
-    `<tr><td colspan="8">No recommendations yet — run ./bench compare-sched</td></tr>`;
+    `<tr><td colspan="8">No sched ★ yet — run ./bench sched / matrix</td></tr>`;
 }
 
 function bind() {
   fillSelect(document.getElementById("chatModel"), "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL");
-  fillSelect(document.getElementById("coderModel"), "Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL");
+  fillSelect(document.getElementById("coderModel"), "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL");
   document.getElementById("modes").addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-mode]");
     if (!btn) return;
@@ -332,6 +546,17 @@ function bind() {
   document.getElementById("copyBtn").addEventListener("click", () => {
     navigator.clipboard.writeText(document.getElementById("snippet").textContent);
   });
+  document.getElementById("copyApply").addEventListener("click", () => {
+    navigator.clipboard.writeText(document.getElementById("applyCmd").textContent);
+  });
+  document.getElementById("dlPlan").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(window.__PLAN__ || {}, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "plan.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
   render();
 }
 bind();
@@ -341,5 +566,6 @@ bind();
 
 html = html.replace("__DATA__", json.dumps(payload, ensure_ascii=False))
 Path(out_path).write_text(html, encoding="utf-8")
-print(f"Wrote {out_path} ({len(recs)} models)")
+n_cap = len(capacity)
+print(f"Wrote {out_path} (sched={len(recs)} models, capacity={n_cap} models)")
 PY

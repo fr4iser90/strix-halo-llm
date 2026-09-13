@@ -12,11 +12,14 @@
 
 ## Full matrix (Mehrtage)
 
-Zuerst INIs an Disk anpassen, dann Matrix:
+Zuerst INIs an Disk anpassen, dann Matrix.
+
+Live `models*.ini` sind **gitignored** (Templates: `examples/ini/`). Sticky einmal kopieren/editieren; Lab kommt von Disk (+ VL wenn mmproj da).
 
 ```bash
+cp examples/ini/models.ini examples/ini/models-coder.ini .   # nur falls fehlend
 ./bench sync-models --dry-run      # was würde sich ändern?
-./bench sync-models                # lab/emb/extractor aus ./models/
+./bench sync-models                # lab/emb/extractor (+ fehlende *-VL)
 ./bench sync-models --touch-sticky # optional: tote sticky sections weg
 ./bench capacity sync --from coder,chat,lab
 ./bench matrix --profile full --dry-run
@@ -34,9 +37,20 @@ rm -f output/bench/capacity/cells.jsonl
 ```
 
 Alte Results zu gelöschten Modellen stören nicht (nur Index-Noise).
-## Capacity
+## Planner / apply
 
-Auto-sync aus `models-coder.ini` + `models.ini` (+ optional lab). Skip inkl. llama.cpp Fingerprint.
+Nach Matrix (oder lokal mit vorhandenem `cells.jsonl` + sched summary):
+
+```bash
+./bench index                 # baut planner.html
+# Browser: output/bench/planner.html  →  1 sticky / 2 stickys, Download plan.json
+./bench apply-ini --plan plan.json
+./bench apply-ini --plan plan.json --dry-run
+./bench publish               # Pages inkl. planner
+```
+
+Pages = auswählen + Snippet/Plan; Schreiben nur lokal via `apply-ini`.
+
 
 ```bash
 ./bench capacity kv-ctx

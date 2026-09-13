@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Sync models-*.ini from files under ./models/ (prune missing, add new GGUFs).
+# Sync models-*.ini from files under ./models/ (prune missing, add new GGUFs + VL twins).
 #
 #   ./bench sync-models
 #   ./bench sync-models --dry-run
-#   ./bench sync-models --prune
+#   ./bench sync-models --touch-sticky
 #
-# Sticky INIs (models.ini, models-coder.ini): only prune missing paths unless
-# --touch-sticky (still does not auto-pick a new sticky model).
+# Sticky INIs (models.ini, models-coder.ini): bootstrap from examples/ini/ if missing;
+# otherwise only prune missing paths with --touch-sticky (does not auto-pick sticky).
+# Live models*.ini are gitignored — see examples/ini/README.md.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,11 +25,14 @@ usage() {
 Usage: ./bench sync-models [options]
 
 Scan ./models/**/*.gguf and update INIs automatically:
-  models-lab.ini          chat weights (+ VL variants when mmproj exists)
+  models-lab.ini          chat weights (+ VL twins when mmproj exists)
   models-embeddings.ini   embeddings/
   models-extractor.ini    extractor/
   models.ini / models-coder.ini
-                          only prune dead paths (keep chosen sticky)
+                          bootstrap from examples/ini/ if missing;
+                          otherwise only prune dead paths (--touch-sticky)
+
+Live models*.ini are gitignored — templates live in examples/ini/.
 
 Options:
   --dry-run         show plan, write nothing
@@ -54,6 +58,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -d "$MODELS_DIR" ]] || { echo "missing models dir: $MODELS_DIR" >&2; exit 1; }
+
+# Bootstrap sticky INIs from examples so forks are not blocked (never overwrite).
+EX_INI="$ROOT/examples/ini"
+if [[ "$DRY" -eq 0 ]]; then
+  for f in models.ini models-coder.ini; do
+    if [[ ! -f "$ROOT/$f" && -f "$EX_INI/$f" ]]; then
+      cp "$EX_INI/$f" "$ROOT/$f"
+      echo "bootstrapped $f ← examples/ini/$f (edit sticky, then re-run if needed)"
+    fi
+  done
+fi
 
 bench_python - "$ROOT" "$MODELS_DIR" "$DRY" "$PRUNE" "$TOUCH_STICKY" <<'PY'
 import json, os, re, sys
@@ -272,14 +287,37 @@ for p in primaries:
     new_lab[stem] = pairs
     new_lab_order.append(stem)
     added.append(stem)
-    # VL twin if mmproj available
+
+# Ensure VL twin for every text primary that has a matching mmproj
+# (new adds and existing sections that were text-only before).
+for name in list(new_lab_order):
+    if name.endswith("-VL"):
+        continue
+    d = dict(new_lab[name])
+    mp = d.get("model", "")
+    if not mp.startswith("/models/"):
+        continue
+    host = models_dir / mp[len("/models/"):]
+    if not host.is_file():
+        continue
+    stem = Path(mp).name.replace(".gguf", "")
+    stem = re.sub(r"-00001-of-\d+$", "", stem, flags=re.I)
     mm = find_mmproj(stem, family_hints(stem))
-    if mm:
-        vl_name = f"{stem}-VL"
-        if vl_name not in new_lab:
-            new_lab[vl_name] = defaults_for(p, stem, is_vl=True)
-            new_lab_order.append(vl_name)
-            added.append(vl_name)
+    if not mm:
+        continue
+    vl_name = f"{stem}-VL"
+    if vl_name in new_lab:
+        # refresh mmproj path; keep tunables
+        new_lab[vl_name] = merge_preserve(new_lab[vl_name], defaults_for(host, stem, is_vl=True))
+        continue
+    new_lab[vl_name] = defaults_for(host, stem, is_vl=True)
+    # insert VL right after its text twin when possible
+    try:
+        idx = new_lab_order.index(name) + 1
+        new_lab_order.insert(idx, vl_name)
+    except ValueError:
+        new_lab_order.append(vl_name)
+    added.append(vl_name)
 
 write_ini(lab_path, lab_header, new_lab_order, new_lab, lab_banner)
 print(f"  lab kept={len(kept)} added={len(added)} pruned={len(pruned)}")

@@ -44,7 +44,7 @@ Commands:
   list [opts]              list throughput models (shorthand → throughput --list)
   compare                  rebuild throughput compare table
   compare-sched            rebuild scheduling compare table
-  apply-ini                patch models-lab.ini from bench recommendations
+  apply-ini                patch INIs from sched ★ or planner --plan plan.json
   index                    rebuild output/bench/index.md + index.html
   publish                  copy curated dashboard → docs/ (GitHub Pages)
   probe-host               refresh output/bench/host.json (hardware for Pages)
