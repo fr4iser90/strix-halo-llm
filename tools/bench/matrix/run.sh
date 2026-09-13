@@ -265,18 +265,37 @@ run_throughput() {
 run_quality() {
   [[ "${SUITE_QUALITY_ENABLED:-0}" == "1" ]] || { log "quality disabled"; return 0; }
   suite_wanted quality || { log "skip suite quality"; return 0; }
-  "$CAPACITY" sync --from "$SYNC_FROM" >/dev/null || true
+
+  # shellcheck source=../quality/lib/server.sh
+  source "$ROOT/tools/bench/quality/lib/server.sh"
+  export QUALITY_SYNC_SOURCES="$SYNC_FROM"
+  export QUALITY_BENCH_OWNED=1
+  export QUALITY_SKIP_BENCH=0
+  quality_bench_prepare
+  trap 'QUALITY_BENCH_OWNED=0; quality_bench_cleanup' RETURN
+
   local models=() m qargs=()
   mapfile -t models < <(models_from_bench_ini)
-  qargs=(--n "$QUAL_N")
+  qargs=(--n "$QUAL_N" --no-bench)
   [[ "${QUAL_LIMIT:-0}" -gt 0 ]] && qargs+=(--limit "$QUAL_LIMIT")
+  export QUALITY_BASE_URL="http://127.0.0.1:11601"
+  export QUALITY_SKIP_BENCH=1
   for m in "${models[@]}"; do
     [[ -n "$m" ]] || continue
     write_progress "quality" "$QUAL_SUITE / $m"
-    log "=== quality $QUAL_SUITE $m ==="
-    # Prefer bench-a if up, else coder sticky URL default in plugin
-    QUALITY_MODEL="$m" "$QUALITY" "$QUAL_SUITE" --model "$m" "${qargs[@]}" || log "quality failed for $m (continue)"
+    log "=== quality $QUAL_SUITE $m (bench-a) ==="
+    if ! quality_bench_load "$m"; then
+      log "quality load failed for $m (continue)"
+      continue
+    fi
+    # Plugin must not tear down bench between models (--no-bench + owned lifecycle)
+    QUALITY_MODEL="$m" QUALITY_SKIP_BENCH=1 \
+      "$QUALITY" "$QUAL_SUITE" --model "$m" --base-url "$QUALITY_BASE_URL" "${qargs[@]}" \
+      || log "quality failed for $m (continue)"
   done
+  QUALITY_BENCH_OWNED=0
+  quality_bench_cleanup
+  trap - RETURN
 }
 
 print_plan() {

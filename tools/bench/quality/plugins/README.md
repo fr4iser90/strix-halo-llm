@@ -2,12 +2,18 @@
 
 Each suite is a directory under `plugins/<name>/` with an executable `run.sh`.
 
+## Policy
+
+**Always `llama-bench-a` (`:11601`). Never sticky routers.** Stickys are stopped
+for a clean GPU (same as capacity). Helpers: `tools/bench/quality/lib/server.sh`.
+
 ## Contract
 
 `run.sh` receives CLI args from `./bench quality <name> …` and must:
 
-1. Talk to a local OpenAI-compatible server (`QUALITY_BASE_URL`, default coder `:11538`).
-2. Write results under:
+1. Call `quality_bench_load "$MODEL"` (or rely on matrix owning the lifecycle with `--no-bench`).
+2. Talk to `QUALITY_BASE_URL` (default `http://127.0.0.1:11601`).
+3. Write results under:
 
 ```text
 output/bench/quality/<name>/<stamp>/
@@ -16,7 +22,7 @@ output/bench/quality/<name>/<stamp>/
 └── …                # suite-specific artifacts
 ```
 
-3. Exit non-zero on hard failure.
+4. Exit non-zero on hard failure.
 
 ### `summary.json` schema (minimum)
 
@@ -24,7 +30,7 @@ output/bench/quality/<name>/<stamp>/
 {
   "suite": "humaneval",
   "model": "Qwen3-Coder-…",
-  "base_url": "http://127.0.0.1:11538/v1",
+  "base_url": "http://127.0.0.1:11601/v1",
   "stamp": "20260913T120000Z",
   "n_tasks": 164,
   "n_samples_per_task": 1,
@@ -42,11 +48,17 @@ After a run, refresh the merge table:
 ./bench publish
 ```
 
+## Quants
+
+Quality tests the **weight GGUF** named by the INI section (e.g. `…-UD-Q5_K_XL`).
+It does **not** sweep KV cache types (`ctk`/`ctv`) — that is capacity’s job.
+`models-bench.ini` usually keeps `ctk/ctv = q8_0` for quality loads.
+
 ## Add a new suite
 
 ```bash
 cp -a tools/bench/quality/plugins/_template tools/bench/quality/plugins/mybench
-# edit DESCRIPTION + run.sh
+# edit DESCRIPTION + run.sh — use quality_bench_load
 ./bench quality list
 ./bench quality mybench --help
 ```
@@ -59,4 +71,5 @@ Keep heavy datasets / vendor checkouts out of git (see `.gitignore` → `.vendor
 |------|------|----------|
 | `humaneval` | HumanEval pass@k | [openai/human-eval](https://github.com/openai/human-eval) |
 
-Throughput (`./bench throughput`) and scheduling (`./bench sched`) stay separate — they measure **speed / latency**, quality plugins measure **task correctness**.
+`full` matrix already runs quality after capacity/sched/throughput.
+Throughput / sched measure **speed**; quality measures **task correctness**.

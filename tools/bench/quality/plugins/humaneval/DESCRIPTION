@@ -1,1 +1,1 @@
-HumanEval pass@k (OpenAI harness via local OpenAI-compatible API)
+HumanEval pass@k on llama-bench-a (:11601); weight GGUF from INI section (not KV sweep)

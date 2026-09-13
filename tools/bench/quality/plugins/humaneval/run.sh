@@ -24,7 +24,7 @@ OUT_ROOT="${QUALITY_OUT:-$ROOT/output/bench/quality}"
 SUITE="humaneval"
 VENDOR="${HUMAN_EVAL_VENDOR:-$QUALITY_DIR/.vendor/human-eval}"
 
-BASE_URL="${QUALITY_BASE_URL:-http://127.0.0.1:11538}"
+BASE_URL="${QUALITY_BASE_URL:-http://127.0.0.1:11601}"
 MODEL="${QUALITY_MODEL:-}"
 N_SAMPLES="${QUALITY_N:-1}"
 LIMIT="${QUALITY_LIMIT:-0}"          # 0 = all 164 tasks
@@ -34,14 +34,19 @@ TIMEOUT="${QUALITY_TIMEOUT:-120}"
 DO_EVAL=0
 DRY_RUN=0
 INSTALL_HINT=1
+USE_BENCH=1
 
 usage() {
   cat <<EOF
 Usage: ./bench quality humaneval [options]
 
+Runs against llama-bench-a (:11601) by default — NEVER sticky routers.
+Stickys are stopped for a clean GPU (same policy as capacity).
+
 Options:
-  --model NAME          API model id (INI section). Or QUALITY_MODEL=
-  --base-url URL        default $BASE_URL (coder sticky :11538)
+  --model NAME          API model id (INI section / GGUF weight preset). Or QUALITY_MODEL=
+  --base-url URL        override endpoint (implies --no-bench unless URL is bench-a)
+  --no-bench            do not start/stop bench-a (you manage the server; QUALITY_SKIP_BENCH=1)
   --n N                 samples per task (default $N_SAMPLES) — pass@k needs n≥k
   --limit N             only first N tasks (smoke test; 0 = all)
   --max-tokens N        completion budget (default $MAX_TOKENS)
@@ -55,11 +60,15 @@ Options:
 
 Env:
   QUALITY_BASE_URL  QUALITY_MODEL  QUALITY_N  QUALITY_LIMIT
-  HUMAN_EVAL_EXECUTE=1  same as --eval
+  QUALITY_SKIP_BENCH=1   same as --no-bench
+  HUMAN_EVAL_EXECUTE=1   same as --eval
+
+Quants: HumanEval uses the *weight* preset (section name / GGUF), not a KV
+sweep. KV (ctk/ctv) stays whatever is in models-bench.ini (usually q8_0).
+Capacity already sweeps KV×c separately.
 
 Install harness (once):
   ./bench quality humaneval --setup
-  # or: pip install -e .vendor/human-eval  (after clone)
 
 Eval note: openai/human-eval comments out unsafe_execute until you opt in.
 See $VENDOR/human_eval/execution.py after --setup.
@@ -88,7 +97,8 @@ while [[ $# -gt 0 ]]; do
     -h|--help) usage; exit 0 ;;
     --setup) setup_harness; exit 0 ;;
     --model) MODEL="$2"; shift 2 ;;
-    --base-url) BASE_URL="$2"; shift 2 ;;
+    --base-url) BASE_URL="$2"; USE_BENCH=0; shift 2 ;;
+    --no-bench) USE_BENCH=0; shift ;;
     --n) N_SAMPLES="$2"; shift 2 ;;
     --limit) LIMIT="$2"; shift 2 ;;
     --max-tokens) MAX_TOKENS="$2"; shift 2 ;;
@@ -103,12 +113,36 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "${HUMAN_EVAL_EXECUTE:-0}" == "1" ]] && DO_EVAL=1
+[[ "${QUALITY_SKIP_BENCH:-0}" == "1" ]] && USE_BENCH=0
 
 [[ -n "$MODEL" ]] || {
   echo "error: --model / QUALITY_MODEL required" >&2
   usage
   exit 1
 }
+
+# shellcheck source=../../lib/server.sh
+source "$ROOT/tools/bench/quality/lib/server.sh"
+
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  echo "=== HumanEval (dry-run) ==="
+  echo "  model: $MODEL"
+  echo "  bench: $([[ "$USE_BENCH" -eq 1 ]] && echo yes || echo no) → ${BASE_URL:-http://127.0.0.1:11601}"
+  exit 0
+fi
+
+  if [[ "$USE_BENCH" -eq 1 ]]; then
+  export QUALITY_SKIP_BENCH=0
+  if ! quality_bench_load "$MODEL"; then
+    echo "error: could not load $MODEL on bench-a" >&2
+    exit 1
+  fi
+  BASE_URL="$QUALITY_BASE_URL"
+  trap quality_bench_cleanup EXIT
+else
+  export QUALITY_SKIP_BENCH=1
+  quality_log "no-bench mode → $BASE_URL"
+fi
 
 # Normalize base URL to …/v1
 API="$BASE_URL"
@@ -126,11 +160,6 @@ echo "  limit:    ${LIMIT:-all}"
 echo "  eval:     $DO_EVAL"
 echo "  out:      $RUN_DIR"
 echo ""
-
-if [[ "$DRY_RUN" -eq 1 ]]; then
-  echo "[dry-run] would generate samples → $RUN_DIR/samples.jsonl"
-  exit 0
-fi
 
 export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
 export QUALITY_API="$API"

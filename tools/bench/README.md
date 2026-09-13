@@ -51,6 +51,9 @@ Nach Matrix (oder lokal mit vorhandenem `cells.jsonl` + sched summary):
 
 Pages = auswählen + Snippet/Plan; Schreiben nur lokal via `apply-ini`.
 
+## Capacity
+
+Auto-sync aus sticky/lab → `models-bench.ini`. Skip inkl. llama.cpp Fingerprint.
 
 ```bash
 ./bench capacity kv-ctx
@@ -65,7 +68,7 @@ Pages = auswählen + Snippet/Plan; Schreiben nur lokal via `apply-ini`.
 | `capacity` / `matrix` capacity | Stickys gestoppt, bench-a/b, Restore |
 | `sched` | Lab, Daily aus |
 | `throughput` | alle Router aus |
-| `quality` | laufender Server |
+| `quality` / `matrix` quality | Stickys gestoppt, **bench-a :11601**, Restore |
 
 ## Befehle
 
@@ -73,6 +76,7 @@ Pages = auswählen + Snippet/Plan; Schreiben nur lokal via `apply-ini`.
 ./bench matrix --profile full
 ./bench capacity kv-ctx --from coder
 ./bench sched --auto
+./bench quality humaneval --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL
 ./bench quality humaneval --setup
 ./bench index && ./bench publish
 ```

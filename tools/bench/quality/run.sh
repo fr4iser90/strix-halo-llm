@@ -30,18 +30,21 @@ Commands:
   help
 
 Built-in suites (plugins/):
-  humaneval    OpenAI HumanEval pass@k via local OpenAI-compatible API
+  humaneval    OpenAI HumanEval pass@k via llama-bench-a (:11601)
                https://github.com/openai/human-eval
 
-Common env (all plugins):
-  QUALITY_BASE_URL   default http://127.0.0.1:11538  (coder sticky)
-  QUALITY_MODEL      API model / INI section name
+Policy: quality runs on bench-a (stickys stopped). Never sticky :11535/:11538.
+Override only with --no-bench / QUALITY_SKIP_BENCH=1 (advanced).
+
+Env:
+  QUALITY_BASE_URL   default http://127.0.0.1:11601
+  QUALITY_MODEL      API model / INI section name (weight quant)
   QUALITY_OUT        output root (default output/bench/quality)
 
 Examples:
   ./bench quality list
-  ./bench quality humaneval --model Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL
-  QUALITY_BASE_URL=http://127.0.0.1:11537 ./bench quality humaneval --n 1 --limit 10
+  ./bench quality humaneval --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL
+  ./bench quality humaneval --model Tiel-… --limit 10 --n 1
 
 Add a suite: copy plugins/_template → plugins/mybench and implement run.sh
 EOF
