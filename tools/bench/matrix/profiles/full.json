@@ -1,6 +1,6 @@
 {
   "name": "full",
-  "description": "Complete multi-day matrix: all models × capacity KV×c × dual × all sched sweeps × throughput × quality",
+  "description": "Complete multi-day matrix: all models × capacity KV×c × dual (auto c) × all sched sweeps × throughput × quality",
   "sync_from": "coder,chat,lab",
   "suites": {
     "capacity": {
@@ -10,7 +10,7 @@
       "dual": {
         "enabled": true,
         "kv": ["q8_0", "q6_k", "q5_k", "q4_k"],
-        "c": 262144
+        "c": "auto"
       }
     },
     "sched": {

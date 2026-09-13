@@ -6,7 +6,7 @@
 |-----|------|---------|
 | **`./bench`** | Root | `throughput`, `sched`, `capacity`, `matrix`, `quality`, `index`, `publish` |
 | `./bench matrix` | `tools/bench/matrix/` | Multi-Suite Orchestrator (`default` / `full`) |
-| `./bench capacity` | `tools/bench/capacity/` | KV×ctx + dual-256k |
+| `./bench capacity` | `tools/bench/capacity/` | KV×ctx + dual (c auto) |
 | `./bench quality` | `tools/bench/quality/` | HumanEval Plugins |
 | `./bench publish` | `tools/bench/publish-docs.sh` | → `docs/` GitHub Pages |
 

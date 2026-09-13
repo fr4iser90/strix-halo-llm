@@ -69,6 +69,7 @@ run_cell() {
   fi
 
   mkdir -p "$cell_dir"
+  log "start $key"
   log "=== $MODEL  kv=$kv  c=$c ==="
 
   patch_bench_section "$CAPACITY_INI_A" "$MODEL" "$kv" "$c"
@@ -145,7 +146,7 @@ with open(matrix_path, "a", encoding="utf-8") as f:
 os.makedirs(os.path.dirname(ledger_path), exist_ok=True)
 with open(ledger_path, "a", encoding="utf-8") as f:
     f.write(line + "\n")
-print(f"wrote {key} ok={row['ok']} phase={phase}")
+print(f"done  {key} ok={row['ok']} phase={phase}")
 PY
 }
 

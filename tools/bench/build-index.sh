@@ -410,7 +410,7 @@ cap_ledger = os.path.join(cap_root, "cells.jsonl")
 if os.path.isfile(cap_ledger):
     with open(cap_ledger, encoding="utf-8") as f:
         cap_cells = sum(1 for line in f if line.strip())
-lines += ["", "## Capacity — KV×ctx / dual-256k", ""]
+lines += ["", "## Capacity — KV×ctx / dual", ""]
 if os.path.isfile(cap_cmp):
     lines += [
         f"[Details →]({rel('capacity/latest/compare.md')}) · "
@@ -418,13 +418,13 @@ if os.path.isfile(cap_cmp):
         "",
         "```bash",
         "./bench capacity kv-ctx --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
-        "./bench capacity dual-256k --kv q5_k,q6_k",
+        "./bench capacity dual --kv q5_k,q6_k   # c auto from RAM/GTT",
         "```",
     ]
 else:
     lines.append(
         "*Noch keine Capacity-Runs — "
-        "`./bench capacity kv-ctx` oder `./bench matrix --profile full`*"
+        "`./bench capacity kv-ctx` / `dual` oder `./bench matrix --profile full`*"
     )
 
 # Matrix orchestrator progress

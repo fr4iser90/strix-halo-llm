@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for capacity benches (KV×ctx + dual-256k).
+# Shared helpers for capacity benches (KV×ctx + dual).
 # Stickys stay config-untouched; GPU may be freed by stopping them for clean curves.
 set -euo pipefail
 
@@ -419,6 +419,62 @@ print(json.dumps(summary))
 PY
 }
 
+# Resolve dual context list from host RAM/GTT (or CAPACITY_DUAL_C override).
+# Prints comma-separated token counts. Override examples:
+#   CAPACITY_DUAL_C=131072
+#   CAPACITY_DUAL_C=32768,65536,131072
+#   CAPACITY_DUAL_C=auto   (default)
+resolve_dual_c_list() {
+  local override="${CAPACITY_DUAL_C:-auto}"
+  if [[ -n "$override" && "$override" != "auto" ]]; then
+    printf '%s\n' "$override"
+    return 0
+  fi
+  local snap
+  snap="$(mem_snapshot)"
+  bench_python - "$snap" <<'PY'
+import json, sys
+snap = json.loads(sys.argv[1])
+gtt = snap.get("gtt_total_mb")
+ram = snap.get("mem_avail_mb")
+# Prefer GTT (UMA); fall back to MemAvailable; last resort unknown → mid ladder
+gtt_gib = (gtt / 1024.0) if gtt else None
+ram_gib = (ram / 1024.0) if ram else None
+budget = None
+if gtt_gib is not None:
+    budget = gtt_gib
+elif ram_gib is not None:
+    budget = ram_gib
+# Dual ≈ two resident models → use ~55% of pool as planning budget
+if budget is not None:
+    budget *= 0.55
+
+# Ladder of context sizes (tokens)
+ladder = [16384, 32768, 65536, 131072, 196608, 262144]
+if budget is None:
+    # unknown host → conservative mid range
+    chosen = [32768, 65536, 131072]
+elif budget >= 80:
+    chosen = [65536, 131072, 196608, 262144]
+elif budget >= 48:
+    chosen = [32768, 65536, 131072, 196608]
+elif budget >= 28:
+    chosen = [16384, 32768, 65536, 131072]
+elif budget >= 16:
+    chosen = [16384, 32768, 65536]
+else:
+    chosen = [8192, 16384, 32768]
+
+print(",".join(str(x) for x in chosen))
+# stderr hint for operators
+sys.stderr.write(
+    f"[bench capacity] dual c auto: budget≈{budget if budget is not None else '?'}GiB "
+    f"(gtt={gtt_gib if gtt_gib is not None else '?'} ram_avail={ram_gib if ram_gib is not None else '?'}) "
+    f"→ {','.join(str(x) for x in chosen)}\n"
+)
+PY
+}
+
 init_capacity_run() {
   local tag="$1"
   local stamp
@@ -442,6 +498,7 @@ data = {
     "url_b": os.environ.get("CAPACITY_URL_B", ""),
     "kv_list": os.environ.get("CAPACITY_KV_LIST", ""),
     "c_list": os.environ.get("CAPACITY_C_LIST", ""),
+    "dual_c_list": os.environ.get("CAPACITY_DUAL_C_LIST", ""),
     "skip_existing": os.environ.get("CAPACITY_SKIP_EXISTING", "1"),
     "force": os.environ.get("CAPACITY_FORCE", "0"),
     "server_version": os.environ.get("CAPACITY_SERVER_VERSION", ""),

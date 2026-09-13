@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Capacity suite — auto-syncs models-bench.ini from coder/chat(/lab), then runs.
 #
-#   ./bench capacity sync              # only refresh models-bench.ini (+ -b)
-#   ./bench capacity kv-ctx            # ALL synced models × KV × c (skip done)
-#   ./bench capacity dual-256k
+#   ./bench capacity sync
+#   ./bench capacity kv-ctx
+#   ./bench capacity dual              # c auto from RAM/GTT (or CAPACITY_DUAL_C=…)
 #   ./bench capacity compare
 set -euo pipefail
 
@@ -22,21 +22,27 @@ Commands:
   fingerprint              show current llama-server / image fingerprint
   stale                    list ledger cells stale vs current fingerprint
   kv-ctx | kv              solo KV×ctx (default: ALL synced models)
-  dual-256k | dual         two bench instances @ 256k concurrent
+  dual                     two bench instances concurrent (c auto from host)
   compare                  rebuild latest compare from cells.jsonl
   help
 
+Dual context sizes:
+  Default CAPACITY_DUAL_C=auto → ladder from GTT/RAM (small hosts → 8k–64k,
+  mid → up to 128k/196k, Strix-class → up to 256k). Override:
+    CAPACITY_DUAL_C=131072
+    CAPACITY_DUAL_C=32768,65536,131072
+  Ascending fail stops that model+kv ladder (CAPACITY_DUAL_STOP_ON_FAIL=1).
+
 Auto (default):
   • sync models-bench.ini + models-bench-b.ini from CAPACITY_SYNC_SOURCES
-    (default: coder,chat → models-coder.ini + models.ini)
   • stop sticky/lab for clean GTT, start llama-bench-a[/b], restore after
   • skip cells already ok in cells.jsonl **with same server_version + image_id**
-  • after llama.cpp / image rebuild → old cells auto re-run (fingerprint mismatch)
+
 Options:
   --model NAME             only this model (default: all in bench ini)
   --from LIST              sync sources: coder,chat,lab  (default coder,chat)
   --kv LIST                default q8_0,q6_k,q5_k,q4_k
-  --c LIST                 default 32768,65536,131072,196608,262144
+  --c LIST                 solo kv-ctx contexts (default 32k…256k)
   --force                  re-run even if ledger has ok cell
   --no-skip                disable skip-existing
   --retry-failed           re-run previously failed cells
@@ -47,10 +53,9 @@ Options:
 
 Examples:
   ./bench capacity sync
-  ./bench capacity sync --from coder,chat,lab
   ./bench capacity kv-ctx
-  ./bench capacity kv-ctx --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL
-  ./bench capacity dual-256k --kv q5_k,q6_k
+  ./bench capacity dual
+  CAPACITY_DUAL_C=65536 ./bench capacity dual --kv q5_k,q6_k
 EOF
 }
 
@@ -197,7 +202,7 @@ print(f"current image:  {cur_img}")
 print(f"ledger cells:   {len(latest)}  fresh={len(fresh)}  stale/fail={len(stale)}")
 print("")
 if stale:
-    print("Will re-run on next ./bench capacity kv-ctx:")
+    print("Will re-run on next ./bench capacity kv-ctx / dual:")
     for tag, key, ov, oi in stale:
         print(f"  [{tag}] {key}")
         print(f"         was server={ov}")
@@ -241,14 +246,15 @@ case "$cmd" in
     parse_opts "$@"
     run_scenario "$SCRIPT_DIR/scenarios/kv_ctx.sh"
     ;;
-  dual-256k|dual|dual_256k)
+  dual|dual-256k|dual_256k)
+    # dual-256k kept as alias for older docs/scripts
     parse_opts "$@"
-    run_scenario "$SCRIPT_DIR/scenarios/dual_256k.sh"
+    run_scenario "$SCRIPT_DIR/scenarios/dual.sh"
     ;;
   compare)
     compare_from_ledger
     ;;
   *)
-    die "unknown command: $cmd (try: sync | list | fingerprint | stale | kv-ctx | dual-256k | compare)"
+    die "unknown command: $cmd (try: sync | list | fingerprint | stale | kv-ctx | dual | compare)"
     ;;
 esac

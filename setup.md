@@ -30,7 +30,7 @@ Capacity:
 ```bash
 docker compose -f compose.yaml -f compose.bench.yaml --profile bench up -d llama-bench-a
 ./bench capacity kv-ctx
-./bench capacity dual-256k --kv q5_k,q6_k
+./bench capacity dual --kv q5_k,q6_k
 ```
 
 ## Weight sizes (disk ≈ runtime floor)

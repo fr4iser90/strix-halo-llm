@@ -125,7 +125,13 @@ dual = cap.get("dual") or {}
 print(f"CAP_DUAL_ENABLED={1 if dual.get('enabled') else 0}")
 dkv = ",".join(dual.get("kv") or [])
 print(f"CAP_DUAL_KV={dkv!r}")
-print(f"CAP_DUAL_C={dual.get('c', 262144)}")
+dc = dual.get("c", "auto")
+if dc is None or dc == "auto":
+    print("CAP_DUAL_C='auto'")
+elif isinstance(dc, (list, tuple)):
+    print(f"CAP_DUAL_C={','.join(str(x) for x in dc)!r}")
+else:
+    print(f"CAP_DUAL_C={str(dc)!r}")
 sch = suites.get("sched") or {}
 scen = ",".join(sch.get("scenarios") or [])
 print(f"SCHED_SCENARIOS={scen!r}")
@@ -187,10 +193,10 @@ run_capacity() {
     --kv "$CAP_KV" \
     --c "$CAP_C"
   if [[ "${CAP_DUAL_ENABLED:-0}" == "1" ]]; then
-    write_progress "capacity" "dual-256k"
-    log "=== capacity dual-256k ==="
+    write_progress "capacity" "dual"
+    log "=== capacity dual (c=$CAP_DUAL_C) ==="
     CAPACITY_DUAL_KV_LIST="$CAP_DUAL_KV" CAPACITY_DUAL_C="$CAP_DUAL_C" \
-      "$CAPACITY" dual-256k --from "$SYNC_FROM" --kv "$CAP_DUAL_KV"
+      "$CAPACITY" dual --from "$SYNC_FROM" --kv "$CAP_DUAL_KV"
   fi
 }
 
