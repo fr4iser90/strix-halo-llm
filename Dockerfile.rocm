@@ -1,0 +1,23 @@
+FROM ubuntu:24.04
+
+RUN apt update && apt install -y \
+    ca-certificates wget unzip libstdc++6 libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+ARG VERSION=b1302
+ARG ARCH=gfx1151
+
+RUN wget -O llama.zip \
+    "https://github.com/lemonade-sdk/llamacpp-rocm/releases/download/${VERSION}/llama-${VERSION}-ubuntu-rocm-${ARCH}-x64.zip" \
+    && unzip llama.zip \
+    && rm llama.zip \
+    && chmod +x /app/llama-server \
+    && chmod +x /app/llama-bench
+
+ENV LD_LIBRARY_PATH=/app
+
+EXPOSE 8080
+
+CMD ["/app/llama-server"]

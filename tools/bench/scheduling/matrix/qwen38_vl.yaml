@@ -1,0 +1,16 @@
+# Rolling prefill matrix — Qwen 3.8 27B VL (run separately from 3.6)
+model: Qwen3.8-27B-Q4_K_M-MTP-VL
+np: 2
+b: 64
+ub_list: 32,64,128,256
+np_list: 1,2,4
+b_list: 32,64,128,256
+sweep_ub: 128
+sweep_np: 2
+scenarios:
+  - 01_baseline_solo
+  - 02_blocked_np1
+  - 03_interleave_np2
+  - 04_ub_sweep
+  - 05_np_sweep
+  - 06_b_sweep

@@ -1,0 +1,55 @@
+# ── Runtime / local only ──────────────────────────────────────────────
+models/
+*.gguf
+*.gguf.partial
+.build/
+result
+result-*
+
+# Secrets / machine-local config
+.env
+.env.*
+!.env.example
+!**/*.env.example
+
+# Python / tooling
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Docker / Nix leftovers
+*.tar
+*.tar.gz
+
+# ── Bench raw data (keep summaries + docs/ publish set) ───────────────
+# Full scheduling / capacity stamped runs are large; keep latest/ + ledgers if desired.
+output/bench/scheduling/[0-9]*/
+output/bench/capacity/[0-9]*/
+output/bench/**/*.jsonl
+output/bench/**/*.jsonl.done
+output/bench/**/*.log
+output/logs/
+
+# Keep capacity skip-ledger if you choose to track it (optional — currently covered by *.jsonl)
+# !output/bench/capacity/cells.jsonl
+
+
+# Optional A/B prompt dumps — regenerate or publish selectively
+output/ab-q2-vs-36/*.json
+output/ab-q2-vs-36/*.json.err
+
+# Quality harness vendor clones (install via pip / fetch script)
+.vendor/
+tools/bench/quality/.vendor/

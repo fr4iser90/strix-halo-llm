@@ -1,0 +1,308 @@
+#!/usr/bin/env bash
+# Shared helpers for scheduling / rolling-prefill tests (tools/bench/scheduling).
+set -euo pipefail
+
+SCHED_BENCH_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCHED_BENCH_ROOT/../../.." && pwd)"
+
+SCHED_BASE_URL="${SCHED_BASE_URL:-http://localhost:11537}"
+SCHED_MODEL="${SCHED_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL}"
+SCHED_OUT="${SCHED_OUT:-$PROJECT_ROOT/output/bench/scheduling}"
+SCHED_NP="${SCHED_NP:-}"
+SCHED_UB="${SCHED_UB:-}"
+SCHED_B="${SCHED_B:-64}"
+SCHED_UB_LIST="${SCHED_UB_LIST:-32,64,128,256}"
+SCHED_LAB_INI="${SCHED_LAB_INI:-$PROJECT_ROOT/models-lab.ini}"
+VK_COMPOSE="${VK_COMPOSE:-$PROJECT_ROOT/compose.yaml}"
+ROCM_COMPOSE="${ROCM_COMPOSE:-$PROJECT_ROOT/compose.rocm.yaml}"
+
+STREAM_CLIENT="${SCHED_BENCH_ROOT}/lib/stream_client.py"
+
+# shellcheck source=../../lib/python.sh
+source "$PROJECT_ROOT/tools/bench/lib/python.sh"
+
+# Router state for restore after run
+SCHED_STOPPED_DAILY=0
+SCHED_STOPPED_EMB=0
+SCHED_STARTED_LAB=0
+
+log() { printf '[bench sched] %s\n' "$*"; }
+die() { printf '[bench sched] error: %s\n' "$*" >&2; exit 1; }
+
+need_cmd() {
+  local c
+  for c in "$@"; do
+    command -v "$c" >/dev/null 2>&1 || die "missing command: $c"
+  done
+}
+
+need_stream_client() {
+  [[ -f "$STREAM_CLIENT" ]] || die "missing $STREAM_CLIENT"
+  need_cmd curl
+  bench_python -c "import sys" >/dev/null 2>&1 || die "no python3 (nix-shell -p python3 on NixOS)"
+}
+
+run_dir() {
+  printf '%s\n' "${SCHED_RUN_DIR:-}"
+}
+
+scenario_dir() {
+  local name="${1:-}"
+  [[ -n "$name" ]] || die "scenario_dir: name required"
+  printf '%s/%s\n' "$(run_dir)" "$name"
+}
+
+fixture_path() {
+  local name="$1"
+  local p="$SCHED_BENCH_ROOT/fixtures/$name"
+  [[ -f "$p" ]] || die "missing fixture: $p"
+  printf '%s\n' "$p"
+}
+
+init_run() {
+  local tag="${1:-run}"
+  local stamp
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  export SCHED_RUN_DIR="$SCHED_OUT/$stamp"
+  export SCHED_STAMP="$stamp"
+  mkdir -p "$SCHED_RUN_DIR"
+  write_manifest "$tag"
+  log "run dir → $SCHED_RUN_DIR"
+}
+
+write_manifest() {
+  local tag="${1:-run}"
+  local man="$SCHED_RUN_DIR/manifest.json"
+  bench_python - "$man" "$tag" <<'PY'
+import json, os, sys
+out, tag = sys.argv[1], sys.argv[2]
+data = {
+    "stamp": os.environ.get("SCHED_STAMP", ""),
+    "tag": tag,
+    "base_url": os.environ.get("SCHED_BASE_URL", ""),
+    "model": os.environ.get("SCHED_MODEL", ""),
+    "np": os.environ.get("SCHED_NP", ""),
+    "ub": os.environ.get("SCHED_UB", ""),
+    "b": os.environ.get("SCHED_B", ""),
+    "ub_list": os.environ.get("SCHED_UB_LIST", ""),
+}
+with open(out, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PY
+}
+
+container_running() {
+  local name="$1"
+  docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null | grep -qx true
+}
+
+# Stop Daily (+ optional embeddings/extractor) so Lab owns the GPU; ensure lab is up.
+prepare_lab_gpu() {
+  local stop_emb="${SCHED_STOP_EMBEDDINGS:-1}"
+  need_cmd docker
+  if container_running llama-router; then
+    log "stop daily router (llama) — free GPU for lab"
+    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama) || true
+    if [[ -f "$ROCM_COMPOSE" ]]; then
+      (cd "$PROJECT_ROOT" && docker compose -f "$ROCM_COMPOSE" stop llama 2>/dev/null) || true
+    fi
+    SCHED_STOPPED_DAILY=1
+  fi
+  if [[ "$stop_emb" == "1" ]] && container_running llama-embeddings; then
+    log "stop embeddings — free GPU"
+    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama-embeddings) || true
+    SCHED_STOPPED_EMB=1
+  fi
+  if [[ "$stop_emb" == "1" ]] && container_running llama-extractor; then
+    log "stop extractor — free GPU"
+    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama-extractor) || true
+    SCHED_STOPPED_EXTRACTOR=1
+  fi
+  log "ensure lab router up (:11537)"
+  (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" --profile lab up -d llama-lab)
+  SCHED_STARTED_LAB=1
+  sleep 2
+}
+
+restore_routers() {
+  [[ "${SCHED_NO_RESTORE:-0}" == "1" ]] && return 0
+  # shellcheck source=../../lib/routers.sh
+  source "$PROJECT_ROOT/tools/bench/lib/routers.sh"
+  bench_restore_after_sched
+}
+
+wait_for_server() {
+  local url="$SCHED_BASE_URL/v1/models"
+  local tries="${SCHED_WAIT_TRIES:-90}"
+  local i=0
+  while [[ "$i" -lt "$tries" ]]; do
+    if curl -sfS --max-time 3 "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  die "lab server not reachable at $SCHED_BASE_URL"
+}
+
+ensure_model_loaded() {
+  local model="$SCHED_MODEL"
+  local list
+  list="$(curl -sfS "$SCHED_BASE_URL/v1/models")" || die "GET /v1/models failed"
+  if printf '%s' "$list" | grep -q "\"id\"[[:space:]]*:[[:space:]]*\"$model\""; then
+    return 0
+  fi
+  log "loading model $model …"
+  curl -sfS -X POST "$SCHED_BASE_URL/models/load" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"$model\"}" >/dev/null \
+    || die "POST /models/load failed for $model (is it in models-lab.ini?)"
+  sleep 2
+}
+
+preflight() {
+  need_stream_client
+  wait_for_server
+  ensure_model_loaded
+}
+
+stream_chat() {
+  local label="$1" prompt_file="$2" out_jsonl="$3"
+  local max_tokens="${4:-128}"
+  bench_python "$STREAM_CLIENT" \
+    --url "$SCHED_BASE_URL/v1/chat/completions" \
+    --model "$SCHED_MODEL" \
+    --label "$label" \
+    --prompt-file "$prompt_file" \
+    --max-tokens "$max_tokens" \
+    --out "$out_jsonl"
+}
+
+stream_chat_bg() {
+  local label="$1" prompt_file="$2" out_jsonl="$3"
+  local max_tokens="${4:-4096}"
+  local done_file="${out_jsonl}.done"
+  rm -f "$done_file"
+  (
+    if stream_chat "$label" "$prompt_file" "$out_jsonl" "$max_tokens"; then
+      echo 0 >"$done_file"
+    else
+      echo 1 >"$done_file"
+    fi
+  ) &
+  printf '%s\n' "$!"
+}
+
+wait_stream_bg() {
+  local out_jsonl="$1" _pid="${2:-}"
+  local done_file="${out_jsonl}.done"
+  local tries=0 max="${SCHED_STREAM_WAIT:-7200}"
+  while [[ ! -f "$done_file" && "$tries" -lt "$max" ]]; do
+    sleep 1
+    tries=$((tries + 1))
+  done
+  [[ -f "$done_file" ]] || die "timeout waiting for stream: $out_jsonl"
+  [[ "$(cat "$done_file")" == "0" ]] || die "stream failed: $out_jsonl"
+}
+
+# Soft variant: returns 0/1 instead of dying (for capacity matrix cells).
+wait_stream_bg_soft() {
+  local out_jsonl="$1" _pid="${2:-}"
+  local done_file="${out_jsonl}.done"
+  local tries=0 max="${SCHED_STREAM_WAIT:-7200}"
+  while [[ ! -f "$done_file" && "$tries" -lt "$max" ]]; do
+    sleep 1
+    tries=$((tries + 1))
+  done
+  [[ -f "$done_file" ]] || return 1
+  [[ "$(cat "$done_file")" == "0" ]] || return 1
+  return 0
+}
+
+
+wait_pid() {
+  local pid="$1"
+  wait "$pid" 2>/dev/null || true
+}
+
+summarize_jsonl() {
+  local jsonl="$1" summary="$2"
+  bench_python - "$jsonl" "$summary" <<'PY'
+import json, sys
+
+path, out = sys.argv[1], sys.argv[2]
+events = []
+with open(path, encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        events.append(json.loads(line))
+
+chunks = [e for e in events if e.get("event") == "chunk"]
+times = [e["t"] for e in chunks]
+deltas = []
+for i in range(1, len(times)):
+    d = (times[i] - times[i - 1]) * 1000.0
+    if d > 0.05:
+        deltas.append(d)
+
+ttft_ms = None
+if chunks:
+    t0 = events[0]["t"]
+    ttft_ms = (chunks[0]["t"] - t0) * 1000.0
+
+def pct(vals, p):
+    if not vals:
+        return None
+    vals = sorted(vals)
+    k = (len(vals) - 1) * p / 100.0
+    f = int(k)
+    c = min(f + 1, len(vals) - 1)
+    if f == c:
+        return vals[f]
+    return vals[f] + (vals[c] - vals[f]) * (k - f)
+
+summary = {
+    "chunks": len(chunks),
+    "ttft_ms": round(ttft_ms, 2) if ttft_ms is not None else None,
+    "token_interval_ms_p50": round(pct(deltas, 50), 2) if deltas else None,
+    "token_interval_ms_p95": round(pct(deltas, 95), 2) if deltas else None,
+    "token_interval_ms_max": round(max(deltas), 2) if deltas else None,
+    "total_ms": round((events[-1]["t"] - events[0]["t"]) * 1000.0, 2) if events else None,
+    "tokens_per_sec": None,
+}
+if summary["total_ms"] and summary["chunks"] > 1:
+    dur_s = (events[-1]["t"] - chunks[0]["t"])
+    if dur_s > 0:
+        summary["tokens_per_sec"] = round((len(chunks) - 1) / dur_s, 2)
+
+with open(out, "w", encoding="utf-8") as f:
+    json.dump(summary, f, indent=2)
+    f.write("\n")
+PY
+}
+
+write_scenario_summary() {
+  local scenario="$1"
+  local sdir
+  sdir="$(scenario_dir "$scenario")"
+  bench_python - "$sdir" <<'PY'
+import json, glob, os, sys
+
+sdir = sys.argv[1]
+merged = {"scenario": os.path.basename(sdir)}
+for path in sorted(glob.glob(os.path.join(sdir, "*_summary.json"))):
+    key = os.path.basename(path).replace("_summary.json", "")
+    with open(path, encoding="utf-8") as f:
+        merged[key] = json.load(f)
+metrics = os.path.join(sdir, "metrics.csv")
+if os.path.isfile(metrics):
+    merged["metrics_rows"] = sum(1 for _ in open(metrics, encoding="utf-8")) - 1
+out = os.path.join(sdir, "summary.json")
+with open(out, "w", encoding="utf-8") as f:
+    json.dump(merged, f, indent=2)
+    f.write("\n")
+PY
+}

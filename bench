@@ -1,0 +1,338 @@
+#!/usr/bin/env bash
+# Single root entry for all benchmarks.
+#   ./bench                  interactive
+#   ./bench throughput …     llama-bench PP/TG (output/bench/throughput)
+#   ./bench sched …          rolling prefill / slots (output/bench/scheduling)
+#   ./bench quality …        task correctness (HumanEval, …)
+#   ./bench capacity …       KV×ctx + dual-256k (bench profile, stickys untouched)
+#   ./bench matrix …         multi-suite matrix (default|full profiles)
+#   ./bench publish          copy curated HTML → docs/ (GitHub Pages)
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+THROUGHPUT="$ROOT/tools/bench/throughput/llama-bench-all.sh"
+SCHED="$ROOT/tools/bench/scheduling/run.sh"
+QUALITY="$ROOT/tools/bench/quality/run.sh"
+CAPACITY="$ROOT/tools/bench/capacity/run.sh"
+MATRIX="$ROOT/tools/bench/matrix/run.sh"
+SYNC_MODELS="$ROOT/tools/bench/sync-models-from-disk.sh"
+APPLY_INI="$ROOT/tools/bench/apply-ini.sh"
+BUILD_INDEX="$ROOT/tools/bench/build-index.sh"
+PUBLISH_DOCS="$ROOT/tools/bench/publish-docs.sh"
+
+[[ -x "$THROUGHPUT" ]] || chmod +x "$THROUGHPUT" 2>/dev/null || true
+[[ -x "$SCHED" ]] || chmod +x "$SCHED" 2>/dev/null || true
+chmod +x "$ROOT"/tools/bench/scheduling/scenarios/*.sh "$ROOT"/tools/bench/scheduling/lib/*.sh 2>/dev/null || true
+chmod +x "$CAPACITY" "$ROOT"/tools/bench/capacity/scenarios/*.sh 2>/dev/null || true
+chmod +x "$ROOT"/tools/bench/capacity/lib/*.sh 2>/dev/null || true
+chmod +x "$MATRIX" 2>/dev/null || true
+
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<'EOF'
+Usage: ./bench [command] [options]
+
+Commands:
+  (none) | interactive     menu
+  throughput | thr | t     PP/TG llama-bench (stops all routers)
+  sched | scheduling | s   rolling prefill / slot latency (lab only)
+  quality | q              task correctness plugins (HumanEval, …)
+  capacity | cap           KV×ctx memory + dual-256k (bench-a/b profile)
+  matrix | m               multi-suite matrix (--profile default|full)
+  sync-models              scan ./models → update models-lab/emb/extractor INIs
+  list [opts]              list throughput models (shorthand → throughput --list)
+  compare                  rebuild throughput compare table
+  compare-sched            rebuild scheduling compare table
+  apply-ini                patch models-lab.ini from bench recommendations
+  index                    rebuild output/bench/index.md + index.html
+  publish                  copy curated dashboard → docs/ (GitHub Pages)
+  help                     this help
+
+Throughput examples:
+  ./bench throughput --vulkan
+  ./bench throughput lab Qwen3.6
+  ./bench t vulkan,cpu --lab -m Qwen3.8
+  ./bench list lab
+
+Scheduling examples:
+  ./bench sched --auto
+  ./bench sched --scenario interleave_np2
+  ./bench s --matrix qwen36_vl.yaml
+  SCHED_NP=2 SCHED_UB=32 ./bench sched --scenario baseline_solo
+
+Quality examples (OpenAI HumanEval + more plugins):
+  ./bench quality list
+  ./bench quality humaneval --setup
+  ./bench quality humaneval --model Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL --limit 10
+  ./bench quality humaneval --model … --n 1 --eval
+  ./bench quality compare
+
+Capacity (bench profile :11601/:11602 — stickys not patched):
+  ./bench capacity kv-ctx
+  ./bench capacity dual-256k --kv q5_k,q6_k
+
+Full matrix (edit tools/bench/matrix/profiles/*.json — multi-day OK):
+  ./bench sync-models --dry-run
+  ./bench sync-models
+  ./bench capacity sync --from coder,chat,lab
+  ./bench matrix --profile full
+  ./bench matrix status
+  tmux new -s bench './bench matrix --profile full'
+
+Outputs:
+  output/bench/index.md        ← Start here (Liste aller Runs)
+  output/bench/throughput/     llama-bench CSVs + latest/compare.*
+  output/bench/scheduling/     sched runs + latest/compare.md
+  output/bench/quality/        HumanEval etc. + latest/compare.md
+  output/bench/capacity/       KV×ctx + dual + cells.jsonl ledger
+  output/bench/matrix/         progress.json for long runs
+  docs/                        GitHub Pages publish set (./bench publish)
+
+See: tools/bench/README.md · tools/bench/quality/plugins/README.md
+EOF
+}
+
+read_tty() {
+  local _var="$1" _prompt="$2"
+  if [[ -r /dev/tty ]]; then
+    read -r -p "$_prompt" "$_var" </dev/tty
+  elif [[ -t 0 ]]; then
+    read -r -p "$_prompt" "$_var"
+  else
+    die "interactive mode needs a terminal. Try: ./bench throughput --help"
+  fi
+}
+
+pick() {
+  local prompt="$1"; shift
+  local -a opts=("$@")
+  local i choice default=1
+  { echo ""; echo "$prompt"; } >&2
+  for i in "${!opts[@]}"; do
+    printf '  %d) %s\n' "$((i + 1))" "${opts[$i]}" >&2
+  done
+  read_tty choice "Choice [${default}]: "
+  choice="${choice:-$default}"
+  [[ "$choice" =~ ^[0-9]+$ ]] || die "invalid choice: $choice"
+  (( choice >= 1 && choice <= ${#opts[@]} )) || die "invalid choice: $choice"
+  printf '%s\n' "${opts[$((choice - 1))]}"
+}
+
+map_shorthand() {
+  local args=()
+  local suite_set=0 backend_set=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      daily) args+=(--daily); suite_set=1 ;;
+      lab|heavy) args+=(--lab); suite_set=1 ;;
+      all)
+        if [[ "$suite_set" -eq 0 && "$backend_set" -eq 0 ]]; then
+          args+=(--all); suite_set=1
+        else
+          args+=(--all-backends); backend_set=1
+        fi
+        ;;
+      mix) args+=(--daily --lab); suite_set=1 ;;
+      vulkan|rocm|cpu) args+=("--$1"); backend_set=1 ;;
+      both|gpu) args+=(--both); backend_set=1 ;;
+      all-backends|every) args+=(--all-backends); backend_set=1 ;;
+      *,*) args+=(--backends "$1"); backend_set=1 ;;
+      -*) args+=("$1") ;;
+      *) args+=(-m "$1") ;;
+    esac
+    shift
+  done
+  printf '%s\n' "${args[@]}"
+}
+
+interactive_throughput() {
+  local suite backends args pat choice
+  suite="$(pick 'Suite:' 'daily (models.ini)' 'lab (models-lab.ini)' 'all GGUFs' 'daily + lab')"
+  backends="$(pick 'Backends:' 'vulkan' 'rocm' 'cpu' 'vulkan + rocm (both)' 'all three')"
+  args=()
+  case "$suite" in
+    *daily*lab*|*lab*daily*) args+=(--daily --lab) ;;
+    *lab*) args+=(--lab) ;;
+    *all*) args+=(--all) ;;
+    *) args+=(--daily) ;;
+  esac
+  case "$backends" in
+    vulkan) args+=(--vulkan) ;;
+    rocm) args+=(--rocm) ;;
+    cpu) args+=(--cpu) ;;
+    *all*) args+=(--all-backends) ;;
+    *both*) args+=(--both) ;;
+    *) args+=(--both) ;;
+  esac
+  read_tty pat "Model filter (empty = all): "
+  if [[ -n "$pat" ]]; then
+    IFS=',' read -ra parts <<< "$pat"
+    for p in "${parts[@]}"; do
+      p="${p// /}"
+      [[ -n "$p" ]] && args+=(-m "$p")
+    done
+  fi
+  echo ""
+  echo "Preview:"
+  "$THROUGHPUT" --list "${args[@]}"
+  echo ""
+  read_tty choice "Run throughput benchmark? [Y/n]: "
+  [[ "${choice:-Y}" =~ ^[Yy]?$ ]] || exit 0
+  exec "$THROUGHPUT" "${args[@]}"
+}
+
+interactive_sched() {
+  local choice model
+  echo "=== scheduling (lab :11537) ===" >&2
+  echo "Stops daily/embeddings, starts lab, restores after." >&2
+  read_tty model "Model [${SCHED_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL}]: "
+  export SCHED_MODEL="${model:-${SCHED_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL}}"
+  read_tty choice "np (slots, need ≥2 for interleave) [${SCHED_NP:-2}]: "
+  export SCHED_NP="${choice:-${SCHED_NP:-2}}"
+  read_tty choice "ub [${SCHED_UB:-32}]: "
+  export SCHED_UB="${choice:-${SCHED_UB:-32}}"
+  choice="$(pick 'Run:' 'auto (01+02+03)' 'baseline_solo' 'interleave_np2' 'matrix qwen36_vl' 'matrix qwen38_vl' 'list scenarios')"
+  case "$choice" in
+    auto*) exec "$SCHED" --auto ;;
+    baseline*) exec "$SCHED" --scenario baseline_solo ;;
+    interleave*) exec "$SCHED" --scenario interleave_np2 ;;
+    *qwen36*) exec "$SCHED" --matrix qwen36_vl.yaml ;;
+    *qwen38*) exec "$SCHED" --matrix qwen38_vl.yaml ;;
+    list*) exec "$SCHED" --list ;;
+  esac
+}
+
+interactive() {
+  local kind
+  { echo "=== bench (interactive) ==="
+    echo "Enter = default. Ctrl+C = abort."
+  } >&2
+  kind="$(pick 'What to run?' \
+    'throughput (llama-bench PP/TG)' \
+    'scheduling (rolling prefill / slots)' \
+    'capacity (KV×ctx / dual-256k)' \
+    'matrix (default/full multi-suite)' \
+    'quality (HumanEval / plugins)')"
+  case "$kind" in
+    throughput*) interactive_throughput ;;
+    scheduling*) interactive_sched ;;
+    capacity*)
+      [[ -x "$CAPACITY" ]] || chmod +x "$CAPACITY" 2>/dev/null || true
+      exec "$CAPACITY" help
+      ;;
+    matrix*)
+      [[ -x "$MATRIX" ]] || chmod +x "$MATRIX" 2>/dev/null || true
+      exec "$MATRIX" list
+      ;;
+    *)
+      [[ -x "$QUALITY" ]] || chmod +x "$QUALITY" 2>/dev/null || true
+      exec "$QUALITY" list
+      ;;
+  esac
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  ""|i|interactive)
+    interactive
+    ;;
+  help|-h|--help)
+    usage
+    echo ""
+    echo "--- throughput ---"
+    "$THROUGHPUT" --help
+    echo ""
+    echo "--- scheduling ---"
+    "$SCHED" --help
+    echo ""
+    echo "--- quality ---"
+    [[ -x "$QUALITY" ]] || chmod +x "$QUALITY" 2>/dev/null || true
+    "$QUALITY" help
+    echo ""
+    echo "--- capacity ---"
+    [[ -x "$CAPACITY" ]] || chmod +x "$CAPACITY" 2>/dev/null || true
+    "$CAPACITY" help
+    echo ""
+    echo "--- matrix ---"
+    [[ -x "$MATRIX" ]] || chmod +x "$MATRIX" 2>/dev/null || true
+    "$MATRIX" help
+    ;;
+  quality|q)
+    shift
+    [[ -x "$QUALITY" ]] || chmod +x "$QUALITY" 2>/dev/null || true
+    chmod +x "$ROOT"/tools/bench/quality/plugins/*/run.sh 2>/dev/null || true
+    exec "$QUALITY" "$@"
+    ;;
+  capacity|cap)
+    shift
+    [[ -x "$CAPACITY" ]] || chmod +x "$CAPACITY" 2>/dev/null || true
+    chmod +x "$ROOT"/tools/bench/capacity/scenarios/*.sh 2>/dev/null || true
+    exec "$CAPACITY" "$@"
+    ;;
+  matrix|m)
+    shift
+    [[ -x "$MATRIX" ]] || chmod +x "$MATRIX" 2>/dev/null || true
+    exec "$MATRIX" "$@"
+    ;;
+  sync-models|sync_models|models-sync)
+    shift
+    [[ -x "$SYNC_MODELS" ]] || chmod +x "$SYNC_MODELS" 2>/dev/null || true
+    exec "$SYNC_MODELS" "$@"
+    ;;
+  publish)
+    [[ -x "$PUBLISH_DOCS" ]] || chmod +x "$PUBLISH_DOCS" 2>/dev/null || true
+    exec "$PUBLISH_DOCS"
+    ;;
+  throughput|thr|t)
+    shift
+    if [[ $# -eq 0 ]]; then
+      interactive_throughput
+    elif [[ "${1:-}" == -* ]]; then
+      exec "$THROUGHPUT" "$@"
+    else
+      mapfile -t mapped < <(map_shorthand "$@")
+      exec "$THROUGHPUT" "${mapped[@]}"
+    fi
+    ;;
+  sched|scheduling|s)
+    shift
+    exec "$SCHED" "$@"
+    ;;
+  list|ls)
+    shift
+    mapfile -t mapped < <(map_shorthand "$@")
+    exec "$THROUGHPUT" --list "${mapped[@]}"
+    ;;
+  compare)
+    exec "$THROUGHPUT" --compare
+    ;;
+  compare-run|latest)
+    exec "$THROUGHPUT" --compare-run
+    ;;
+  compare-sched)
+    exec "$SCHED" --compare
+    ;;
+  apply-ini)
+    shift
+    [[ -x "$APPLY_INI" ]] || chmod +x "$APPLY_INI" 2>/dev/null || true
+    exec "$APPLY_INI" "$@"
+    ;;
+  index)
+    [[ -x "$BUILD_INDEX" ]] || chmod +x "$BUILD_INDEX" 2>/dev/null || true
+    exec "$BUILD_INDEX"
+    ;;
+  run)
+    # legacy: pass through to throughput
+    shift
+    exec "$THROUGHPUT" "$@"
+    ;;
+  *)
+    # legacy shorthand (no subcommand) → throughput
+    if [[ "$cmd" == -* ]]; then
+      exec "$THROUGHPUT" "$@"
+    fi
+    mapfile -t mapped < <(map_shorthand "$@")
+    exec "$THROUGHPUT" "${mapped[@]}"
+    ;;
+esac

@@ -1,0 +1,60 @@
+# Tab-separated catalog for model-dl.sh
+# local_filename	subdir	hf_repo	remote_filename
+# remote_filename may differ from local (e.g. MTP repo naming); leave empty = same as local
+# Lines starting with # are ignored. Empty hf_repo = manual download only.
+#
+# --- Daily A3B (models.ini) ---
+Qwen3.6-mmproj-F16.gguf	chat/large	unsloth/Qwen3.6-35B-A3B-GGUF	mmproj-F16.gguf
+Qwen3.6-35B-A3B-MTP-UD-Q4_K_M.gguf	chat/large	unsloth/Qwen3.6-35B-A3B-MTP-GGUF	Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
+Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL.gguf	chat/large	unsloth/Qwen3.6-35B-A3B-MTP-GGUF	Qwen3.6-35B-A3B-UD-Q5_K_XL.gguf
+Qwen3.6-35B-A3B-MTP-UD-Q4_K_XL.gguf	chat/large	unsloth/Qwen3.6-35B-A3B-MTP-GGUF	Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
+Nemotron-3-Nano-30B-A3B-Q4_K_M.gguf	chat/large	unsloth/Nemotron-3-Nano-30B-A3B-GGUF
+Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL.gguf	chat/large	unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF
+Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL.gguf	chat/large	unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF
+# Soofi Instruct GGUF is gated (HF_TOKEN + accept license on the repo page)
+soofi-s-instruct-preview-Q5_K_M.gguf	chat/large	Soofi-Project/Soofi-S-Instruct-Preview-GGUF
+Qwen-AgentWorld-35B-A3B-UD-Q4_K_M.gguf	chat/large	unsloth/Qwen-AgentWorld-35B-A3B-GGUF
+Qwen-AgentWorld-35B-A3B-UD-Q5_K_M.gguf	chat/large	unsloth/Qwen-AgentWorld-35B-A3B-GGUF
+Nemotron-3-Nano-4B-RotorQuant-Q4_K_M.gguf	chat/small	unsloth/Nemotron-3-Nano-4B-GGUF
+Nemotron-3-Nano-4B-TurboQuant-Q4_K_M.gguf	chat/small	unsloth/Nemotron-3-Nano-4B-GGUF
+NVIDIA-Nemotron-3-Nano-4B-UD-IQ2_XXS.gguf	chat/small	unsloth/NVIDIA-Nemotron-3-Nano-4B-GGUF
+NVIDIA-Nemotron-3-Nano-4B-UD-Q2_K_XL.gguf	chat/small	unsloth/NVIDIA-Nemotron-3-Nano-4B-GGUF
+Qwen3-8B-UD-Q4_K_XL.gguf	chat/medium	unsloth/Qwen3-8B-GGUF
+Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf	chat/small	unsloth/Qwen3-4B-Instruct-2507-GGUF
+bge-m3-Q4_K_M.gguf	embeddings	gpustack/bge-m3-GGUF
+nomic-embed-text-v1.5.Q4_K_M.gguf	embeddings	nomic-ai/nomic-embed-text-v1.5-GGUF
+# Agents-K1 Q4_K_M — local/manual (no stable public Q4 GGUF repo); file already under models/extractor/
+Agents-K1-Q4_K_M.gguf	extractor		
+#
+# --- Lab (models-lab.ini). Qwen3.6 non-MTP optional — daily MTP replaces at same tier. ---
+# Qwen3.6-35B-A3B-UD-Q5_K_M.gguf	chat/large	unsloth/Qwen3.6-35B-A3B-GGUF
+# Qwen3.6-35B-A3B-UD-Q4_K_M.gguf	chat/large	unsloth/Qwen3.6-35B-A3B-GGUF
+Qwen3.8-27B-UD-Q4_K_XL.gguf	chat/large	unsloth/Qwen3.8-27B-GGUF
+Qwen3.8-27B-UD-Q4_K_M.gguf	chat/large	unsloth/Qwen3.8-27B-GGUF
+Qwen3.8-27B-UD-Q5_K_XL.gguf	chat/large	unsloth/Qwen3.8-27B-GGUF
+Qwen3.8-27B-UD-Q6_K_XL.gguf	chat/large	unsloth/Qwen3.8-27B-GGUF
+Qwen3.8-27B-UD-Q8_K_XL.gguf	chat/large	unsloth/Qwen3.8-27B-GGUF
+Qwen3.8-mmproj-F16.gguf	chat/large	unsloth/Qwen3.8-27B-GGUF	mmproj-F16.gguf
+Qwen3.8-27B-Q4_K_M.gguf	chat/large	ggml-org/Qwen3.8-27B-GGUF
+Qwen3.8-27B-Q8_0.gguf	chat/large	ggml-org/Qwen3.8-27B-GGUF
+mtp-Qwen3.8-27B-Q4_0.gguf	chat/large	ggml-org/Qwen3.8-27B-GGUF
+mtp-Qwen3.8-27B-Q8_0.gguf	chat/large	ggml-org/Qwen3.8-27B-GGUF
+mmproj-Qwen3.8-27B-Q8_0.gguf	chat/large	ggml-org/Qwen3.8-27B-GGUF
+#
+# --- Qwen3.8-Flash-Next (qwen4exp, split GGUFs — point ini at -00001-of-00003) ---
+Qwen3.8-Flash-Next-UD-IQ1_M-00001-of-00003.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-IQ1_M/Qwen3.8-Flash-Next-UD-IQ1_M-00001-of-00003.gguf
+Qwen3.8-Flash-Next-UD-IQ1_M-00002-of-00003.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-IQ1_M/Qwen3.8-Flash-Next-UD-IQ1_M-00002-of-00003.gguf
+Qwen3.8-Flash-Next-UD-IQ1_M-00003-of-00003.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-IQ1_M/Qwen3.8-Flash-Next-UD-IQ1_M-00003-of-00003.gguf
+Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-Q2_K_XL/Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf
+Qwen3.8-Flash-Next-UD-Q2_K_XL-00002-of-00003.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-Q2_K_XL/Qwen3.8-Flash-Next-UD-Q2_K_XL-00002-of-00003.gguf
+Qwen3.8-Flash-Next-UD-Q2_K_XL-00003-of-00003.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-Q2_K_XL/Qwen3.8-Flash-Next-UD-Q2_K_XL-00003-of-00003.gguf
+mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf
+Qwen3.8-Flash-Next-mmproj-F16.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	mmproj-F16.gguf
+#
+# multimodal example (uncomment when needed):
+# medgemma-4b-it-Q4_K_M.gguf	multimodal/medgemma-4b-it	unsloth/medgemma-4b-it-GGUF
+# medgemma-4b-it-mmproj-f16.gguf	multimodal/medgemma-4b-it	unsloth/medgemma-4b-it-GGUF
+Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
+Qwen3.8-Flash-Next-UD-Q4_K_XL-00002-of-00004.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00002-of-00004.gguf
+Qwen3.8-Flash-Next-UD-Q4_K_XL-00003-of-00004.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00003-of-00004.gguf
+Qwen3.8-Flash-Next-UD-Q4_K_XL-00004-of-00004.gguf	chat/large	unsloth/Qwen3.8-Flash-Next-GGUF	UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00004-of-00004.gguf

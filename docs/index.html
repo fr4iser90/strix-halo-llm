@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<title>Bench Dashboard</title>
+<style>
+:root { color-scheme: dark; }
+body { font: 15px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 1100px;
+  background: #12141a; color: #e8eaed; }
+h1 { font-size: 1.4rem; margin-bottom: .2rem; }
+h2 { font-size: 1.05rem; margin: 2rem 0 .6rem; color: #c4c7cc; }
+.meta { color: #9aa0a6; font-size: .9rem; }
+a { color: #8ab4f8; }
+.more { font-size: .85rem; margin: .25rem 0 1rem; }
+table { border-collapse: collapse; width: 100%; margin: .5rem 0 1rem; }
+th, td { padding: .45rem .65rem; border-bottom: 1px solid #2a2e37; }
+th { text-align: left; color: #9aa0a6; font-weight: 600; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, monospace; }
+.best { color: #7ddea5; font-weight: 600; }
+.pos { color: #7ddea5; }
+tr.done td { opacity: .85; }
+.card { background: #1a1d24; border-radius: 8px; padding: 1rem 1.25rem; margin: 1rem 0; }
+.card h2 { margin-top: 0; }
+details { margin-top: 2.5rem; }
+summary { cursor: pointer; color: #9aa0a6; font-weight: 600; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: .5rem; margin: .75rem 0; font-size: .85rem; }
+.legend span { background: #12141a; padding: .4rem .6rem; border-radius: 4px; display: block; }
+.pending { color: #f0c674; }
+.btn { display: inline-block; margin: .35rem .5rem .35rem 0; padding: .55rem 1rem;
+  background: #3d5a3d; color: #e8eaed; border: none; border-radius: 6px; cursor: pointer;
+  font: inherit; text-decoration: none; }
+.btn:hover { background: #4a6b4a; }
+.btn.secondary { background: #2a3444; }
+.btn.secondary:hover { background: #354152; }
+.cmd { background: #12141a; padding: .75rem 1rem; border-radius: 6px; font-family: ui-monospace, monospace;
+  font-size: .85rem; margin: .5rem 0; overflow-x: auto; }
+</style></head><body>
+
+<h1>Bench Dashboard</h1>
+<p class="meta">★ = recommended sweep value · Prefill/TG tok/s = under load / idle</p>
+<p class="more"><a href="planner.html"><strong>→ Recommendation planner</strong></a> (pick models, tweak np/c, dual GTT estimate)</p>
+
+<div class="card" id="apply">
+<h2>Settings anwenden</h2>
+<p class="meta"><code>models-lab.ini</code> (np/ub/b/c) · cont-batch = advisory in apply-plan</p>
+<div class="cmd" id="apply-cmd">./bench apply-ini --lab</div>
+<button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('apply-cmd').textContent)">Apply-Befehl kopieren</button>
+<button type="button" class="btn secondary" onclick="navigator.clipboard.writeText('./bench apply-ini --dry-run --lab')">Dry-run kopieren</button>
+<p class="more"><a href="scheduling/latest/apply-plan.json">→ apply-plan.json</a> · cont-batching global: <strong>an</strong></p>
+<table><thead><tr>
+<th>Modell</th><th class="n">np</th><th class="n">ub</th><th class="n">b</th><th class="n">c</th><th>cont-batch</th>
+</tr></thead><tbody><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td class="n">2</td><td class="n">128</td><td class="n">64†</td><td class="n">262144</td><td>on ★</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td class="n">4</td><td class="n">64</td><td class="n">64†</td><td class="n">262144</td><td>on ★</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n">2</td><td class="n">256</td><td class="n">64†</td><td class="n">262144</td><td>off ★</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td class="n">4</td><td class="n">256</td><td class="n">64†</td><td class="n">262144</td><td>on ★</td></tr><tr><td>Qwen3.8-27B-Q4_K_M-MTP</td><td class="n">4</td><td class="n">64</td><td class="n">64†</td><td class="n">262144</td><td>off ★</td></tr><tr><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td class="n">4</td><td class="n">64</td><td class="n">64†</td><td class="n">262144</td><td>on ★</td></tr></tbody></table>
+</div>
+
+<div class="card">
+<h2>Scheduling — np / ub / b <span class="meta">Decode niedrig · Prefill schnell</span></h2>
+<p class="more"><a href="scheduling/latest/compare.html">→ Details &amp; Sweeps pro Modell</a></p>
+<div class="legend">
+  <span><strong>np ★</strong> parallele Slots (--parallel)</span>
+  <span><strong>ub ★</strong> Micro-Batch / PP-Chunk (n_ubatch)</span>
+  <span><strong>b ★</strong> Max-Batch (n_batch) — † = Default 64, Sweep noch offen</span>
+  <span><strong>Prefill tok/s</strong> Prompt-Durchsatz unter Last (Interleave)</span>
+  <span><strong>TG tok/s</strong> Generation solo (Throughput-Bench)</span>
+  <span><strong>cont-batch</strong> continuous batching an/aus</span>
+  <span><strong>PP an/aus</strong> solo 4k-Prefill tok/s</span>
+</div>
+<table><thead><tr>
+<th>Modell</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">c ★</th>
+<th>cont-batch</th><th class="n">Prefill tok/s</th><th class="n">TG tok/s</th>
+<th class="n">PP an</th><th class="n">PP aus</th>
+<th class="n">Decode ms</th><th class="n">Interleave</th>
+</tr></thead><tbody><tr><td>Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL</td><td class="n best">2</td><td class="n best">256</td><td class="n pending" title="n_batch — Sweep 06 noch offen">64†</td><td class="n best">—</td><td>on</td><td class="n">63.8</td><td class="n">82.2</td><td class="n">—</td><td class="n">—</td><td class="n">12.5</td><td class="n pos">512×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td class="n best">2</td><td class="n best">128</td><td class="n pending" title="n_batch — Sweep 06 noch offen">64†</td><td class="n best">262144</td><td>on ★</td><td class="n">76.2</td><td class="n">—</td><td class="n">428.3</td><td class="n">409.5</td><td class="n">31.1</td><td class="n ">—</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td class="n best">4</td><td class="n best">64</td><td class="n pending" title="n_batch — Sweep 06 noch offen">64†</td><td class="n best">262144</td><td>on ★</td><td class="n">83.1</td><td class="n">—</td><td class="n">425.4</td><td class="n">397.5</td><td class="n">32.1</td><td class="n pos">149×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">2</td><td class="n best">256</td><td class="n pending" title="n_batch — Sweep 06 noch offen">64†</td><td class="n best">262144</td><td>off ★</td><td class="n">71.8</td><td class="n">—</td><td class="n">127.4</td><td class="n">385.2</td><td class="n">35.4</td><td class="n pos">169×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td class="n best">4</td><td class="n best">256</td><td class="n pending" title="n_batch — Sweep 06 noch offen">64†</td><td class="n best">262144</td><td>on ★</td><td class="n">71.7</td><td class="n">—</td><td class="n">345.9</td><td class="n">350.6</td><td class="n">35.5</td><td class="n pos">179×</td></tr><tr><td>Qwen3.8-27B-Q4_K_M-MTP</td><td class="n best">4</td><td class="n best">128</td><td class="n pending" title="n_batch — Sweep 06 noch offen">64†</td><td class="n best">262144</td><td>off ★</td><td class="n">16.9</td><td class="n">—</td><td class="n">59.8</td><td class="n">239.4</td><td class="n">130.8</td><td class="n pos">143×</td></tr><tr><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td class="n best">4</td><td class="n best">64</td><td class="n pending" title="n_batch — Sweep 06 noch offen">64†</td><td class="n best">262144</td><td>on ★</td><td class="n">16.9</td><td class="n">—</td><td class="n">237.7</td><td class="n">233.9</td><td class="n">130.6</td><td class="n pos">145×</td></tr></tbody></table>
+</div>
+
+<div class="card">
+<h2>Throughput — welches Modell ist am schnellsten?</h2>
+<p class="more"><a href="throughput/latest/compare.html">→ Details</a> · PP/TG tok/s · <strong>höher = besser</strong></p>
+<table><thead><tr>
+<th>Modell</th><th class="n">PP (512 tok)</th><th class="n">TG (128 tok)</th>
+</tr></thead><tbody><tr><td>Qwen3-Coder-30B-A3B-Q5_K_XL</td><td class="n pos">1275.1</td><td class="n">82.2</td></tr></tbody></table>
+</div>
+
+<div class="card">
+<h2>Quality — HumanEval &amp; plugins</h2>
+<p class="more"><a href="quality/latest/compare.md">→ Details</a> · <code>./bench quality list</code></p>
+<table><thead><tr>
+<th>Suite</th><th>Model</th><th class="n">pass@1</th><th class="n">pass@10</th><th>Stamp</th>
+</tr></thead><tbody><tr><td colspan="5" class="meta">Noch keine Daten — <code>./bench quality humaneval --model …</code></td></tr></tbody></table>
+</div>
+
+<div class="card">
+<h2>Matrix-Fortschritt</h2>
+<table><thead><tr>
+<th>Modell</th><th>Status</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">Decode ms</th>
+</tr></thead><tbody><tr class=""><td>Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL</td><td>auto ✓ · ub ✓ · np ✓ · b ⏳</td><td class="n best">2</td><td class="n best">256</td><td class="n best">64†</td><td class="n">12.5</td></tr><tr class=""><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>auto ✓ · ub ✓ · np ✓ · b ⏳</td><td class="n best">2</td><td class="n best">128</td><td class="n best">64†</td><td class="n">31.1</td></tr><tr class=""><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td>auto ✓ · ub ✓ · np ✓ · b ⏳</td><td class="n best">4</td><td class="n best">64</td><td class="n best">64†</td><td class="n">32.1</td></tr><tr class=""><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td>auto ✓ · ub ✓ · np ✓ · b ⏳</td><td class="n best">2</td><td class="n best">256</td><td class="n best">64†</td><td class="n">35.4</td></tr><tr class=""><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td>auto ✓ · ub ✓ · np ✓ · b ⏳</td><td class="n best">4</td><td class="n best">256</td><td class="n best">64†</td><td class="n">35.5</td></tr><tr class=""><td>Qwen3.8-27B-Q4_K_M-MTP</td><td>auto ✓ · ub ✓ · np ✓ · b ⏳</td><td class="n best">4</td><td class="n best">128</td><td class="n best">64†</td><td class="n">130.8</td></tr><tr class=""><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td>auto ✓ · ub ✓ · np ✓ · b ⏳</td><td class="n best">4</td><td class="n best">64</td><td class="n best">64†</td><td class="n">130.6</td></tr></tbody></table>
+</div>
+
+<details>
+<summary>Run-Historie (12 throughput · 60 scheduling)</summary>
+<h2>Throughput-Läufe</h2>
+<table><thead><tr><th>Zeit</th><th>Stamp</th><th>Suite</th><th>Backends</th></tr></thead>
+<tbody><tr><td>2026-09-06 14:28 UTC</td><td><code>20260906T142802Z</code></td><td>lab</td><td>vulkan</td></tr><tr><td>2026-09-03 16:30 UTC</td><td><code>20260903T163030Z</code></td><td>lab</td><td>vulkan</td></tr><tr><td>2026-09-03 16:22 UTC</td><td><code>20260903T162233Z</code></td><td>lab</td><td>vulkan</td></tr><tr><td>2026-09-03 08:27 UTC</td><td><code>20260903T082713Z</code></td><td>lab</td><td>vulkan</td></tr><tr><td>2026-09-03 00:57 UTC</td><td><code>20260903T005706Z</code></td><td>mix</td><td>vulkan</td></tr><tr><td>2026-08-28 10:44 UTC</td><td><code>20260828T104420Z</code></td><td>lab</td><td>vulkan</td></tr><tr><td>2026-08-19 12:10 UTC</td><td><code>20260819T121046Z</code></td><td>daily</td><td>vulkan</td></tr><tr><td>2026-08-19 11:17 UTC</td><td><code>20260819T111730Z</code></td><td>daily</td><td>vulkan</td></tr><tr><td>2026-08-19 10:51 UTC</td><td><code>20260819T105144Z</code></td><td>mix</td><td>vulkan</td></tr><tr><td>2026-08-19 10:48 UTC</td><td><code>20260819T104808Z</code></td><td>daily</td><td>vulkan</td></tr><tr><td>2026-08-19 10:46 UTC</td><td><code>20260819T104653Z</code></td><td>daily</td><td>vulkan</td></tr><tr><td>2026-08-17 13:00 UTC</td><td><code>20260817T130036Z</code></td><td>heavy</td><td>rocm, vulkan</td></tr></tbody></table>
+<h2>Scheduling-Läufe</h2>
+<table><thead><tr><th>Zeit</th><th>Modell</th><th>Szenarien</th><th>Ordner</th></tr></thead>
+<tbody><tr><td>2026-09-06 19:10 UTC</td><td></td><td>11_coexist_capacity</td><td><a href="scheduling/20260906T191051Z/">20260906T191051Z</a></td></tr><tr><td>2026-09-06 14:53 UTC</td><td></td><td>—</td><td><a href="scheduling/20260906T145352Z/">20260906T145352Z</a></td></tr><tr><td>2026-09-06 14:46 UTC</td><td></td><td>11_coexist_capacity</td><td><a href="scheduling/20260906T144603Z/">20260906T144603Z</a></td></tr><tr><td>2026-09-06 14:34 UTC</td><td>Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL</td><td>—</td><td><a href="scheduling/20260906T143407Z/">20260906T143407Z</a></td></tr><tr><td>2026-09-06 14:32 UTC</td><td>Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL</td><td>04_ub_sweep</td><td><a href="scheduling/20260906T143231Z/">20260906T143231Z</a></td></tr><tr><td>2026-09-06 14:31 UTC</td><td>Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL</td><td>05_np_sweep</td><td><a href="scheduling/20260906T143105Z/">20260906T143105Z</a></td></tr><tr><td>2026-09-06 14:29 UTC</td><td>Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL</td><td>04_ub_sweep</td><td><a href="scheduling/20260906T142938Z/">20260906T142938Z</a></td></tr><tr><td>2026-09-06 14:28 UTC</td><td>Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL</td><td>01_baseline_solo, 02_blocked_np1, 03_interleave_np2</td><td><a href="scheduling/20260906T142834Z/">20260906T142834Z</a></td></tr><tr><td>2026-08-28 13:54 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T135446Z/">20260828T135446Z</a></td></tr><tr><td>2026-08-28 13:52 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T135203Z/">20260828T135203Z</a></td></tr><tr><td>2026-08-28 13:50 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T135014Z/">20260828T135014Z</a></td></tr><tr><td>2026-08-28 13:46 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T134649Z/">20260828T134649Z</a></td></tr><tr><td>2026-08-28 13:45 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T134520Z/">20260828T134520Z</a></td></tr><tr><td>2026-08-28 13:43 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T134303Z/">20260828T134303Z</a></td></tr><tr><td>2026-08-28 13:27 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td>09_fit_probe</td><td><a href="scheduling/20260828T132718Z/">20260828T132718Z</a></td></tr><tr><td>2026-08-28 13:26 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td>08_ctx_sweep</td><td><a href="scheduling/20260828T132617Z/">20260828T132617Z</a></td></tr><tr><td>2026-08-28 13:23 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td>07_cont_batch</td><td><a href="scheduling/20260828T132307Z/">20260828T132307Z</a></td></tr><tr><td>2026-08-28 13:22 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP</td><td>09_fit_probe</td><td><a href="scheduling/20260828T132241Z/">20260828T132241Z</a></td></tr><tr><td>2026-08-28 13:21 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP</td><td>08_ctx_sweep</td><td><a href="scheduling/20260828T132134Z/">20260828T132134Z</a></td></tr><tr><td>2026-08-28 13:15 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP</td><td>07_cont_batch</td><td><a href="scheduling/20260828T131520Z/">20260828T131520Z</a></td></tr><tr><td>2026-08-28 13:14 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td>09_fit_probe</td><td><a href="scheduling/20260828T131455Z/">20260828T131455Z</a></td></tr><tr><td>2026-08-28 13:14 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td>08_ctx_sweep</td><td><a href="scheduling/20260828T131403Z/">20260828T131403Z</a></td></tr><tr><td>2026-08-28 13:11 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td>07_cont_batch</td><td><a href="scheduling/20260828T131154Z/">20260828T131154Z</a></td></tr><tr><td>2026-08-28 13:11 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td>09_fit_probe</td><td><a href="scheduling/20260828T131134Z/">20260828T131134Z</a></td></tr><tr><td>2026-08-28 13:10 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td>08_ctx_sweep</td><td><a href="scheduling/20260828T131040Z/">20260828T131040Z</a></td></tr><tr><td>2026-08-28 13:07 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td>07_cont_batch</td><td><a href="scheduling/20260828T130716Z/">20260828T130716Z</a></td></tr><tr><td>2026-08-28 13:06 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td>09_fit_probe</td><td><a href="scheduling/20260828T130658Z/">20260828T130658Z</a></td></tr><tr><td>2026-08-28 13:06 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td>08_ctx_sweep</td><td><a href="scheduling/20260828T130611Z/">20260828T130611Z</a></td></tr><tr><td>2026-08-28 13:04 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td>07_cont_batch</td><td><a href="scheduling/20260828T130419Z/">20260828T130419Z</a></td></tr><tr><td>2026-08-28 13:04 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>09_fit_probe</td><td><a href="scheduling/20260828T130401Z/">20260828T130401Z</a></td></tr><tr><td>2026-08-28 13:03 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>08_ctx_sweep</td><td><a href="scheduling/20260828T130314Z/">20260828T130314Z</a></td></tr><tr><td>2026-08-28 13:01 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>07_cont_batch</td><td><a href="scheduling/20260828T130123Z/">20260828T130123Z</a></td></tr><tr><td>2026-08-28 12:51 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>07_cont_batch</td><td><a href="scheduling/20260828T125107Z/">20260828T125107Z</a></td></tr><tr><td>2026-08-28 12:44 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>—</td><td><a href="scheduling/20260828T124417Z/">20260828T124417Z</a></td></tr><tr><td>2026-08-28 12:39 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>—</td><td><a href="scheduling/20260828T123950Z/">20260828T123950Z</a></td></tr><tr><td>2026-08-28 12:20 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T122042Z/">20260828T122042Z</a></td></tr><tr><td>2026-08-28 12:18 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td>05_np_sweep</td><td><a href="scheduling/20260828T121826Z/">20260828T121826Z</a></td></tr><tr><td>2026-08-28 12:15 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T121557Z/">20260828T121557Z</a></td></tr><tr><td>2026-08-28 12:12 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP</td><td>05_np_sweep</td><td><a href="scheduling/20260828T121256Z/">20260828T121256Z</a></td></tr><tr><td>2026-08-28 12:11 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T121112Z/">20260828T121112Z</a></td></tr><tr><td>2026-08-28 12:09 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td>05_np_sweep</td><td><a href="scheduling/20260828T120938Z/">20260828T120938Z</a></td></tr><tr><td>2026-08-28 12:07 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T120755Z/">20260828T120755Z</a></td></tr><tr><td>2026-08-28 12:04 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td>05_np_sweep</td><td><a href="scheduling/20260828T120411Z/">20260828T120411Z</a></td></tr><tr><td>2026-08-28 12:02 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T120230Z/">20260828T120230Z</a></td></tr><tr><td>2026-08-28 12:00 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td>05_np_sweep</td><td><a href="scheduling/20260828T120057Z/">20260828T120057Z</a></td></tr><tr><td>2026-08-28 11:59 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T115919Z/">20260828T115919Z</a></td></tr><tr><td>2026-08-28 11:56 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>05_np_sweep</td><td><a href="scheduling/20260828T115654Z/">20260828T115654Z</a></td></tr><tr><td>2026-08-28 11:55 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>01_baseline_solo, 02_blocked_np1, 03_interleave_np2</td><td><a href="scheduling/20260828T115557Z/">20260828T115557Z</a></td></tr><tr><td>2026-08-28 11:50 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T115055Z/">20260828T115055Z</a></td></tr><tr><td>2026-08-28 11:49 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td>01_baseline_solo, 02_blocked_np1, 03_interleave_np2</td><td><a href="scheduling/20260828T114902Z/">20260828T114902Z</a></td></tr><tr><td>2026-08-28 11:46 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T114632Z/">20260828T114632Z</a></td></tr><tr><td>2026-08-28 11:44 UTC</td><td>Qwen3.8-27B-Q4_K_M-MTP</td><td>01_baseline_solo, 02_blocked_np1, 03_interleave_np2</td><td><a href="scheduling/20260828T114403Z/">20260828T114403Z</a></td></tr><tr><td>2026-08-28 11:42 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T114221Z/">20260828T114221Z</a></td></tr><tr><td>2026-08-28 11:40 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td>01_baseline_solo, 02_blocked_np1, 03_interleave_np2</td><td><a href="scheduling/20260828T114048Z/">20260828T114048Z</a></td></tr><tr><td>2026-08-28 11:39 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T113905Z/">20260828T113905Z</a></td></tr><tr><td>2026-08-28 11:36 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td>01_baseline_solo, 02_blocked_np1, 03_interleave_np2</td><td><a href="scheduling/20260828T113619Z/">20260828T113619Z</a></td></tr><tr><td>2026-08-28 11:34 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T113449Z/">20260828T113449Z</a></td></tr><tr><td>2026-08-28 11:33 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td>01_baseline_solo, 02_blocked_np1, 03_interleave_np2</td><td><a href="scheduling/20260828T113346Z/">20260828T113346Z</a></td></tr><tr><td>2026-08-28 11:32 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>04_ub_sweep</td><td><a href="scheduling/20260828T113209Z/">20260828T113209Z</a></td></tr><tr><td>2026-08-28 11:26 UTC</td><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td>01_baseline_solo, 02_blocked_np1, 03_interleave_np2</td><td><a href="scheduling/20260828T112647Z/">20260828T112647Z</a></td></tr></tbody></table>
+</details>
+
+<p class="meta">Rebuild: <code>./bench index</code></p>
+</body></html>

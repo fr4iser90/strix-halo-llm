@@ -1,0 +1,79 @@
+# Dedicated bench routers — Stickys (models.ini / models-coder.ini) stay untouched.
+#
+# Solo KV×ctx:
+#   docker compose -f compose.yaml -f compose.bench.yaml --profile bench up -d llama-bench-a
+#
+# Dual 256k:
+#   docker compose -f compose.yaml -f compose.bench.yaml --profile bench up -d \
+#     llama-bench-a llama-bench-b
+#
+# Cont-batching A/B (scheduling scenario 07) uses lab + an *ephemeral* overlay from
+# tools/bench/lib/compose_overlay.sh — no committed compose.*.nocb.yaml.
+# Same helper can wrap llama-bench-a/b if a capacity scenario needs --no-cont-batching.
+#
+# Stop:
+#   docker compose -f compose.yaml -f compose.bench.yaml --profile bench stop \
+#     llama-bench-a llama-bench-b
+#
+# Ports: :11601 (A) · :11602 (B) — outside sticky/lab range.
+
+services:
+  llama-bench-a:
+    image: llama-cpp-vulkan-nix
+    profiles: ["bench"]
+    container_name: llama-bench-a
+    devices:
+      - /dev/dri
+    device_cgroup_rules:
+      - "c 226:* rmw"
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    ipc: host
+    shm_size: "16gb"
+    restart: "no"
+    volumes:
+      - ./models:/models
+      - ./models-bench.ini:/etc/llama-cpp/models.ini:ro
+      - /dev/dri:/dev/dri
+    ports:
+      - "11601:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+        "--sleep-idle-seconds", "900",
+      ]
+
+  llama-bench-b:
+    image: llama-cpp-vulkan-nix
+    profiles: ["bench"]
+    container_name: llama-bench-b
+    devices:
+      - /dev/dri
+    device_cgroup_rules:
+      - "c 226:* rmw"
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    ipc: host
+    shm_size: "16gb"
+    restart: "no"
+    volumes:
+      - ./models:/models
+      - ./models-bench-b.ini:/etc/llama-cpp/models.ini:ro
+      - /dev/dri:/dev/dri
+    ports:
+      - "11602:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+        "--sleep-idle-seconds", "900",
+      ]

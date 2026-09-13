@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+# Dual 256k: auto-sync, all models (or --model), concurrent bench-a + bench-b.
+set -euo pipefail
+
+CAPACITY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/common.sh
+source "$CAPACITY_ROOT/lib/common.sh"
+
+KV_LIST="${CAPACITY_DUAL_KV_LIST:-${CAPACITY_KV_LIST:-q8_0,q6_k,q5_k}}"
+C_VAL="${CAPACITY_DUAL_C:-262144}"
+
+ensure_synced() {
+  if [[ "${CAPACITY_AUTO_SYNC:-1}" == "1" ]]; then
+    log "auto-sync models-bench.ini from: $CAPACITY_SYNC_SOURCES"
+    sync_bench_inis "$CAPACITY_SYNC_SOURCES"
+  fi
+}
+
+cleanup_dual() {
+  if [[ "${CAPACITY_AUTO_SYNC:-1}" == "1" ]]; then
+    sync_bench_inis "$CAPACITY_SYNC_SOURCES" >/dev/null || true
+  fi
+  [[ "${CAPACITY_NO_RESTORE:-0}" == "1" ]] || restore_after_capacity
+}
+trap cleanup_dual EXIT
+
+ensure_synced
+
+MODELS=()
+if [[ -n "${CAPACITY_MODEL:-}" ]]; then
+  MODELS=("$CAPACITY_MODEL")
+else
+  mapfile -t MODELS < <(list_bench_models)
+fi
+[[ ${#MODELS[@]} -gt 0 ]] || die "no models in models-bench.ini"
+
+export CAPACITY_MODEL_LIST
+CAPACITY_MODEL_LIST="$(IFS=,; echo "${MODELS[*]}")"
+
+prepare_capacity_gpu
+# Dual needs both; fingerprint from a after first up
+compose_bench up -d llama-bench-a llama-bench-b
+wait_for_url "$CAPACITY_URL_A" 120 || die "bench-a not reachable"
+wait_for_url "$CAPACITY_URL_B" 120 || die "bench-b not reachable"
+detect_server_fingerprint
+init_capacity_run "dual-256k"
+IFS=',' read -ra KV_VALUES <<< "$KV_LIST"
+
+run_dual_cell() {
+  local MODEL="$1" kv="$2"
+  local key cell_dir fill_tok ok=1 phase="ok"
+  local snap_load snap_end peak pid_a pid_b
+  key="$(cell_key dual "$MODEL" "$kv" "$C_VAL")"
+  cell_dir="$CAPACITY_RUN_DIR/${MODEL}/dual_${kv}_c${C_VAL}"
+
+  if should_skip_cell "$key"; then
+    log "skip $key"
+    echo "{\"key\":\"$key\",\"skipped\":true,\"ok\":true,\"mode\":\"dual\",\"model\":\"$MODEL\",\"kv\":\"$kv\",\"c\":$C_VAL}" \
+      >>"$CAPACITY_RUN_DIR/matrix.jsonl"
+    return 0
+  fi
+
+  mkdir -p "$cell_dir"
+  log "=== dual $MODEL kv=$kv c=$C_VAL ==="
+
+  patch_bench_section "$CAPACITY_INI_A" "$MODEL" "$kv" "$C_VAL"
+  patch_bench_section "$CAPACITY_INI_B" "$MODEL" "$kv" "$C_VAL"
+  restart_bench_ab
+
+  if ! ensure_model_on_url "$CAPACITY_URL_A" "$MODEL"; then
+    ok=0; phase="load_a"
+  elif ! ensure_model_on_url "$CAPACITY_URL_B" "$MODEL"; then
+    ok=0; phase="load_b"
+  fi
+
+  snap_load="$(mem_snapshot)"
+  printf '%s\n' "$snap_load" >"$cell_dir/mem_after_load.json"
+
+  if [[ "$ok" -eq 1 ]]; then
+    fill_tok="$(awk -v c="$C_VAL" -v r="$CAPACITY_FILL_RATIO" 'BEGIN{v=int(c*r); if(v<1024)v=1024; print v}')"
+    write_fill_prompt "$cell_dir/fill.txt" "$fill_tok"
+    metrics_start "$cell_dir/metrics.csv"
+    stream_once "$CAPACITY_URL_A" "$MODEL" "a" "$cell_dir/fill.txt" "$cell_dir/stream_a.jsonl" "$CAPACITY_MAX_TOKENS" &
+    pid_a=$!
+    stream_once "$CAPACITY_URL_B" "$MODEL" "b" "$cell_dir/fill.txt" "$cell_dir/stream_b.jsonl" "$CAPACITY_MAX_TOKENS" &
+    pid_b=$!
+    if ! wait "$pid_a"; then ok=0; phase="stream_a"; fi
+    if ! wait "$pid_b"; then ok=0; phase="stream_b"; fi
+    metrics_stop
+    summarize_stream "$cell_dir/stream_a.jsonl" "$cell_dir/stream_a_summary.json" >/dev/null || true
+    summarize_stream "$cell_dir/stream_b.jsonl" "$cell_dir/stream_b_summary.json" >/dev/null || true
+  fi
+
+  snap_end="$(mem_snapshot)"
+  printf '%s\n' "$snap_end" >"$cell_dir/mem_after.json"
+  peak="$(metrics_peak_from_csv "$cell_dir/metrics.csv")"
+
+  bench_python - "$cell_dir" "$key" "$MODEL" "$kv" "$C_VAL" "$ok" "$phase" \
+    "$snap_load" "$snap_end" "$peak" "$CAPACITY_BACKEND" \
+    "$CAPACITY_RUN_DIR/matrix.jsonl" "$CELLS_LEDGER" <<'PY'
+import json, os, sys
+(
+    cell_dir, key, model, kv, c, ok, phase,
+    snap_load, snap_end, peak, backend, matrix_path, ledger_path,
+) = sys.argv[1:14]
+row = {
+    "key": key,
+    "mode": "dual",
+    "backend": backend,
+    "model": model,
+    "kv": kv,
+    "c": int(c),
+    "ok": ok == "1",
+    "phase": phase,
+    "mem_after_load": json.loads(snap_load),
+    "mem_after": json.loads(snap_end),
+    "metrics_peak": json.loads(peak),
+    "skipped": False,
+    "server_version": os.environ.get("CAPACITY_SERVER_VERSION", ""),
+    "image_id": os.environ.get("CAPACITY_IMAGE_ID", ""),
+    "image_name": os.environ.get("CAPACITY_IMAGE_NAME", ""),
+}
+for side in ("a", "b"):
+    p = os.path.join(cell_dir, f"stream_{side}_summary.json")
+    if os.path.isfile(p):
+        with open(p, encoding="utf-8") as f:
+            row[f"stream_{side}"] = json.load(f)
+with open(os.path.join(cell_dir, "summary.json"), "w", encoding="utf-8") as f:
+    json.dump(row, f, indent=2)
+    f.write("\n")
+line = json.dumps(row, ensure_ascii=False)
+with open(matrix_path, "a", encoding="utf-8") as f:
+    f.write(line + "\n")
+os.makedirs(os.path.dirname(ledger_path), exist_ok=True)
+with open(ledger_path, "a", encoding="utf-8") as f:
+    f.write(line + "\n")
+print(f"wrote {key} ok={row['ok']} phase={phase}")
+PY
+}
+
+for MODEL in "${MODELS[@]}"; do
+  [[ -n "$MODEL" ]] || continue
+  for kv in "${KV_VALUES[@]}"; do
+    kv="${kv// /}"
+    [[ -n "$kv" ]] || continue
+    run_dual_cell "$MODEL" "$kv"
+  done
+done
+
+bench_python - "$CAPACITY_RUN_DIR" <<'PY'
+import json, os, sys
+run_dir = sys.argv[1]
+rows = []
+with open(os.path.join(run_dir, "matrix.jsonl"), encoding="utf-8") as f:
+    for line in f:
+        if line.strip():
+            rows.append(json.loads(line))
+lines = ["# Capacity dual-256k", "", "| model | kv | ok | phase | GTT peak MiB | mem avail MiB |", "| --- | --- | --- | --- | ---: | ---: |"]
+for r in rows:
+    if r.get("skipped"):
+        lines.append(f"| {r['model']} | {r['kv']} | skip | — | — | — |")
+        continue
+    peak = (r.get("metrics_peak") or {}).get("gtt_used_mb")
+    mem = (r.get("mem_after") or {}).get("mem_avail_mb")
+    lines.append(f"| {r['model']} | {r['kv']} | {r.get('ok')} | {r.get('phase')} | {peak or '—'} | {mem or '—'} |")
+path = os.path.join(run_dir, "compare.md")
+with open(path, "w", encoding="utf-8") as f:
+    f.write("\n".join(lines) + "\n")
+print(path)
+PY
+
+mkdir -p "$CAPACITY_OUT/latest"
+cp -a "$CAPACITY_RUN_DIR/compare.md" "$CAPACITY_OUT/latest/compare.md"
+cp -a "$CAPACITY_RUN_DIR/manifest.json" "$CAPACITY_OUT/latest/manifest.json"
+cp -a "$CAPACITY_RUN_DIR/matrix.jsonl" "$CAPACITY_OUT/latest/matrix.jsonl"
+
+log "done dual-256k → $CAPACITY_RUN_DIR"

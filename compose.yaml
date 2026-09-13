@@ -1,0 +1,122 @@
+# Sticky chat (:11535) + sticky coder (:11538) + embeddings (:11536) + extractor (:11539).
+# Lab swap pool (:11537):
+#   docker compose up -d
+#   docker compose --profile lab up -d
+# Capacity bench routers (:11601 / :11602) — stickys untouched:
+#   docker compose -f compose.yaml -f compose.bench.yaml --profile bench up -d llama-bench-a
+#
+# Image: llama-cpp-vulkan-nix (Nix-native OCI, kein Ubuntu-Base)
+# Build:  ./build-nix-image.sh
+#
+# Alle Libs (glibc, Mesa RADV, Vulkan-Loader) kommen aus dem gleichen Nix-Closure
+# wie llama-cpp. Kein LD_PRELOAD, kein /nix/store-Mount, kein /run/opengl-driver-Mount nötig.
+name: llama-cpp-vulkan
+
+x-llama-gpu: &llama-gpu
+  image: llama-cpp-vulkan-nix
+  devices:
+    - /dev/dri
+  device_cgroup_rules:
+    - "c 226:* rmw"
+  cap_add:
+    - SYS_PTRACE
+  security_opt:
+    - seccomp=unconfined
+  ipc: host
+  shm_size: "16gb"
+  restart: unless-stopped
+  # Kein LD_PRELOAD, kein /nix/store-Mount, kein /run/opengl-driver-Mount nötig.
+  # VK_DRIVER_FILES ist bereits im Image via Nix-ENV gesetzt.
+
+services:
+  # Sticky chat: ein Modell aus models.ini (load-on-startup).
+  llama:
+    <<: *llama-gpu
+    container_name: llama-router
+    volumes:
+      - ./models:/models
+      - ./models.ini:/etc/llama-cpp/models.ini:ro
+      - /dev/dri:/dev/dri
+    ports:
+      - "11535:8080"
+    # Entrypoint ist /bin/llama-server (im Image gesetzt), command = nur Args
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+      ]
+
+  # Sticky coder: immer warm (models-coder.ini). Lab bleibt Testing auf :11537.
+  llama-coder:
+    <<: *llama-gpu
+    container_name: llama-router-coder
+    volumes:
+      - ./models:/models
+      - ./models-coder.ini:/etc/llama-cpp/models.ini:ro
+      - /dev/dri:/dev/dri
+    ports:
+      - "11538:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+      ]
+
+  # Lab: alle anderen GGUFs, on-demand swap. Teilt GPU/RAM mit sticky.
+  llama-lab:
+    <<: *llama-gpu
+    profiles: ["lab"]
+    container_name: llama-router-lab
+    volumes:
+      - ./models:/models
+      - ./models-lab.ini:/etc/llama-cpp/models.ini:ro
+      - /dev/dri:/dev/dri
+    ports:
+      - "11537:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+        "--sleep-idle-seconds", "900",
+      ]
+
+  llama-embeddings:
+    <<: *llama-gpu
+    container_name: llama-embeddings
+    volumes:
+      - ./models:/models
+      - ./models-embeddings.ini:/etc/llama-cpp/models-embeddings.ini:ro
+      - /dev/dri:/dev/dri
+    ports:
+      - "11536:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models-embeddings.ini",
+        "--models-max", "1",
+      ]
+
+  # Knowledge extractor (Agents-K1): schema JSON for Neo4j / K1-lite units.
+  llama-extractor:
+    <<: *llama-gpu
+    container_name: llama-extractor
+    volumes:
+      - ./models:/models
+      - ./models-extractor.ini:/etc/llama-cpp/models-extractor.ini:ro
+      - /dev/dri:/dev/dri
+    ports:
+      - "11539:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models-extractor.ini",
+        "--models-max", "1",
+      ]

@@ -1,0 +1,95 @@
+# Daily + embeddings + extractor always. Lab:
+#   docker compose -f compose.rocm.yaml --profile lab up -d
+# Distinct image/project so this cannot overwrite the Vulkan image.
+name: llama-cpp-rocm
+
+x-llama-gpu: &llama-gpu
+  image: llama-cpp-rocm
+  build:
+    context: .
+    dockerfile: Dockerfile.rocm
+  devices:
+    - /dev/kfd
+    - /dev/dri
+  group_add:
+    - video
+  ipc: host
+  shm_size: "16gb"
+  environment:
+    HSA_OVERRIDE_GFX_VERSION: "11.5.1"
+    LD_LIBRARY_PATH: /app
+    GGML_CUDA_ENABLE_UNIFIED_MEMORY: "1"
+    ROCBLAS_USE_HIPBLASLT: "1"
+  restart: unless-stopped
+
+services:
+  llama:
+    <<: *llama-gpu
+    container_name: llama-rocm
+    volumes:
+      - ./models:/models
+      - ./models.ini:/etc/llama-cpp/models.ini:ro
+    ports:
+      - "11535:8080"
+    command:
+      [
+        "/app/llama-server",
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+      ]
+
+  llama-lab:
+    <<: *llama-gpu
+    profiles: ["lab"]
+    container_name: llama-rocm-lab
+    volumes:
+      - ./models:/models
+      - ./models-heavy.ini:/etc/llama-cpp/models.ini:ro
+    ports:
+      - "11537:8080"
+    command:
+      [
+        "/app/llama-server",
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+      ]
+
+  llama-embeddings:
+    <<: *llama-gpu
+    container_name: llama-embeddings-rocm
+    shm_size: "2gb"
+    volumes:
+      - ./models:/models
+      - ./models-embeddings.ini:/etc/llama-cpp/models-embeddings.ini:ro
+    ports:
+      - "11536:8080"
+    command:
+      [
+        "/app/llama-server",
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models-embeddings.ini",
+        "--models-max", "1",
+      ]
+
+  llama-extractor:
+    <<: *llama-gpu
+    container_name: llama-extractor-rocm
+    shm_size: "2gb"
+    volumes:
+      - ./models:/models
+      - ./models-extractor.ini:/etc/llama-cpp/models-extractor.ini:ro
+    ports:
+      - "11539:8080"
+    command:
+      [
+        "/app/llama-server",
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models-extractor.ini",
+        "--models-max", "1",
+      ]

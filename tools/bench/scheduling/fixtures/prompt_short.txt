@@ -1,0 +1,1 @@
+Explain quantum computing in simple terms, covering qubits, superposition, and entanglement. Include one practical application.

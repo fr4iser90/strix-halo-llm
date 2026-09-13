@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>llama-bench compare</title>
+<style>
+:root { color-scheme: dark; }
+body { font: 15px/1.45 system-ui, sans-serif; margin: 2rem; background: #12141a; color: #e8eaed; }
+h1 { font-size: 1.25rem; }
+.meta, .foot { color: #9aa0a6; }
+table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+th, td { padding: 0.5rem 0.7rem; border-bottom: 1px solid #2a2e37; }
+th { text-align: left; color: #9aa0a6; font-weight: 600; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+.pos { color: #7ddea5; } .neg { color: #f0a0a0; }
+</style></head><body>
+<h1>llama-bench compare</h1>
+<p class="meta">This run only (20260906T142802Z, suite=lab, backends=vulkan).<br>
+pp512 prompt tok/s · tg128 generation tok/s · higher is better</p>
+<table><thead><tr>
+<th>model</th><th class="n">Vulkan pp</th><th class="n">Vulkan tg</th></tr></thead><tbody>
+<tr><td>Qwen3-Coder-30B-A3B-Q5_K_XL</td><td class="n">1275.1</td><td class="n">82.2</td></tr>
+</tbody></table><p class="foot">Markdown: output/bench/throughput/latest/compare.md</p></body></html>
