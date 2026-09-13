@@ -5,8 +5,8 @@ setup” decisions. Items below are polish — track here so they are not forgot
 
 ## Progress / UX
 
-- [x] Capacity cell progress `N/total` + ETA (`output/bench/capacity/progress.json`)
-- [x] `./bench matrix status` shows capacity progress + ETA
+- [x] Capacity cell progress `N/total` + honest ETA (`runs_left × session wall`; omit ETA until first real run)
+- [x] `./bench matrix status` shows capacity progress + ETA when available
 - [ ] Suite-level ETA for sched / throughput / quality (after first samples)
 - [ ] Live line on Pages dashboard (poll `matrix/progress.json`)
 

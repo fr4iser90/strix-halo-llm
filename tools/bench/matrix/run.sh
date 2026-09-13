@@ -104,7 +104,12 @@ if os.path.isfile(cap_prog):
             "updated": cap.get("updated"),
         }
         if phase.startswith("capacity") and cap.get("detail"):
-            data["detail"] = f"{detail} | {cap.get('index')}/{cap.get('total')} ({cap.get('pct')}%) ETA ~{cap.get('eta')} | {cap.get('detail')}"
+            bits = [f"{cap.get('index')}/{cap.get('total')} ({cap.get('pct')}%)"]
+            if cap.get("remaining_run") is not None:
+                bits.append(f"runs_left {cap.get('remaining_run')}")
+            if cap.get("eta"):
+                bits.append(f"ETA ~{cap.get('eta')}")
+            data["detail"] = f"{detail} | {' '.join(bits)} | {cap.get('detail')}"
     except Exception:
         pass
 data.setdefault("log", [])
@@ -377,11 +382,20 @@ if os.path.isfile(cap_path):
         pass
 if cap.get("total"):
     print("")
-    print(f"capacity: {cap.get('index')}/{cap.get('total')} ({cap.get('pct')}%)  ETA ~{cap.get('eta','?')}")
+    line = f"capacity: {cap.get('index')}/{cap.get('total')} ({cap.get('pct')}%)"
+    if cap.get("remaining_run") is not None:
+        line += f"  runs_left {cap.get('remaining_run')}"
+    if cap.get("eta"):
+        line += f"  ETA ~{cap.get('eta')}"
+    print(line)
     if cap.get("detail"):
         print(f"  cell:   {cap.get('detail')}")
     if cap.get("avg_cell_s"):
-        print(f"  avg:    ~{cap.get('avg_cell_s')}s/cell (timed)")
+        print(f"  avg:    ~{cap.get('avg_cell_s')}s/run (session wall)")
+    elif cap.get("remaining_run"):
+        print("  ETA:    pending first real run")
+    if cap.get("skipped") is not None or cap.get("ran") is not None:
+        print(f"  done:   ran={cap.get('ran', 0)} skipped={cap.get('skipped', 0)}")
 print("")
 print("recent log:")
 for e in (d.get("log") or [])[-15:]:

@@ -50,22 +50,9 @@ IFS=',' read -ra KV_VALUES <<< "$KV_LIST"
 IFS=',' read -ra C_VALUES <<< "$C_LIST"
 q4_min_c="${CAPACITY_Q4_MIN_C:-131072}"
 
-# Count planned cells
-_prog_total=0
-for _m in "${MODELS[@]}"; do
-  [[ -n "$_m" ]] || continue
-  for _kv in "${KV_VALUES[@]}"; do
-    _kv="${_kv// /}"
-    [[ -n "$_kv" ]] || continue
-    for _c in "${C_VALUES[@]}"; do
-      _c="${_c// /}"
-      [[ -n "$_c" ]] || continue
-      _prog_total=$((_prog_total + 1))
-    done
-  done
-done
-capacity_progress_seed_eta "solo"
-capacity_progress_init "$_prog_total"
+# Plan cells (ledger/q4 skips classified up front — ETA only counts must-run)
+capacity_progress_build_plan "solo" "$CAPACITY_MODEL_LIST" "$KV_LIST" "$C_LIST" "$q4_min_c"
+capacity_progress_init
 
 run_cell() {
   local MODEL="$1" kv="$2" c="$3"

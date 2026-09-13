@@ -586,13 +586,17 @@ PY
 }
 
 # --- Progress / ETA (capacity cells) ------------------------------------------
-# CAPACITY_PROG_TOTAL / INDEX / TIMED_* set by scenarios.
+# ETA = remaining_must_run × session_wall_avg. No avg yet → ETA omitted (honest).
+# Plan classifies ledger/q4 skips up front so skips do not inflate remaining work.
 CAPACITY_PROG_TOTAL="${CAPACITY_PROG_TOTAL:-0}"
 CAPACITY_PROG_INDEX="${CAPACITY_PROG_INDEX:-0}"
 CAPACITY_PROG_TIMED_N="${CAPACITY_PROG_TIMED_N:-0}"
 CAPACITY_PROG_TIMED_SUM="${CAPACITY_PROG_TIMED_SUM:-0}"
+CAPACITY_PROG_SKIP_N="${CAPACITY_PROG_SKIP_N:-0}"
+CAPACITY_PROG_RUN_N="${CAPACITY_PROG_RUN_N:-0}"
 CAPACITY_PROG_CELL_T0="${CAPACITY_PROG_CELL_T0:-0}"
 CAPACITY_PROG_FILE="${CAPACITY_PROG_FILE:-$CAPACITY_OUT/progress.json}"
+CAPACITY_PROG_PLAN_FILE="${CAPACITY_PROG_PLAN_FILE:-$CAPACITY_OUT/progress.plan.jsonl}"
 
 capacity_fmt_duration() {
   local s="${1:-0}"
@@ -606,96 +610,202 @@ capacity_fmt_duration() {
   fi
 }
 
-# Seed average cell duration from ledger (elapsed_s), optional mode filter.
-# Stores CAPACITY_PROG_SEED_AVG (seconds); session timings override once available.
-capacity_progress_seed_eta() {
-  local mode="${1:-}"
-  local seed
-  seed="$(bench_python - "$CELLS_LEDGER" "$mode" <<'PY'
-import json, sys, os
-path, mode = sys.argv[1], sys.argv[2]
-vals = []
+# Build skip/run plan for all cells. Args: mode models_csv kv_csv c_csv [q4_min_c]
+# q4_min_c=0 disables q4-family min-c skips (dual).
+capacity_progress_build_plan() {
+  local mode="${1:?}" models_csv="${2:?}" kv_csv="${3:?}" c_csv="${4:?}" q4_min_c="${5:-0}"
+  mkdir -p "$(dirname "$CAPACITY_PROG_PLAN_FILE")"
+  if [[ -z "${CAPACITY_SERVER_VERSION:-}" || -z "${CAPACITY_IMAGE_ID:-}" ]]; then
+    detect_server_fingerprint
+  fi
+  local summary
+  summary="$(bench_python - "$CAPACITY_PROG_PLAN_FILE" "$CELLS_LEDGER" "$mode" \
+    "$CAPACITY_BACKEND" "$models_csv" "$kv_csv" "$c_csv" "$q4_min_c" \
+    "${CAPACITY_FORCE:-0}" "${CAPACITY_SKIP_EXISTING:-1}" "${CAPACITY_RETRY_FAILED:-0}" \
+    "${CAPACITY_SERVER_VERSION:-}" "${CAPACITY_IMAGE_ID:-}" <<'PY'
+import json, os, sys
+
+(
+    plan_path, ledger_path, mode, backend, models_csv, kv_csv, c_csv, q4_min_c,
+    force, skip_existing, retry_failed, cur_ver, cur_img,
+) = sys.argv[1:14]
+q4_min_c = int(q4_min_c or 0)
+force = force == "1"
+skip_existing = skip_existing == "1"
+retry_failed = retry_failed == "1"
+models = [m.strip() for m in models_csv.split(",") if m.strip()]
+kvs = [k.strip() for k in kv_csv.split(",") if k.strip()]
+cs = [c.strip() for c in c_csv.split(",") if c.strip()]
+q4_family = {"q4_0", "q4_1", "iq4_nl"}
+
+latest = {}
+if os.path.isfile(ledger_path):
+    with open(ledger_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            key = row.get("key")
+            if key:
+                latest[key] = row
+
+def will_skip_ledger(key: str) -> bool:
+    if force or not skip_existing:
+        return False
+    best = latest.get(key)
+    if best is None:
+        return False
+    old_ver = (best.get("server_version") or "").strip()
+    old_img = (best.get("image_id") or "").strip()
+    if cur_ver and cur_ver != "unknown" and (not old_ver or old_ver != cur_ver):
+        return False
+    if cur_img and cur_img != "unknown" and (not old_img or old_img != cur_img):
+        return False
+    if bool(best.get("ok")):
+        return True
+    return retry_failed != True  # failed + no retry → skip
+
+os.makedirs(os.path.dirname(plan_path) or ".", exist_ok=True)
+total = 0
+must_run = 0
+with open(plan_path, "w", encoding="utf-8") as out:
+    for model in models:
+        for kv in kvs:
+            for c in cs:
+                key = f"{backend}|{mode}|{model}|{kv}|{c}"
+                reason = ""
+                kind = "run"
+                try:
+                    c_int = int(c)
+                except ValueError:
+                    c_int = 0
+                if q4_min_c > 0 and kv in q4_family and c_int < q4_min_c:
+                    kind = "skip"
+                    reason = "q4_min_c"
+                elif will_skip_ledger(key):
+                    kind = "skip"
+                    reason = "ledger"
+                if kind == "run":
+                    must_run += 1
+                total += 1
+                out.write(json.dumps({"key": key, "kind": kind, "reason": reason}) + "\n")
+print(f"{total} {must_run}")
+PY
+)"
+  CAPACITY_PROG_TOTAL="${summary%% *}"
+  CAPACITY_PROG_MUST_RUN_TOTAL="${summary##* }"
+  export CAPACITY_PROG_TOTAL CAPACITY_PROG_MUST_RUN_TOTAL CAPACITY_PROG_PLAN_FILE
+}
+
+# Count planned must-run cells from 0-based start index (inclusive) to end.
+# begin → start=INDEX-1 (include current); end → start=INDEX (exclude current).
+capacity_progress_remaining_run() {
+  local start0="${1:-}"
+  if [[ -z "$start0" ]]; then
+    if [[ "${CAPACITY_PROG_INDEX:-0}" -lt 1 ]]; then
+      start0=0
+    else
+      start0=$((CAPACITY_PROG_INDEX - 1))
+    fi
+  fi
+  bench_python - "$CAPACITY_PROG_PLAN_FILE" "$start0" <<'PY'
+import json, os, sys
+path, start = sys.argv[1], int(sys.argv[2])
+n = 0
 if not os.path.isfile(path):
-    print("0")
+    print(0)
     raise SystemExit(0)
 with open(path, encoding="utf-8") as f:
-    for line in f:
+    for i, line in enumerate(f):
+        if i < start:
+            continue
         line = line.strip()
         if not line:
             continue
         try:
-            r = json.loads(line)
+            if json.loads(line).get("kind") == "run":
+                n += 1
         except json.JSONDecodeError:
-            continue
-        if r.get("skipped"):
-            continue
-        if mode and r.get("mode") != mode:
-            continue
-        e = r.get("elapsed_s")
-        if e is None:
-            continue
-        try:
-            e = float(e)
-        except (TypeError, ValueError):
-            continue
-        if e > 1:
-            vals.append(e)
-if not vals:
-    print("0")
-else:
-    vals = vals[-40:]
-    print(int(round(sum(vals) / len(vals))))
+            pass
+print(n)
 PY
-)"
-  CAPACITY_PROG_SEED_AVG="${seed:-0}"
-  export CAPACITY_PROG_SEED_AVG
-  if [[ "${CAPACITY_PROG_SEED_AVG:-0}" -gt 0 ]]; then
-    log "ETA seed from ledger: avg≈$(capacity_fmt_duration "$CAPACITY_PROG_SEED_AVG")/cell"
-  fi
 }
 
 capacity_progress_init() {
-  CAPACITY_PROG_TOTAL="${1:?}"
   CAPACITY_PROG_INDEX=0
   CAPACITY_PROG_TIMED_N=0
   CAPACITY_PROG_TIMED_SUM=0
-  export CAPACITY_PROG_TOTAL CAPACITY_PROG_INDEX CAPACITY_PROG_TIMED_N CAPACITY_PROG_TIMED_SUM
+  CAPACITY_PROG_SKIP_N=0
+  CAPACITY_PROG_RUN_N=0
+  CAPACITY_PROG_ETA=""
+  export CAPACITY_PROG_INDEX CAPACITY_PROG_TIMED_N CAPACITY_PROG_TIMED_SUM
+  export CAPACITY_PROG_SKIP_N CAPACITY_PROG_RUN_N CAPACITY_PROG_ETA
   mkdir -p "$(dirname "$CAPACITY_PROG_FILE")"
-  log "progress plan: $CAPACITY_PROG_TOTAL cells"
+  local must="${CAPACITY_PROG_MUST_RUN_TOTAL:-?}"
+  log "progress plan: ${CAPACITY_PROG_TOTAL} cells (${must} must-run, rest skip)"
   capacity_progress_write ""
 }
 
+# $1=detail  $2=optional remaining_run start (0-based inclusive)
 capacity_progress_write() {
   local detail="${1:-}"
-  local pct=0 eta_s="" eta_h="" remaining=0 avg=0
+  local rem_start="${2:-}"
+  local pct=0 remaining_run=0 avg=0
+  local eta_s="" eta_h=""
   if [[ "${CAPACITY_PROG_TOTAL:-0}" -gt 0 ]]; then
     pct=$((CAPACITY_PROG_INDEX * 100 / CAPACITY_PROG_TOTAL))
-    remaining=$((CAPACITY_PROG_TOTAL - CAPACITY_PROG_INDEX))
-    [[ "$remaining" -lt 0 ]] && remaining=0
   fi
+  if [[ -n "$rem_start" ]]; then
+    remaining_run="$(capacity_progress_remaining_run "$rem_start")"
+  else
+    remaining_run="$(capacity_progress_remaining_run)"
+  fi
+  [[ "$remaining_run" =~ ^[0-9]+$ ]] || remaining_run=0
+
+  # Only session wall-clock of real runs — never invent ETA without samples.
   if [[ "${CAPACITY_PROG_TIMED_N:-0}" -gt 0 ]]; then
     avg=$((CAPACITY_PROG_TIMED_SUM / CAPACITY_PROG_TIMED_N))
-  elif [[ "${CAPACITY_PROG_SEED_AVG:-0}" -gt 0 ]]; then
-    avg="$CAPACITY_PROG_SEED_AVG"
   fi
   if [[ "$avg" -gt 0 ]]; then
-    eta_s=$((remaining * avg))
+    eta_s=$((remaining_run * avg))
     eta_h="$(capacity_fmt_duration "$eta_s")"
-  else
-    eta_h="?"
   fi
+
+  CAPACITY_PROG_REMAINING_RUN="$remaining_run"
+  CAPACITY_PROG_PCT="$pct"
+  CAPACITY_PROG_ETA="${eta_h}"
+  CAPACITY_PROG_DETAIL="$detail"
+  export CAPACITY_PROG_REMAINING_RUN CAPACITY_PROG_PCT CAPACITY_PROG_ETA CAPACITY_PROG_DETAIL
+
   bench_python - "$CAPACITY_PROG_FILE" "$CAPACITY_PROG_INDEX" "$CAPACITY_PROG_TOTAL" "$pct" \
-    "${eta_s:-}" "$eta_h" "$avg" "$detail" <<'PY'
+    "${eta_s}" "${eta_h}" "$avg" "$detail" "$remaining_run" \
+    "${CAPACITY_PROG_SKIP_N:-0}" "${CAPACITY_PROG_RUN_N:-0}" \
+    "${CAPACITY_PROG_TIMED_N:-0}" "${CAPACITY_PROG_MUST_RUN_TOTAL:-0}" <<'PY'
 import json, os, sys, time
-path, idx, total, pct, eta_s, eta_h, avg, detail = sys.argv[1:9]
+(
+    path, idx, total, pct, eta_s, eta_h, avg, detail, remaining_run,
+    skip_n, run_n, timed_n, must_run_total,
+) = sys.argv[1:14]
+eta_val = eta_h if eta_h else None
+eta_s_val = int(eta_s) if str(eta_s).isdigit() else None
+avg_val = int(avg) if str(avg).isdigit() and int(avg) > 0 else None
 data = {
     "updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     "index": int(idx),
     "total": int(total),
     "pct": int(pct),
-    "eta_s": int(eta_s) if str(eta_s).isdigit() else None,
-    "eta": eta_h,
-    "avg_cell_s": int(avg) if str(avg).isdigit() and int(avg) > 0 else None,
+    "remaining_run": int(remaining_run) if str(remaining_run).isdigit() else 0,
+    "must_run_total": int(must_run_total) if str(must_run_total).isdigit() else None,
+    "skipped": int(skip_n) if str(skip_n).isdigit() else 0,
+    "ran": int(run_n) if str(run_n).isdigit() else 0,
+    "timed_n": int(timed_n) if str(timed_n).isdigit() else 0,
+    "eta_s": eta_s_val,
+    "eta": eta_val,
+    "avg_cell_s": avg_val,
     "detail": detail,
 }
 os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -703,9 +813,6 @@ with open(path, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PY
-  export CAPACITY_PROG_PCT="$pct"
-  export CAPACITY_PROG_ETA="$eta_h"
-  export CAPACITY_PROG_DETAIL="$detail"
 }
 
 capacity_progress_begin() {
@@ -713,8 +820,12 @@ capacity_progress_begin() {
   CAPACITY_PROG_INDEX=$((CAPACITY_PROG_INDEX + 1))
   CAPACITY_PROG_CELL_T0="$(date +%s)"
   export CAPACITY_PROG_INDEX CAPACITY_PROG_CELL_T0
-  capacity_progress_write "$detail"
-  log "progress ${CAPACITY_PROG_INDEX}/${CAPACITY_PROG_TOTAL} (${CAPACITY_PROG_PCT}%) ETA ~${CAPACITY_PROG_ETA:-?} | $detail"
+  capacity_progress_write "$detail"  # remaining includes current cell
+  local msg="progress ${CAPACITY_PROG_INDEX}/${CAPACITY_PROG_TOTAL} (${CAPACITY_PROG_PCT}%) runs_left ${CAPACITY_PROG_REMAINING_RUN}"
+  if [[ -n "${CAPACITY_PROG_ETA:-}" ]]; then
+    msg+=" ETA ~${CAPACITY_PROG_ETA}"
+  fi
+  log "${msg} | $detail"
 }
 
 # kind=skip → no timing; kind=run → accumulate wall time for this cell
@@ -727,9 +838,55 @@ capacity_progress_end() {
     [[ "$dt" -lt 1 ]] && dt=1
     CAPACITY_PROG_TIMED_N=$((CAPACITY_PROG_TIMED_N + 1))
     CAPACITY_PROG_TIMED_SUM=$((CAPACITY_PROG_TIMED_SUM + dt))
-    export CAPACITY_PROG_TIMED_N CAPACITY_PROG_TIMED_SUM
+    CAPACITY_PROG_RUN_N=$((CAPACITY_PROG_RUN_N + 1))
+    export CAPACITY_PROG_TIMED_N CAPACITY_PROG_TIMED_SUM CAPACITY_PROG_RUN_N
+  else
+    CAPACITY_PROG_SKIP_N=$((CAPACITY_PROG_SKIP_N + 1))
+    export CAPACITY_PROG_SKIP_N
   fi
-  capacity_progress_write "${CAPACITY_PROG_DETAIL:-}"
+  # Exclude current cell from remaining_run (0-based start = INDEX).
+  capacity_progress_write "${CAPACITY_PROG_DETAIL:-}" "${CAPACITY_PROG_INDEX}"
+}
+
+# Dual stop-on-fail: fast-forward remaining same model+kv cells as skip (ETA + %).
+capacity_progress_skip_rest_of_ladder() {
+  local model="${1:?}" kv="${2:?}"
+  local mode="${3:-dual}"
+  local prefix="${CAPACITY_BACKEND}|${mode}|${model}|${kv}|"
+  local key
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    capacity_progress_begin "$key"
+    log "skip $key (ladder stop)"
+    capacity_progress_end skip
+  done < <(bench_python - "$CAPACITY_PROG_PLAN_FILE" "$CAPACITY_PROG_INDEX" "$prefix" <<'PY'
+import json, os, sys
+path, idx, prefix = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+if not os.path.isfile(path):
+    raise SystemExit(0)
+rows = []
+with open(path, encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if line:
+            rows.append(json.loads(line))
+changed = False
+keys = []
+for i in range(idx, len(rows)):
+    key = rows[i].get("key") or ""
+    if key.startswith(prefix):
+        rows[i]["kind"] = "skip"
+        rows[i]["reason"] = "ladder_stop"
+        keys.append(key)
+        changed = True
+if changed:
+    with open(path, "w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+for k in keys:
+    print(k)
+PY
+)
 }
 
 init_capacity_run() {

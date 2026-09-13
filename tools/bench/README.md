@@ -38,11 +38,11 @@ rm -f output/bench/capacity/cells.jsonl
 
 Alte Results zu gelöschten Modellen stören nicht (nur Index-Noise).
 
-**Progress:** Capacity loggt `progress N/total (pct%) ETA ~…`. Status:
+**Progress:** Capacity loggt `progress N/total runs_left R` und erst nach dem ersten echten Lauf `ETA ~…` (nur must-run × Session-Wanduhr). Skips zählen nicht als Arbeit. Status:
 
 ```bash
 ./bench matrix status
-# → capacity: 42/270 (15%)  ETA ~3h12m
+# → capacity: 42/270 (15%)  runs_left 12  ETA ~1h20m
 cat output/bench/capacity/progress.json
 ```
 
