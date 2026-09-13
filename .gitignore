@@ -52,6 +52,10 @@ output/bench/**/*.jsonl.done
 output/bench/**/*.log
 output/logs/
 
+# Live progress (rewritten during runs — never commit)
+output/bench/capacity/progress.json
+output/bench/matrix/progress.json
+
 # Keep capacity skip-ledger if you choose to track it (optional — currently covered by *.jsonl)
 # !output/bench/capacity/cells.jsonl
 
