@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <title>Scheduling compare</title>
 <style>
 :root { color-scheme: dark; }
@@ -28,185 +28,116 @@ section.model { margin: 2rem 0; padding: 1rem 0; border-top: 1px solid #2a2e37; 
 .legend div { background: #1a1d24; padding: .65rem .85rem; border-radius: 6px; }
 .legend strong { display: block; margin-bottom: .2rem; }
 </style></head><body>
-<h1>Scheduling — Vergleich & Empfehlungen</h1>
-<p class="meta">Decode-Latenz + Prefill-Durchsatz unter Last · np=2 · ★ = empfohlenes ub</p>
+<h1>Scheduling — compare & recommendations</h1>
+<p class="meta">Decode latency + prefill throughput under load · np=2 · ★ = recommended ub</p>
 
 <div class="legend">
-  <div><strong>Decode ms</strong>Niedrig = Tokens kommen flüssig beim Generieren</div>
-  <div><strong>Prefill tok/s</strong>Hoch = lange Prompts blockieren weniger (≈ PP unter Last)</div>
-  <div><strong>Prefill TTFT</strong>Niedrig = Prefill startet schnell neben Decode</div>
-  <div><strong>PP an/aus</strong>Prompt-tok/s solo (4k) mit cont-batching an vs. aus</div>
+  <div><strong>Decode ms</strong>Low = tokens stream smoothly while generating</div>
+  <div><strong>Prefill tok/s</strong>High = long prompts block less (≈ PP under load)</div>
+  <div><strong>Prefill TTFT</strong>Low = prefill starts quickly alongside decode</div>
+  <div><strong>PP on/off</strong>prompt tok/s solo (4k) with cont-batching on vs off</div>
 </div>
 
-<h2>Empfehlung pro Modell</h2>
+<h2>Recommendation per model</h2>
 <table><thead><tr>
-<th>Modell</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">c ★</th>
-<th>cont-batch</th><th class="n">PP an</th><th class="n">PP aus</th>
+<th>Model</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">c ★</th>
+<th>cont-batch</th><th class="n">PP on</th><th class="n">PP off</th>
 <th class="n">Decode ms</th><th class="n">Prefill tok/s</th>
 <th class="n">Interleave</th>
-</tr></thead><tbody><tr><td>Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL</td><td class="n best">2</td><td class="n best">256</td><td class="n best">—</td><td class="n best">—</td><td class="n">on (default)</td><td class="n">—</td><td class="n">—</td><td class="n">12.5</td><td class="n">63.8</td><td class="n pos">512×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M</td><td class="n best">2</td><td class="n best">128</td><td class="n best">—</td><td class="n best">262144</td><td class="n">on ★</td><td class="n">428.3</td><td class="n">409.5</td><td class="n">31.1</td><td class="n">76.2</td><td class="n ">—</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL</td><td class="n best">4</td><td class="n best">64</td><td class="n best">—</td><td class="n best">262144</td><td class="n">on ★</td><td class="n">425.4</td><td class="n">397.5</td><td class="n">32.1</td><td class="n">83.1</td><td class="n pos">149×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">2</td><td class="n best">256</td><td class="n best">—</td><td class="n best">262144</td><td class="n">off ★</td><td class="n">127.4</td><td class="n">385.2</td><td class="n">35.4</td><td class="n">71.8</td><td class="n pos">169×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td class="n best">4</td><td class="n best">256</td><td class="n best">—</td><td class="n best">262144</td><td class="n">on ★</td><td class="n">345.9</td><td class="n">350.6</td><td class="n">35.5</td><td class="n">71.7</td><td class="n pos">179×</td></tr><tr><td>Qwen3.8-27B-Q4_K_M-MTP</td><td class="n best">4</td><td class="n best">128</td><td class="n best">—</td><td class="n best">262144</td><td class="n">off ★</td><td class="n">59.8</td><td class="n">239.4</td><td class="n">130.8</td><td class="n">16.9</td><td class="n pos">143×</td></tr><tr><td>Qwen3.8-27B-Q4_K_M-MTP-VL</td><td class="n best">4</td><td class="n best">64</td><td class="n best">—</td><td class="n best">262144</td><td class="n">on ★</td><td class="n">237.7</td><td class="n">233.9</td><td class="n">130.6</td><td class="n">16.9</td><td class="n pos">145×</td></tr></tbody></table>
+</tr></thead><tbody><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">128</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">462.8</td><td class="n">462.4</td><td class="n">17.9</td><td class="n">54.4</td><td class="n pos">297×</td></tr><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td class="n best">1</td><td class="n best">256</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">462.5</td><td class="n">462.9</td><td class="n">37.6</td><td class="n">63.7</td><td class="n pos">344×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">2</td><td class="n best">32</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">491.5</td><td class="n">491.2</td><td class="n">15.5</td><td class="n">69.8</td><td class="n pos">61×</td></tr><tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">64</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">462.8</td><td class="n">462.9</td><td class="n">36.2</td><td class="n">57.8</td><td class="n pos">320×</td></tr></tbody></table>
 
-<h2>Details pro Modell</h2>
+<h2>Details per model</h2>
 
 <section class="model">
-<h3>Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL <span class="badge">ub=256</span> <span class="badge">np=2</span></h3>
-<p class="meta">Throughput idle: PP <strong>1,275</strong> · TG <strong>82.2</strong> tok/s</p>
-<p class="gain">Interleaving: Prefill-TTFT <strong>512× schneller</strong> (26,629 → 52.0 ms), Decode ~12.6 ms</p>
+<h3>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL <span class="badge">ub=128</span> <span class="badge">np=1</span></h3>
+<p class="meta">Throughput idle: PP <strong>1,012</strong> · TG <strong>56.9</strong> tok/s</p>
+<p class="gain">Interleaving: Prefill-TTFT <strong>297× faster</strong> (47,077 → 158.6 ms), Decode ~37.1 ms</p>
 <h4>Interleaving np=2</h4>
 <table><thead><tr>
-<th>Szenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
+<th>Scenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
-</tr></thead><tbody><tr><td>01 solo</td><td class="n">12.7</td><td class="n">77.7</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">12.8</td><td class="n">78.1</td><td class="n">62.8</td><td class="n bad">26,629</td></tr><tr><td>03 interleave</td><td class="n">12.6</td><td class="n">79.5</td><td class="n">63.3</td><td class="n ">52.0</td></tr></tbody></table>
+</tr></thead><tbody><tr><td>01 solo</td><td class="n">38.0</td><td class="n">55.9</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">38.0</td><td class="n">60.5</td><td class="n">64.8</td><td class="n bad">47,077</td></tr><tr><td>03 interleave</td><td class="n">37.1</td><td class="n">59.2</td><td class="n">68.4</td><td class="n ">158.6</td></tr></tbody></table>
 
-<h4>ub-Sweep (Interleave unter Last)</h4>
-<p class="rec">Empfohlen: <code>ub = 256</code></p>
-<table><thead><tr>
-<th>ub</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">256</td><td class="n">12.5</td><td class="n">79.7</td><td class="n">63.8</td><td class="n">44.2</td><td>★ best</td></tr><tr class=""><td class="n">128</td><td class="n">12.6</td><td class="n">79.6</td><td class="n">63.3</td><td class="n">46.3</td><td></td></tr><tr class=""><td class="n">64</td><td class="n">12.6</td><td class="n">79.2</td><td class="n">64.1</td><td class="n">98.2</td><td></td></tr></tbody></table>
-<h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 2</code></p>
-<table><thead><tr>
-<th>np</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">2</td><td class="n">12.6</td><td class="n">79.5</td><td class="n">63.7</td><td class="n">96.2</td><td>★ best</td></tr><tr class=""><td class="n">4</td><td class="n">12.7</td><td class="n">78.8</td><td class="n">64.4</td><td class="n">45.5</td><td></td></tr></tbody></table>
-
-</section>
-<section class="model">
-<h3>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M <span class="badge">ub=128</span> <span class="badge">np=2</span></h3>
-
-
-<h4>Interleaving np=2</h4>
-<table><thead><tr>
-<th>Szenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
-</tr></thead><tbody><tr><td>01 solo</td><td class="n">66.3</td><td class="n">28.2</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">32.0</td><td class="n">91.7</td><td class="n">46.5</td><td class="n ">297.4</td></tr><tr><td>03 interleave</td><td class="n">32.6</td><td class="n">88.2</td><td class="n">78.3</td><td class="n ">300.3</td></tr></tbody></table>
-
-<h4>ub-Sweep (Interleave unter Last)</h4>
+<h4>ub-sweep (interleave under load)</h4>
 <p class="rec">Empfohlen: <code>ub = 128</code></p>
 <table><thead><tr>
 <th>ub</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">128</td><td class="n">31.1</td><td class="n">88.6</td><td class="n">76.2</td><td class="n">317.8</td><td>★ best</td></tr><tr class=""><td class="n">256</td><td class="n">32.2</td><td class="n">88.9</td><td class="n">81.2</td><td class="n">328.0</td><td></td></tr><tr class=""><td class="n">64</td><td class="n">32.3</td><td class="n">84.4</td><td class="n">73.2</td><td class="n">401.4</td><td></td></tr></tbody></table>
-<h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 2</code></p>
+</tr></thead><tbody><tr class="best"><td class="n">128</td><td class="n">17.9</td><td class="n">75.8</td><td class="n">54.4</td><td class="n">31,898</td><td>★ best</td></tr><tr class="bad"><td class="n">256</td><td class="n">35.9</td><td class="n">63.9</td><td class="n">60.0</td><td class="n">31,911</td><td>⚠</td></tr><tr class="bad"><td class="n">32</td><td class="n">37.1</td><td class="n">69.5</td><td class="n">62.8</td><td class="n">47,521</td><td>⚠</td></tr><tr class="bad"><td class="n">64</td><td class="n">37.4</td><td class="n">55.2</td><td class="n">49.5</td><td class="n">31,885</td><td>⚠</td></tr></tbody></table>
+<h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 1</code></p>
 <table><thead><tr>
 <th>np</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">2</td><td class="n">32.4</td><td class="n">86.9</td><td class="n">80.0</td><td class="n">278.7</td><td>★ best</td></tr></tbody></table>
+</tr></thead><tbody><tr class="best"><td class="n">1</td><td class="n">37.5</td><td class="n">59.8</td><td class="n">60.0</td><td class="n">32,707</td><td>★ best</td></tr><tr class="bad"><td class="n">2</td><td class="n">37.5</td><td class="n">65.0</td><td class="n">59.3</td><td class="n">31,923</td><td>⚠</td></tr><tr class="bad"><td class="n">4</td><td class="n">37.7</td><td class="n">65.5</td><td class="n">53.6</td><td class="n">31,808</td><td>⚠</td></tr></tbody></table>
 
 </section>
 <section class="model">
-<h3>Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL <span class="badge">ub=64</span> <span class="badge">np=4</span></h3>
-
-<p class="gain">Interleaving: Prefill-TTFT <strong>149× schneller</strong> (42,650 → 286.4 ms), Decode ~32.8 ms</p>
+<h3>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL <span class="badge">ub=256</span> <span class="badge">np=1</span></h3>
+<p class="meta">Throughput idle: PP <strong>1,012</strong> · TG <strong>56.9</strong> tok/s</p>
+<p class="gain">Interleaving: Prefill-TTFT <strong>344× faster</strong> (47,042 → 136.8 ms), Decode ~17.2 ms</p>
 <h4>Interleaving np=2</h4>
 <table><thead><tr>
-<th>Szenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
+<th>Scenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
-</tr></thead><tbody><tr><td>01 solo</td><td class="n">32.3</td><td class="n">84.3</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">32.6</td><td class="n">87.3</td><td class="n">81.1</td><td class="n bad">42,650</td></tr><tr><td>03 interleave</td><td class="n">32.8</td><td class="n">86.6</td><td class="n">78.8</td><td class="n ">286.4</td></tr></tbody></table>
+</tr></thead><tbody><tr><td>01 solo</td><td class="n">37.4</td><td class="n">64.5</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">38.0</td><td class="n">62.7</td><td class="n">54.1</td><td class="n bad">47,042</td></tr><tr><td>03 interleave</td><td class="n">17.2</td><td class="n">74.5</td><td class="n">66.4</td><td class="n ">136.8</td></tr></tbody></table>
 
-<h4>ub-Sweep (Interleave unter Last)</h4>
-<p class="rec">Empfohlen: <code>ub = 64</code></p>
-<table><thead><tr>
-<th>ub</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">64</td><td class="n">32.1</td><td class="n">85.6</td><td class="n">83.1</td><td class="n">365.4</td><td>★ best</td></tr><tr class=""><td class="n">256</td><td class="n">32.3</td><td class="n">88.9</td><td class="n">77.3</td><td class="n">343.8</td><td></td></tr><tr class=""><td class="n">128</td><td class="n">32.6</td><td class="n">87.3</td><td class="n">78.5</td><td class="n">297.4</td><td></td></tr></tbody></table>
-<h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 4</code></p>
-<table><thead><tr>
-<th>np</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">4</td><td class="n">32.1</td><td class="n">86.6</td><td class="n">74.9</td><td class="n">274.0</td><td>★ best</td></tr><tr class=""><td class="n">2</td><td class="n">32.6</td><td class="n">87.3</td><td class="n">82.5</td><td class="n">333.6</td><td></td></tr></tbody></table>
-
-</section>
-<section class="model">
-<h3>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL <span class="badge">ub=256</span> <span class="badge">np=2</span></h3>
-
-<p class="gain">Interleaving: Prefill-TTFT <strong>169× schneller</strong> (46,055 → 273.1 ms), Decode ~36.1 ms</p>
-<h4>Interleaving np=2</h4>
-<table><thead><tr>
-<th>Szenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
-</tr></thead><tbody><tr><td>01 solo</td><td class="n">35.8</td><td class="n">76.2</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">35.6</td><td class="n">79.4</td><td class="n">72.3</td><td class="n bad">46,055</td></tr><tr><td>03 interleave</td><td class="n">36.1</td><td class="n">76.2</td><td class="n">76.8</td><td class="n ">273.1</td></tr></tbody></table>
-
-<h4>ub-Sweep (Interleave unter Last)</h4>
+<h4>ub-sweep (interleave under load)</h4>
 <p class="rec">Empfohlen: <code>ub = 256</code></p>
 <table><thead><tr>
 <th>ub</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">256</td><td class="n">35.4</td><td class="n">80.0</td><td class="n">71.8</td><td class="n">343.9</td><td>★ best</td></tr><tr class=""><td class="n">64</td><td class="n">35.7</td><td class="n">80.2</td><td class="n">69.0</td><td class="n">397.1</td><td></td></tr><tr class=""><td class="n">128</td><td class="n">35.9</td><td class="n">79.5</td><td class="n">69.3</td><td class="n">349.8</td><td></td></tr></tbody></table>
+</tr></thead><tbody><tr class="best"><td class="n">256</td><td class="n">37.6</td><td class="n">64.1</td><td class="n">63.7</td><td class="n">31,868</td><td>★ best</td></tr><tr class="bad"><td class="n">32</td><td class="n">37.7</td><td class="n">67.2</td><td class="n">57.8</td><td class="n">47,541</td><td>⚠</td></tr><tr class="bad"><td class="n">64</td><td class="n">38.1</td><td class="n">63.4</td><td class="n">56.3</td><td class="n">31,916</td><td>⚠</td></tr><tr class="bad"><td class="n">128</td><td class="n">38.2</td><td class="n">71.6</td><td class="n">52.6</td><td class="n">31,915</td><td>⚠</td></tr></tbody></table>
+<h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 1</code></p>
+<table><thead><tr>
+<th>np</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
+<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
+</tr></thead><tbody><tr class="best"><td class="n">1</td><td class="n">37.5</td><td class="n">64.2</td><td class="n">52.1</td><td class="n">32,734</td><td>★ best</td></tr><tr class="bad"><td class="n">2</td><td class="n">38.2</td><td class="n">54.0</td><td class="n">57.3</td><td class="n">31,877</td><td>⚠</td></tr><tr class="bad"><td class="n">4</td><td class="n">38.3</td><td class="n">64.8</td><td class="n">64.5</td><td class="n">31,853</td><td>⚠</td></tr></tbody></table>
+
+</section>
+<section class="model">
+<h3>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL <span class="badge">ub=32</span> <span class="badge">np=2</span></h3>
+<p class="meta">Throughput idle: PP <strong>1,033</strong> · TG <strong>57.1</strong> tok/s</p>
+<p class="gain">Interleaving: Prefill-TTFT <strong>61× faster</strong> (45,232 → 736.0 ms), Decode ~32.4 ms</p>
+<h4>Interleaving np=2</h4>
+<table><thead><tr>
+<th>Scenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
+<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
+</tr></thead><tbody><tr><td>01 solo</td><td class="n">31.2</td><td class="n">88.4</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">31.5</td><td class="n">88.5</td><td class="n">79.5</td><td class="n bad">45,232</td></tr><tr><td>03 interleave</td><td class="n">32.4</td><td class="n">82.4</td><td class="n">72.2</td><td class="n ">736.0</td></tr></tbody></table>
+
+<h4>ub-sweep (interleave under load)</h4>
+<p class="rec">Empfohlen: <code>ub = 32</code></p>
+<table><thead><tr>
+<th>ub</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
+<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
+</tr></thead><tbody><tr class="best"><td class="n">32</td><td class="n">15.5</td><td class="n">80.5</td><td class="n">69.8</td><td class="n">44,867</td><td>★ best</td></tr><tr class="bad"><td class="n">128</td><td class="n">32.0</td><td class="n">84.8</td><td class="n">69.4</td><td class="n">30,032</td><td>⚠</td></tr><tr class="bad"><td class="n">64</td><td class="n">32.1</td><td class="n">79.8</td><td class="n">67.6</td><td class="n">30,006</td><td>⚠</td></tr><tr class="bad"><td class="n">256</td><td class="n">34.4</td><td class="n">90.0</td><td class="n">69.1</td><td class="n">30,055</td><td>⚠</td></tr></tbody></table>
 <h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 2</code></p>
 <table><thead><tr>
 <th>np</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">2</td><td class="n">35.1</td><td class="n">81.2</td><td class="n">73.9</td><td class="n">296.4</td><td>★ best</td></tr><tr class=""><td class="n">4</td><td class="n">35.9</td><td class="n">78.8</td><td class="n">75.1</td><td class="n">239.3</td><td></td></tr></tbody></table>
+</tr></thead><tbody><tr class="best"><td class="n">2</td><td class="n">31.2</td><td class="n">85.8</td><td class="n">68.8</td><td class="n">29,904</td><td>★ best</td></tr><tr class="bad"><td class="n">1</td><td class="n">31.2</td><td class="n">79.3</td><td class="n">70.4</td><td class="n">30,516</td><td>⚠</td></tr><tr class="bad"><td class="n">4</td><td class="n">35.6</td><td class="n">88.3</td><td class="n">68.3</td><td class="n">29,994</td><td>⚠</td></tr></tbody></table>
 
 </section>
 <section class="model">
-<h3>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL <span class="badge">ub=256</span> <span class="badge">np=4</span></h3>
-
-<p class="gain">Interleaving: Prefill-TTFT <strong>179× schneller</strong> (46,517 → 259.7 ms), Decode ~36.4 ms</p>
+<h3>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL <span class="badge">ub=64</span> <span class="badge">np=1</span></h3>
+<p class="meta">Throughput idle: PP <strong>1,020</strong> · TG <strong>56.9</strong> tok/s</p>
+<p class="gain">Interleaving: Prefill-TTFT <strong>320× faster</strong> (47,213 → 147.4 ms), Decode ~38.5 ms</p>
 <h4>Interleaving np=2</h4>
 <table><thead><tr>
-<th>Szenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
+<th>Scenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
-</tr></thead><tbody><tr><td>01 solo</td><td class="n">35.6</td><td class="n">79.3</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">35.3</td><td class="n">79.1</td><td class="n">73.0</td><td class="n bad">46,517</td></tr><tr><td>03 interleave</td><td class="n">36.4</td><td class="n">75.0</td><td class="n">73.7</td><td class="n ">259.7</td></tr></tbody></table>
+</tr></thead><tbody><tr><td>01 solo</td><td class="n">18.7</td><td class="n">69.0</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">37.1</td><td class="n">71.2</td><td class="n">66.2</td><td class="n bad">47,213</td></tr><tr><td>03 interleave</td><td class="n">38.5</td><td class="n">58.5</td><td class="n">60.5</td><td class="n ">147.4</td></tr></tbody></table>
 
-<h4>ub-Sweep (Interleave unter Last)</h4>
-<p class="rec">Empfohlen: <code>ub = 256</code></p>
-<table><thead><tr>
-<th>ub</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">256</td><td class="n">35.5</td><td class="n">80.2</td><td class="n">71.7</td><td class="n">350.9</td><td>★ best</td></tr><tr class=""><td class="n">128</td><td class="n">35.5</td><td class="n">79.9</td><td class="n">72.7</td><td class="n">369.5</td><td></td></tr><tr class=""><td class="n">64</td><td class="n">35.6</td><td class="n">79.6</td><td class="n">69.4</td><td class="n">405.1</td><td></td></tr></tbody></table>
-<h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 4</code></p>
-<table><thead><tr>
-<th>np</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">4</td><td class="n">35.7</td><td class="n">78.7</td><td class="n">72.7</td><td class="n">293.3</td><td>★ best</td></tr><tr class=""><td class="n">2</td><td class="n">35.8</td><td class="n">79.0</td><td class="n">75.0</td><td class="n">322.4</td><td></td></tr></tbody></table>
-
-</section>
-<section class="model">
-<h3>Qwen3.8-27B-Q4_K_M-MTP <span class="badge">ub=128</span> <span class="badge">np=4</span></h3>
-
-<p class="gain">Interleaving: Prefill-TTFT <strong>143× schneller</strong> (72,644 → 509.6 ms), Decode ~134.2 ms</p>
-<h4>Interleaving np=2</h4>
-<table><thead><tr>
-<th>Szenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
-</tr></thead><tbody><tr><td>01 solo</td><td class="n">129.4</td><td class="n">20.3</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">134.7</td><td class="n">20.6</td><td class="n">15.4</td><td class="n bad">72,644</td></tr><tr><td>03 interleave</td><td class="n">134.2</td><td class="n">18.3</td><td class="n">22.3</td><td class="n ">509.6</td></tr></tbody></table>
-
-<h4>ub-Sweep (Interleave unter Last)</h4>
-<p class="rec">Empfohlen: <code>ub = 128</code></p>
-<table><thead><tr>
-<th>ub</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">128</td><td class="n">130.8</td><td class="n">23.9</td><td class="n">16.9</td><td class="n">619.0</td><td>★ best</td></tr><tr class=""><td class="n">256</td><td class="n">131.9</td><td class="n">17.1</td><td class="n">19.7</td><td class="n">630.4</td><td></td></tr><tr class=""><td class="n">64</td><td class="n">132.1</td><td class="n">18.5</td><td class="n">18.2</td><td class="n">694.3</td><td></td></tr></tbody></table>
-<h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 4</code></p>
-<table><thead><tr>
-<th>np</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">4</td><td class="n">131.6</td><td class="n">23.7</td><td class="n">19.1</td><td class="n">527.2</td><td>★ best</td></tr><tr class=""><td class="n">2</td><td class="n">132.4</td><td class="n">22.2</td><td class="n">15.1</td><td class="n">581.0</td><td></td></tr></tbody></table>
-
-</section>
-<section class="model">
-<h3>Qwen3.8-27B-Q4_K_M-MTP-VL <span class="badge">ub=64</span> <span class="badge">np=4</span></h3>
-
-<p class="gain">Interleaving: Prefill-TTFT <strong>145× schneller</strong> (71,838 → 495.5 ms), Decode ~134.4 ms</p>
-<h4>Interleaving np=2</h4>
-<table><thead><tr>
-<th>Szenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
-<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
-</tr></thead><tbody><tr><td>01 solo</td><td class="n">129.6</td><td class="n">22.1</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>02 blocked</td><td class="n">131.9</td><td class="n">20.7</td><td class="n">18.1</td><td class="n bad">71,838</td></tr><tr><td>03 interleave</td><td class="n">134.4</td><td class="n">20.6</td><td class="n">19.4</td><td class="n ">495.5</td></tr></tbody></table>
-
-<h4>ub-Sweep (Interleave unter Last)</h4>
+<h4>ub-sweep (interleave under load)</h4>
 <p class="rec">Empfohlen: <code>ub = 64</code></p>
 <table><thead><tr>
 <th>ub</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">64</td><td class="n">130.6</td><td class="n">21.1</td><td class="n">16.9</td><td class="n">698.8</td><td>★ best</td></tr><tr class=""><td class="n">128</td><td class="n">130.7</td><td class="n">20.1</td><td class="n">22.7</td><td class="n">641.5</td><td></td></tr><tr class=""><td class="n">256</td><td class="n">131.8</td><td class="n">17.8</td><td class="n">16.2</td><td class="n">612.5</td><td></td></tr></tbody></table>
-<h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 4</code></p>
+</tr></thead><tbody><tr class="best"><td class="n">64</td><td class="n">36.2</td><td class="n">61.9</td><td class="n">57.8</td><td class="n">31,980</td><td>★ best</td></tr><tr class="bad"><td class="n">32</td><td class="n">36.7</td><td class="n">67.2</td><td class="n">50.8</td><td class="n">47,634</td><td>⚠</td></tr><tr class="bad"><td class="n">128</td><td class="n">37.6</td><td class="n">52.1</td><td class="n">51.9</td><td class="n">31,932</td><td>⚠</td></tr><tr class="bad"><td class="n">256</td><td class="n">38.0</td><td class="n">69.7</td><td class="n">52.4</td><td class="n">31,990</td><td>⚠</td></tr></tbody></table>
+<h4>np-Sweep (ub=128 fix)</h4><p class="rec">Empfohlen: <code>np = 1</code></p>
 <table><thead><tr>
 <th>np</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th><th></th>
-</tr></thead><tbody><tr class="best"><td class="n">4</td><td class="n">131.2</td><td class="n">18.4</td><td class="n">20.6</td><td class="n">490.4</td><td>★ best</td></tr><tr class=""><td class="n">2</td><td class="n">132.5</td><td class="n">20.1</td><td class="n">18.9</td><td class="n">528.8</td><td></td></tr></tbody></table>
+</tr></thead><tbody><tr class="best"><td class="n">1</td><td class="n">36.9</td><td class="n">62.7</td><td class="n">60.2</td><td class="n">32,702</td><td>★ best</td></tr><tr class="bad"><td class="n">4</td><td class="n">37.2</td><td class="n">65.2</td><td class="n">56.1</td><td class="n">31,842</td><td>⚠</td></tr><tr class="bad"><td class="n">2</td><td class="n">37.9</td><td class="n">63.8</td><td class="n">47.0</td><td class="n">31,992</td><td>⚠</td></tr></tbody></table>
 
 </section>
 

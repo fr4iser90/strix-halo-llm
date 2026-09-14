@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Bench — Context</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { font: 15px/1.55 "Segoe UI", system-ui, sans-serif; margin: 0 auto;
+  padding: 1.5rem 1.35rem 3rem; max-width: 980px; background: #0f1115; color: #e8eaed; }
+h1 { font-size: 1.45rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 .3rem; }
+h2 { font-size: 1.05rem; margin: 0 0 .5rem; color: #e8eaed; font-weight: 600; }
+h3 { font-size: .95rem; margin: 1.1rem 0 .35rem; color: #c4c7cc; }
+.meta { color: #9aa0a6; font-size: .9rem; }
+.lede { color: #b8bdc5; font-size: .95rem; max-width: 40rem; margin: 0 0 1rem; }
+a { color: #8ab4f8; }
+.more { font-size: .85rem; margin: .25rem 0 1rem; }
+.site-nav { display: flex; flex-wrap: wrap; gap: .25rem; margin: 0 0 1.35rem;
+  padding: .35rem; background: #171a21; border: 1px solid #252a35; border-radius: 10px; }
+.site-nav a { color: #9aa0a6; text-decoration: none; padding: .45rem .75rem;
+  border-radius: 7px; font-size: .88rem; font-weight: 500; }
+.site-nav a:hover { color: #e8eaed; background: #1e2330; }
+.site-nav a.active { color: #e8eaed; background: #2a3444; }
+.host-line { font-size: .88rem; color: #9aa0a6; margin: 0 0 1.25rem;
+  padding: .55rem .75rem; background: #171a21; border-radius: 8px; border: 1px solid #252a35; }
+.host-line a { color: #9aa0a6; }
+table { border-collapse: collapse; width: 100%; margin: .5rem 0 1rem; }
+th, td { padding: .45rem .6rem; border-bottom: 1px solid #2a2e37; }
+th { text-align: left; color: #9aa0a6; font-weight: 600; font-size: .8rem; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "Cascadia Mono", monospace; }
+.best { color: #7ddea5; font-weight: 600; }
+.ok { color: #7ddea5; }
+.fail { color: #f28b82; }
+.card { background: #171a21; border: 1px solid #252a35; border-radius: 10px;
+  padding: 1rem 1.15rem; margin: 1rem 0; }
+.card h2 { margin-top: 0; }
+.verdict-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: .7rem; margin-top: .75rem; }
+.verdict-card { background: #12141a; border: 1px solid #252a35; border-radius: 10px;
+  padding: .85rem .95rem; min-height: 5rem; }
+.verdict-card.muted { opacity: .72; }
+.verdict-label { font-size: .76rem; color: #9aa0a6; margin-bottom: .3rem; }
+.verdict-value { font-size: 1.4rem; font-weight: 650; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; }
+.verdict-value .unit { font-size: .72rem; font-weight: 500; color: #9aa0a6; }
+.verdict-sub { font-size: .76rem; color: #9aa0a6; margin-top: .3rem; word-break: break-word; }
+.tip { position: relative; border-bottom: 1px dotted #6b7280; cursor: help; }
+.tip .tip-text {
+  visibility: hidden; opacity: 0; position: absolute; z-index: 40;
+  left: 0; bottom: calc(100% + 8px); width: min(280px, 70vw);
+  padding: .55rem .7rem; border-radius: 6px; background: #2a3140; color: #e8eaed;
+  font-size: .8rem; font-weight: 400; line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35); pointer-events: none;
+}
+.tip:hover .tip-text, .tip:focus .tip-text, .tip:focus-within .tip-text {
+  visibility: visible; opacity: 1;
+}
+details.panel { background: #171a21; border: 1px solid #252a35; border-radius: 10px;
+  padding: .75rem 1.05rem 1rem; margin: 1rem 0; }
+summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
+.chart-box { background: #12141a; border-radius: 8px; padding: .75rem 1rem 1rem;
+  border: 1px solid #252a35; margin: .75rem 0; }
+.chart-wrap { position: relative; height: 280px; }
+.chart-wrap.tall { height: 320px; }
+.btn { display: inline-block; margin: .3rem .4rem .3rem 0; padding: .45rem .85rem;
+  background: #2a3444; color: #e8eaed; border: none; border-radius: 6px; cursor: pointer;
+  font: inherit; }
+.btn.active { background: #3d5a3d; }
+.metric-tabs { margin: .5rem 0 1rem; }
+select.model-pick { background: #12141a; color: #e8eaed; border: 1px solid #2a2e37;
+  border-radius: 4px; padding: .35rem .5rem; font: inherit; margin: .25rem .5rem .75rem 0; }
+.scroll { overflow-x: auto; margin: .5rem 0 1rem; }
+.scroll table { min-width: 480px; }
+.links-row { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; margin: 1.25rem 0 0;
+  font-size: .9rem; }
+footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35;
+  color: #9aa0a6; font-size: .82rem; }
+</style>
+<script src="chart.umd.min.js"></script>
+
+</head><body>
+<nav class="site-nav" aria-label="Site"><a href="index.html">Overview</a><a href="context.html" class="active">Context</a><a href="quality.html">Quality</a><a href="host.html">Host</a></nav>
+
+<header>
+<h1>Context &amp; memory</h1>
+<p class="lede">How far context can grow, and what prompt processing costs at that point.</p>
+</header>
+<p class="host-line">c5:00.0 Display controller: Advanced Micro Devi… · 124.9 GiB RAM · vulkan · llama.cpp <code>d1a92352</code> · <a href="host.html">Host details</a></p>
+<div class="card">
+<h2>Longest context that fits</h2>
+<p class="meta">Preferred KV <strong>q8_0</strong> (typical sticky setting). Other quants that also reach the same max are noted on the right. Prompt cost is for a full fill at that context.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest successful context at the preferred KV (q8 when measured).</span></span></th><th class="n"><span class="tip" tabindex="0">Memory<span class="tip-text" role="tooltip">Shared GPU memory at that context.</span></span></th><th class="n"><span class="tip" tabindex="0">Prompt time<span class="tip-text" role="tooltip">Seconds to process a full prompt at max context.</span></span></th><th class="n"><span class="tip" tabindex="0">Prompt speed<span class="tip-text" role="tooltip">Tokens/s while reading the prompt.</span></span></th><th>Also fits</th></tr></thead><tbody><tr><td title="Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</td><td>q8_0</td><td class="n best">262,144</td><td class="n">29448 MiB</td><td class="n">981.31 s</td><td class="n">240.42 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">Cyber-Tiel-Coder-35B-A3B-UD-Q5-K-XL-VL</td><td>q8_0</td><td class="n best">262,144</td><td class="n">30132 MiB</td><td class="n">1249.411 s</td><td class="n">188.83 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">Qwen3.6-35B-A3B</td><td>q8_0</td><td class="n best">262,144</td><td class="n">29894 MiB</td><td class="n">958.133 s</td><td class="n">246.24 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">Qwen3.6-35B-A3B-UD-Q5-K-XL-VL</td><td>q8_0</td><td class="n best">262,144</td><td class="n">31000 MiB</td><td class="n">959.764 s</td><td class="n">245.82 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Qwen3.8-27B-UD-Q4_K_M-MTP">Qwen3.8-27B-UD-Q4-K-M</td><td>q8_0</td><td class="n best">131,072</td><td class="n">21166 MiB</td><td class="n">—</td><td class="n"><span class="meta" title="Prefill metric looked inconsistent — see full grid">suspect</span></td><td></td></tr><tr><td title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B</td><td>q8_0</td><td class="n best">262,144</td><td class="n">29448 MiB</td><td class="n">977.549 s</td><td class="n">241.35 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr></tbody></table><h3>Two instances (dual)</h3><p class="meta">Largest context where two copies of the same model both fit.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n">Max context</th></tr></thead><tbody><tr><td title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B</td><td>q8_0</td><td class="n best">262,144</td></tr></tbody></table>
+</div>
+<div class="card">
+<h2>Prompt cost vs context</h2>
+<p class="meta">Pick a model. Lower line = faster prompt processing as context grows.</p>
+<label class="meta" for="cap-model">Model </label>
+<select id="cap-model" class="model-pick"></select>
+<label class="meta" for="cap-y">Y axis </label>
+<select id="cap-y" class="model-pick">
+  <option value="prefill_s" selected>Prompt time (s)</option>
+  <option value="prefill_tok_s">Prompt speed (tok/s)</option>
+  <option value="gtt_gib">Memory (GiB)</option>
+  
+</select>
+<div class="chart-box"><div class="chart-wrap tall"><canvas id="chart-cap"></canvas></div>
+<div id="cap-fallback" class="meta" hidden></div></div>
+</div>
+<details class="panel">
+<summary>Full context × KV grid &amp; dual instances</summary>
+<p class="meta">Lab detail — every measured cell. Prefer the summary table above for decisions.</p>
+<div class="card" id="capacity">
+<h2>Context &amp; memory grid</h2>
+<p class="meta">Rows = context length (tokens). Columns = <span class="tip" tabindex="0">KV cache quant<span class="tip-text" role="tooltip">Quantization of the attention KV cache. Affects memory and how far context can grow.</span></span>. Cells show memory use and prompt-processing cost. Toggle metrics below.</p>
+<p class="more"><a href="capacity/latest/compare.md">→ Full ledger</a> · measured cells: <strong>74</strong></p>
+<div class="metric-tabs" id="cap-metric-tabs"><button type="button" class="btn secondary active" data-metric="all">All</button><button type="button" class="btn secondary" data-metric="gtt" title="Shared GPU memory (GTT) at this context">Memory</button><button type="button" class="btn secondary" data-metric="prefill_s" title="Seconds to process the prompt">Prompt time</button><button type="button" class="btn secondary" data-metric="prefill_tok_s" title="Tokens/s while reading the prompt">Prompt speed</button></div>
+<h3>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</h3>
+<div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \ KV</th>
+<th class="n">q4_0</th>
+<th class="n">q5_0</th>
+<th class="n">q8_0</th>
+</tr></thead><tbody>
+<tr><td class="n">32768</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="26030 MiB" data-prefill_s="75.41 s" data-prefill_tok_s="391.08 t/s" data-power="—" data-all="26030 MiB · 75.41 s · 391.08 t/s PP">26030 MiB · 75.41 s · 391.08 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="26167 MiB" data-prefill_s="73.488 s" data-prefill_tok_s="401.3 t/s" data-power="—" data-all="26167 MiB · 73.488 s · 401.3 t/s PP">26167 MiB · 73.488 s · 401.3 t/s PP</td>
+</tr>
+<tr><td class="n">65536</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="26354 MiB" data-prefill_s="169.987 s" data-prefill_tok_s="346.98 t/s" data-power="—" data-all="26354 MiB · 169.987 s · 346.98 t/s PP">26354 MiB · 169.987 s · 346.98 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="26679 MiB" data-prefill_s="163.079 s" data-prefill_tok_s="361.68 t/s" data-power="—" data-all="26679 MiB · 163.079 s · 361.68 t/s PP">26679 MiB · 163.079 s · 361.68 t/s PP</td>
+</tr>
+<tr><td class="n">131072</td>
+<td class="n ok cap-cell" data-gtt="26778 MiB" data-prefill_s="390.618 s" data-prefill_tok_s="301.99 t/s" data-power="—" data-all="26778 MiB · 390.618 s · 301.99 t/s PP">26778 MiB · 390.618 s · 301.99 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="26938 MiB" data-prefill_s="400.049 s" data-prefill_tok_s="294.87 t/s" data-power="—" data-all="26938 MiB · 400.049 s · 294.87 t/s PP">26938 MiB · 400.049 s · 294.87 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27556 MiB" data-prefill_s="383.7 s" data-prefill_tok_s="307.44 t/s" data-power="—" data-all="27556 MiB · 383.7 s · 307.44 t/s PP">27556 MiB · 383.7 s · 307.44 t/s PP</td>
+</tr>
+<tr><td class="n">196608</td>
+<td class="n ok cap-cell" data-gtt="27426 MiB" data-prefill_s="669.769 s" data-prefill_tok_s="264.19 t/s" data-power="—" data-all="27426 MiB · 669.769 s · 264.19 t/s PP">27426 MiB · 669.769 s · 264.19 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27514 MiB" data-prefill_s="696.965 s" data-prefill_tok_s="253.88 t/s" data-power="—" data-all="27514 MiB · 696.965 s · 253.88 t/s PP">27514 MiB · 696.965 s · 253.88 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28500 MiB" data-prefill_s="653.61 s" data-prefill_tok_s="270.72 t/s" data-power="—" data-all="28500 MiB · 653.61 s · 270.72 t/s PP">28500 MiB · 653.61 s · 270.72 t/s PP</td>
+</tr>
+<tr><td class="n">262144</td>
+<td class="n ok cap-cell" data-gtt="27824 MiB" data-prefill_s="1008.79 s" data-prefill_tok_s="233.87 t/s" data-power="—" data-all="27824 MiB · 1008.79 s · 233.87 t/s PP">27824 MiB · 1008.79 s · 233.87 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28144 MiB" data-prefill_s="1052.016 s" data-prefill_tok_s="224.26 t/s" data-power="—" data-all="28144 MiB · 1052.016 s · 224.26 t/s PP">28144 MiB · 1052.016 s · 224.26 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="29448 MiB" data-prefill_s="981.31 s" data-prefill_tok_s="240.42 t/s" data-power="—" data-all="29448 MiB · 981.31 s · 240.42 t/s PP">29448 MiB · 981.31 s · 240.42 t/s PP</td>
+</tr>
+</tbody></table></div>
+<h3>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL</h3>
+<div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \ KV</th>
+<th class="n">q4_0</th>
+<th class="n">q5_0</th>
+<th class="n">q8_0</th>
+</tr></thead><tbody>
+<tr><td class="n">32768</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="27123 MiB" data-prefill_s="106.613 s" data-prefill_tok_s="276.62 t/s" data-power="—" data-all="27123 MiB · 106.613 s · 276.62 t/s PP">27123 MiB · 106.613 s · 276.62 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27203 MiB" data-prefill_s="103.474 s" data-prefill_tok_s="285.01 t/s" data-power="—" data-all="27203 MiB · 103.474 s · 285.01 t/s PP">27203 MiB · 103.474 s · 285.01 t/s PP</td>
+</tr>
+<tr><td class="n">65536</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="27444 MiB" data-prefill_s="234.927 s" data-prefill_tok_s="251.07 t/s" data-power="—" data-all="27444 MiB · 234.927 s · 251.07 t/s PP">27444 MiB · 234.927 s · 251.07 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27684 MiB" data-prefill_s="230.504 s" data-prefill_tok_s="255.88 t/s" data-power="—" data-all="27684 MiB · 230.504 s · 255.88 t/s PP">27684 MiB · 230.504 s · 255.88 t/s PP</td>
+</tr>
+<tr><td class="n">131072</td>
+<td class="n ok cap-cell" data-gtt="27860 MiB" data-prefill_s="522.346 s" data-prefill_tok_s="225.83 t/s" data-power="—" data-all="27860 MiB · 522.346 s · 225.83 t/s PP">27860 MiB · 522.346 s · 225.83 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28020 MiB" data-prefill_s="531.303 s" data-prefill_tok_s="222.03 t/s" data-power="—" data-all="28020 MiB · 531.303 s · 222.03 t/s PP">28020 MiB · 531.303 s · 222.03 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28444 MiB" data-prefill_s="521.276 s" data-prefill_tok_s="226.3 t/s" data-power="—" data-all="28444 MiB · 521.276 s · 226.3 t/s PP">28444 MiB · 521.276 s · 226.3 t/s PP</td>
+</tr>
+<tr><td class="n">196608</td>
+<td class="n ok cap-cell" data-gtt="28499 MiB" data-prefill_s="863.298 s" data-prefill_tok_s="204.97 t/s" data-power="—" data-all="28499 MiB · 863.298 s · 204.97 t/s PP">28499 MiB · 863.298 s · 204.97 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28558 MiB" data-prefill_s="887.096 s" data-prefill_tok_s="199.47 t/s" data-power="—" data-all="28558 MiB · 887.096 s · 199.47 t/s PP">28558 MiB · 887.096 s · 199.47 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="29316 MiB" data-prefill_s="859.831 s" data-prefill_tok_s="205.79 t/s" data-power="—" data-all="29316 MiB · 859.831 s · 205.79 t/s PP">29316 MiB · 859.831 s · 205.79 t/s PP</td>
+</tr>
+<tr><td class="n">262144</td>
+<td class="n ok cap-cell" data-gtt="28852 MiB" data-prefill_s="1257.32 s" data-prefill_tok_s="187.64 t/s" data-power="—" data-all="28852 MiB · 1257.32 s · 187.64 t/s PP">28852 MiB · 1257.32 s · 187.64 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="29172 MiB" data-prefill_s="1295.778 s" data-prefill_tok_s="182.08 t/s" data-power="—" data-all="29172 MiB · 1295.778 s · 182.08 t/s PP">29172 MiB · 1295.778 s · 182.08 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="30132 MiB" data-prefill_s="1249.411 s" data-prefill_tok_s="188.83 t/s" data-power="—" data-all="30132 MiB · 1249.411 s · 188.83 t/s PP">30132 MiB · 1249.411 s · 188.83 t/s PP</td>
+</tr>
+</tbody></table></div>
+<h3>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</h3>
+<div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \ KV</th>
+<th class="n">q4_0</th>
+<th class="n">q5_0</th>
+<th class="n">q8_0</th>
+</tr></thead><tbody>
+<tr><td class="n">32768</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="26450 MiB" data-prefill_s="70.966 s" data-prefill_tok_s="415.57 t/s" data-power="—" data-all="26450 MiB · 70.966 s · 415.57 t/s PP">26450 MiB · 70.966 s · 415.57 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="26585 MiB" data-prefill_s="69.845 s" data-prefill_tok_s="422.23 t/s" data-power="—" data-all="26585 MiB · 69.845 s · 422.23 t/s PP">26585 MiB · 69.845 s · 422.23 t/s PP</td>
+</tr>
+<tr><td class="n">65536</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="26723 MiB" data-prefill_s="161.609 s" data-prefill_tok_s="364.97 t/s" data-power="—" data-all="26723 MiB · 161.609 s · 364.97 t/s PP">26723 MiB · 161.609 s · 364.97 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27048 MiB" data-prefill_s="154.514 s" data-prefill_tok_s="381.73 t/s" data-power="—" data-all="27048 MiB · 154.514 s · 381.73 t/s PP">27048 MiB · 154.514 s · 381.73 t/s PP</td>
+</tr>
+<tr><td class="n">131072</td>
+<td class="n ok cap-cell" data-gtt="27262 MiB" data-prefill_s="376.891 s" data-prefill_tok_s="312.99 t/s" data-power="—" data-all="27262 MiB · 376.891 s · 312.99 t/s PP">27262 MiB · 376.891 s · 312.99 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27422 MiB" data-prefill_s="384.595 s" data-prefill_tok_s="306.72 t/s" data-power="—" data-all="27422 MiB · 384.595 s · 306.72 t/s PP">27422 MiB · 384.595 s · 306.72 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27974 MiB" data-prefill_s="369.593 s" data-prefill_tok_s="319.17 t/s" data-power="—" data-all="27974 MiB · 369.593 s · 319.17 t/s PP">27974 MiB · 369.593 s · 319.17 t/s PP</td>
+</tr>
+<tr><td class="n">196608</td>
+<td class="n ok cap-cell" data-gtt="27687 MiB" data-prefill_s="653.609 s" data-prefill_tok_s="270.72 t/s" data-power="—" data-all="27687 MiB · 653.609 s · 270.72 t/s PP">27687 MiB · 653.609 s · 270.72 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27933 MiB" data-prefill_s="679.307 s" data-prefill_tok_s="260.48 t/s" data-power="—" data-all="27933 MiB · 679.307 s · 260.48 t/s PP">27933 MiB · 679.307 s · 260.48 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28983 MiB" data-prefill_s="634.008 s" data-prefill_tok_s="279.09 t/s" data-power="—" data-all="28983 MiB · 634.008 s · 279.09 t/s PP">28983 MiB · 634.008 s · 279.09 t/s PP</td>
+</tr>
+<tr><td class="n">262144</td>
+<td class="n ok cap-cell" data-gtt="28270 MiB" data-prefill_s="989.833 s" data-prefill_tok_s="238.35 t/s" data-power="—" data-all="28270 MiB · 989.833 s · 238.35 t/s PP">28270 MiB · 989.833 s · 238.35 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28590 MiB" data-prefill_s="1031.726 s" data-prefill_tok_s="228.67 t/s" data-power="—" data-all="28590 MiB · 1031.726 s · 228.67 t/s PP">28590 MiB · 1031.726 s · 228.67 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="29894 MiB" data-prefill_s="958.133 s" data-prefill_tok_s="246.24 t/s" data-power="—" data-all="29894 MiB · 958.133 s · 246.24 t/s PP">29894 MiB · 958.133 s · 246.24 t/s PP</td>
+</tr>
+</tbody></table></div>
+<h3>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL</h3>
+<div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \ KV</th>
+<th class="n">q4_0</th>
+<th class="n">q5_0</th>
+<th class="n">q8_0</th>
+</tr></thead><tbody>
+<tr><td class="n">32768</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="27556 MiB" data-prefill_s="70.841 s" data-prefill_tok_s="416.3 t/s" data-power="—" data-all="27556 MiB · 70.841 s · 416.3 t/s PP">27556 MiB · 70.841 s · 416.3 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27691 MiB" data-prefill_s="69.276 s" data-prefill_tok_s="425.7 t/s" data-power="—" data-all="27691 MiB · 69.276 s · 425.7 t/s PP">27691 MiB · 69.276 s · 425.7 t/s PP</td>
+</tr>
+<tr><td class="n">65536</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="27829 MiB" data-prefill_s="161.756 s" data-prefill_tok_s="364.64 t/s" data-power="—" data-all="27829 MiB · 161.756 s · 364.64 t/s PP">27829 MiB · 161.756 s · 364.64 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28154 MiB" data-prefill_s="156.418 s" data-prefill_tok_s="377.08 t/s" data-power="—" data-all="28154 MiB · 156.418 s · 377.08 t/s PP">28154 MiB · 156.418 s · 377.08 t/s PP</td>
+</tr>
+<tr><td class="n">131072</td>
+<td class="n ok cap-cell" data-gtt="28368 MiB" data-prefill_s="374.002 s" data-prefill_tok_s="315.41 t/s" data-power="—" data-all="28368 MiB · 374.002 s · 315.41 t/s PP">28368 MiB · 374.002 s · 315.41 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28528 MiB" data-prefill_s="384.689 s" data-prefill_tok_s="306.65 t/s" data-power="—" data-all="28528 MiB · 384.689 s · 306.65 t/s PP">28528 MiB · 384.689 s · 306.65 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="29080 MiB" data-prefill_s="369.862 s" data-prefill_tok_s="318.94 t/s" data-power="—" data-all="29080 MiB · 369.862 s · 318.94 t/s PP">29080 MiB · 369.862 s · 318.94 t/s PP</td>
+</tr>
+<tr><td class="n">196608</td>
+<td class="n ok cap-cell" data-gtt="28793 MiB" data-prefill_s="653.956 s" data-prefill_tok_s="270.58 t/s" data-power="—" data-all="28793 MiB · 653.956 s · 270.58 t/s PP">28793 MiB · 653.956 s · 270.58 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="29039 MiB" data-prefill_s="678.917 s" data-prefill_tok_s="260.63 t/s" data-power="—" data-all="29039 MiB · 678.917 s · 260.63 t/s PP">29039 MiB · 678.917 s · 260.63 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="30278 MiB" data-prefill_s="634.599 s" data-prefill_tok_s="278.83 t/s" data-power="—" data-all="30278 MiB · 634.599 s · 278.83 t/s PP">30278 MiB · 634.599 s · 278.83 t/s PP</td>
+</tr>
+<tr><td class="n">262144</td>
+<td class="n ok cap-cell" data-gtt="29376 MiB" data-prefill_s="990.616 s" data-prefill_tok_s="238.16 t/s" data-power="—" data-all="29376 MiB · 990.616 s · 238.16 t/s PP">29376 MiB · 990.616 s · 238.16 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="29696 MiB" data-prefill_s="1022.736 s" data-prefill_tok_s="230.68 t/s" data-power="—" data-all="29696 MiB · 1022.736 s · 230.68 t/s PP">29696 MiB · 1022.736 s · 230.68 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="31000 MiB" data-prefill_s="959.764 s" data-prefill_tok_s="245.82 t/s" data-power="—" data-all="31000 MiB · 959.764 s · 245.82 t/s PP">31000 MiB · 959.764 s · 245.82 t/s PP</td>
+</tr>
+</tbody></table></div>
+<h3>Qwen3.8-27B-UD-Q4_K_M-MTP</h3>
+<div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \ KV</th>
+<th class="n">q8_0</th>
+</tr></thead><tbody>
+<tr><td class="n">32768</td>
+<td class="n ok cap-cell" data-gtt="17313 MiB" data-prefill_s="178.834 s" data-prefill_tok_s="164.91 t/s" data-power="—" data-all="17313 MiB · 178.834 s · 164.91 t/s PP">17313 MiB · 178.834 s · 164.91 t/s PP</td>
+</tr>
+<tr><td class="n">65536</td>
+<td class="n ok cap-cell" data-gtt="18590 MiB" data-prefill_s="23.871 s" data-prefill_tok_s="2470.86 t/s" data-power="—" data-all="18590 MiB · 23.871 s · 2470.86 t/s PP">18590 MiB · 23.871 s · 2470.86 t/s PP</td>
+</tr>
+<tr><td class="n">131072</td>
+<td class="n ok cap-cell" data-gtt="21166 MiB" data-prefill_s="44.442 s" data-prefill_tok_s="2654.34 t/s" data-power="—" data-all="21166 MiB · 44.442 s · 2654.34 t/s PP">21166 MiB · 44.442 s · 2654.34 t/s PP</td>
+</tr>
+</tbody></table></div>
+<h3>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</h3>
+<div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \ KV</th>
+<th class="n">q4_0</th>
+<th class="n">q5_0</th>
+<th class="n">q8_0</th>
+</tr></thead><tbody>
+<tr><td class="n">32768</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="26030 MiB" data-prefill_s="74.569 s" data-prefill_tok_s="395.49 t/s" data-power="—" data-all="26030 MiB · 74.569 s · 395.49 t/s PP">26030 MiB · 74.569 s · 395.49 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="26167 MiB" data-prefill_s="72.938 s" data-prefill_tok_s="404.33 t/s" data-power="—" data-all="26167 MiB · 72.938 s · 404.33 t/s PP">26167 MiB · 72.938 s · 404.33 t/s PP</td>
+</tr>
+<tr><td class="n">65536</td>
+<td class="n">—</td>
+<td class="n ok cap-cell" data-gtt="26354 MiB" data-prefill_s="168.315 s" data-prefill_tok_s="350.43 t/s" data-power="—" data-all="26354 MiB · 168.315 s · 350.43 t/s PP">26354 MiB · 168.315 s · 350.43 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="26679 MiB" data-prefill_s="162.486 s" data-prefill_tok_s="363.0 t/s" data-power="—" data-all="26679 MiB · 162.486 s · 363.0 t/s PP">26679 MiB · 162.486 s · 363.0 t/s PP</td>
+</tr>
+<tr><td class="n">131072</td>
+<td class="n ok cap-cell" data-gtt="26778 MiB" data-prefill_s="393.41 s" data-prefill_tok_s="299.85 t/s" data-power="—" data-all="26778 MiB · 393.41 s · 299.85 t/s PP">26778 MiB · 393.41 s · 299.85 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="26938 MiB" data-prefill_s="402.198 s" data-prefill_tok_s="293.3 t/s" data-power="—" data-all="26938 MiB · 402.198 s · 293.3 t/s PP">26938 MiB · 402.198 s · 293.3 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27556 MiB" data-prefill_s="384.376 s" data-prefill_tok_s="306.9 t/s" data-power="—" data-all="27556 MiB · 384.376 s · 306.9 t/s PP">27556 MiB · 384.376 s · 306.9 t/s PP</td>
+</tr>
+<tr><td class="n">196608</td>
+<td class="n ok cap-cell" data-gtt="27426 MiB" data-prefill_s="673.758 s" data-prefill_tok_s="262.63 t/s" data-power="—" data-all="27426 MiB · 673.758 s · 262.63 t/s PP">27426 MiB · 673.758 s · 262.63 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="27514 MiB" data-prefill_s="705.643 s" data-prefill_tok_s="250.76 t/s" data-power="—" data-all="27514 MiB · 705.643 s · 250.76 t/s PP">27514 MiB · 705.643 s · 250.76 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28641 MiB" data-prefill_s="653.528 s" data-prefill_tok_s="270.76 t/s" data-power="—" data-all="28641 MiB · 653.528 s · 270.76 t/s PP">28641 MiB · 653.528 s · 270.76 t/s PP</td>
+</tr>
+<tr><td class="n">262144</td>
+<td class="n ok cap-cell" data-gtt="27824 MiB" data-prefill_s="1021.789 s" data-prefill_tok_s="230.9 t/s" data-power="—" data-all="27824 MiB · 1021.789 s · 230.9 t/s PP">27824 MiB · 1021.789 s · 230.9 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="28144 MiB" data-prefill_s="1066.699 s" data-prefill_tok_s="221.18 t/s" data-power="—" data-all="28144 MiB · 1066.699 s · 221.18 t/s PP">28144 MiB · 1066.699 s · 221.18 t/s PP</td>
+<td class="n ok cap-cell" data-gtt="29448 MiB" data-prefill_s="977.549 s" data-prefill_tok_s="241.35 t/s" data-power="—" data-all="29448 MiB · 977.549 s · 241.35 t/s PP">29448 MiB · 977.549 s · 241.35 t/s PP</td>
+</tr>
+</tbody></table></div>
+<h3>Two instances (same model)</h3><p class="meta">Can two copies of the model share the machine at this context? Peak memory and remaining free RAM after both are loaded.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n">Context</th><th>Fits</th><th class="n">Memory peak</th><th class="n">RAM free</th><th>Phase</th></tr></thead><tbody>
+<tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td>q5_0</td><td class="n">32768</td><td class="ok">✓</td><td class="n">52335 MiB</td><td class="n">63051 MiB</td><td>ok</td></tr>
+<tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td>q8_0</td><td class="n">32768</td><td class="ok">✓</td><td class="n">52709 MiB</td><td class="n">63070 MiB</td><td>ok</td></tr>
+<tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td>q8_0</td><td class="n">65536</td><td class="ok">✓</td><td class="n">53606 MiB</td><td class="n">61872 MiB</td><td>ok</td></tr>
+<tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td>q8_0</td><td class="n">131072</td><td class="ok">✓</td><td class="n">55434 MiB</td><td class="n">59549 MiB</td><td>ok</td></tr>
+<tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td>q8_0</td><td class="n">196608</td><td class="ok">✓</td><td class="n">57305 MiB</td><td class="n">57184 MiB</td><td>ok</td></tr>
+<tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td>q8_0</td><td class="n">262144</td><td class="ok">✓</td><td class="n">59294 MiB</td><td class="n">55331 MiB</td><td>ok</td></tr>
+</tbody></table>
+
+<script>
+(function(){
+  const tabs = document.getElementById("cap-metric-tabs");
+  if (!tabs) return;
+  tabs.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-metric]");
+    if (!btn) return;
+    tabs.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const m = btn.getAttribute("data-metric");
+    document.querySelectorAll("td.cap-cell").forEach(td => {
+      td.textContent = td.getAttribute("data-" + m) || "—";
+    });
+  });
+})();
+</script>
+
+</div>
+</details>
+<p class="more"><a href="capacity/latest/compare.md">→ Capacity ledger (markdown)</a></p>
+
+<script id="bench-chart-data" type="application/json">{"capacity": {"Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL": {"q8_0": [{"c": 32768, "gtt_gib": 25.55, "prefill_s": 72.938, "prefill_tok_s": 404.33, "power_w": null}, {"c": 65536, "gtt_gib": 26.05, "prefill_s": 162.486, "prefill_tok_s": 363.0, "power_w": null}, {"c": 131072, "gtt_gib": 26.91, "prefill_s": 384.376, "prefill_tok_s": 306.9, "power_w": null}, {"c": 196608, "gtt_gib": 27.97, "prefill_s": 653.528, "prefill_tok_s": 270.76, "power_w": null}, {"c": 262144, "gtt_gib": 28.76, "prefill_s": 977.549, "prefill_tok_s": 241.35, "power_w": null}], "q5_0": [{"c": 32768, "gtt_gib": 25.42, "prefill_s": 74.569, "prefill_tok_s": 395.49, "power_w": null}, {"c": 65536, "gtt_gib": 25.74, "prefill_s": 168.315, "prefill_tok_s": 350.43, "power_w": null}, {"c": 131072, "gtt_gib": 26.31, "prefill_s": 402.198, "prefill_tok_s": 293.3, "power_w": null}, {"c": 196608, "gtt_gib": 26.87, "prefill_s": 705.643, "prefill_tok_s": 250.76, "power_w": null}, {"c": 262144, "gtt_gib": 27.48, "prefill_s": 1066.699, "prefill_tok_s": 221.18, "power_w": null}], "q4_0": [{"c": 131072, "gtt_gib": 26.15, "prefill_s": 393.41, "prefill_tok_s": 299.85, "power_w": null}, {"c": 196608, "gtt_gib": 26.78, "prefill_s": 673.758, "prefill_tok_s": 262.63, "power_w": null}, {"c": 262144, "gtt_gib": 27.17, "prefill_s": 1021.789, "prefill_tok_s": 230.9, "power_w": null}], "q8_0 dual": [{"c": 32768, "gtt_gib": 51.47, "prefill_s": null, "prefill_tok_s": null, "power_w": null}, {"c": 65536, "gtt_gib": 52.35, "prefill_s": null, "prefill_tok_s": null, "power_w": null}, {"c": 131072, "gtt_gib": 54.13, "prefill_s": null, "prefill_tok_s": null, "power_w": null}, {"c": 196608, "gtt_gib": 55.96, "prefill_s": null, "prefill_tok_s": null, "power_w": null}, {"c": 262144, "gtt_gib": 57.9, "prefill_s": null, "prefill_tok_s": null, "power_w": null}], "q5_0 dual": [{"c": 32768, "gtt_gib": 51.11, "prefill_s": null, "prefill_tok_s": null, "power_w": null}]}, "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL": {"q8_0": [{"c": 32768, "gtt_gib": 27.04, "prefill_s": 69.276, "prefill_tok_s": 425.7, "power_w": null}, {"c": 65536, "gtt_gib": 27.49, "prefill_s": 156.418, "prefill_tok_s": 377.08, "power_w": null}, {"c": 131072, "gtt_gib": 28.4, "prefill_s": 369.862, "prefill_tok_s": 318.94, "power_w": null}, {"c": 196608, "gtt_gib": 29.57, "prefill_s": 634.599, "prefill_tok_s": 278.83, "power_w": null}, {"c": 262144, "gtt_gib": 30.27, "prefill_s": 959.764, "prefill_tok_s": 245.82, "power_w": null}], "q5_0": [{"c": 32768, "gtt_gib": 26.91, "prefill_s": 70.841, "prefill_tok_s": 416.3, "power_w": null}, {"c": 65536, "gtt_gib": 27.18, "prefill_s": 161.756, "prefill_tok_s": 364.64, "power_w": null}, {"c": 131072, "gtt_gib": 27.86, "prefill_s": 384.689, "prefill_tok_s": 306.65, "power_w": null}, {"c": 196608, "gtt_gib": 28.36, "prefill_s": 678.917, "prefill_tok_s": 260.63, "power_w": null}, {"c": 262144, "gtt_gib": 29.0, "prefill_s": 1022.736, "prefill_tok_s": 230.68, "power_w": null}], "q4_0": [{"c": 131072, "gtt_gib": 27.7, "prefill_s": 374.002, "prefill_tok_s": 315.41, "power_w": null}, {"c": 196608, "gtt_gib": 28.12, "prefill_s": 653.956, "prefill_tok_s": 270.58, "power_w": null}, {"c": 262144, "gtt_gib": 28.69, "prefill_s": 990.616, "prefill_tok_s": 238.16, "power_w": null}]}, "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL": {"q8_0": [{"c": 32768, "gtt_gib": 25.96, "prefill_s": 69.845, "prefill_tok_s": 422.23, "power_w": null}, {"c": 65536, "gtt_gib": 26.41, "prefill_s": 154.514, "prefill_tok_s": 381.73, "power_w": null}, {"c": 131072, "gtt_gib": 27.32, "prefill_s": 369.593, "prefill_tok_s": 319.17, "power_w": null}, {"c": 196608, "gtt_gib": 28.3, "prefill_s": 634.008, "prefill_tok_s": 279.09, "power_w": null}, {"c": 262144, "gtt_gib": 29.19, "prefill_s": 958.133, "prefill_tok_s": 246.24, "power_w": null}], "q5_0": [{"c": 32768, "gtt_gib": 25.83, "prefill_s": 70.966, "prefill_tok_s": 415.57, "power_w": null}, {"c": 65536, "gtt_gib": 26.1, "prefill_s": 161.609, "prefill_tok_s": 364.97, "power_w": null}, {"c": 131072, "gtt_gib": 26.78, "prefill_s": 384.595, "prefill_tok_s": 306.72, "power_w": null}, {"c": 196608, "gtt_gib": 27.28, "prefill_s": 679.307, "prefill_tok_s": 260.48, "power_w": null}, {"c": 262144, "gtt_gib": 27.92, "prefill_s": 1031.726, "prefill_tok_s": 228.67, "power_w": null}], "q4_0": [{"c": 131072, "gtt_gib": 26.62, "prefill_s": 376.891, "prefill_tok_s": 312.99, "power_w": null}, {"c": 196608, "gtt_gib": 27.04, "prefill_s": 653.609, "prefill_tok_s": 270.72, "power_w": null}, {"c": 262144, "gtt_gib": 27.61, "prefill_s": 989.833, "prefill_tok_s": 238.35, "power_w": null}]}, "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL": {"q8_0": [{"c": 32768, "gtt_gib": 25.55, "prefill_s": 73.488, "prefill_tok_s": 401.3, "power_w": null}, {"c": 65536, "gtt_gib": 26.05, "prefill_s": 163.079, "prefill_tok_s": 361.68, "power_w": null}, {"c": 131072, "gtt_gib": 26.91, "prefill_s": 383.7, "prefill_tok_s": 307.44, "power_w": null}, {"c": 196608, "gtt_gib": 27.83, "prefill_s": 653.61, "prefill_tok_s": 270.72, "power_w": null}, {"c": 262144, "gtt_gib": 28.76, "prefill_s": 981.31, "prefill_tok_s": 240.42, "power_w": null}], "q5_0": [{"c": 32768, "gtt_gib": 25.42, "prefill_s": 75.41, "prefill_tok_s": 391.08, "power_w": null}, {"c": 65536, "gtt_gib": 25.74, "prefill_s": 169.987, "prefill_tok_s": 346.98, "power_w": null}, {"c": 131072, "gtt_gib": 26.31, "prefill_s": 400.049, "prefill_tok_s": 294.87, "power_w": null}, {"c": 196608, "gtt_gib": 26.87, "prefill_s": 696.965, "prefill_tok_s": 253.88, "power_w": null}, {"c": 262144, "gtt_gib": 27.48, "prefill_s": 1052.016, "prefill_tok_s": 224.26, "power_w": null}], "q4_0": [{"c": 131072, "gtt_gib": 26.15, "prefill_s": 390.618, "prefill_tok_s": 301.99, "power_w": null}, {"c": 196608, "gtt_gib": 26.78, "prefill_s": 669.769, "prefill_tok_s": 264.19, "power_w": null}, {"c": 262144, "gtt_gib": 27.17, "prefill_s": 1008.79, "prefill_tok_s": 233.87, "power_w": null}]}, "Qwen3.8-27B-UD-Q4_K_M-MTP": {"q8_0": [{"c": 32768, "gtt_gib": 16.91, "prefill_s": 178.834, "prefill_tok_s": 164.91, "power_w": null}, {"c": 65536, "gtt_gib": 18.15, "prefill_s": 23.871, "prefill_tok_s": 2470.86, "power_w": null}, {"c": 131072, "gtt_gib": 20.67, "prefill_s": 44.442, "prefill_tok_s": 2654.34, "power_w": null}]}, "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL": {"q8_0": [{"c": 32768, "gtt_gib": 26.57, "prefill_s": 103.474, "prefill_tok_s": 285.01, "power_w": null}, {"c": 65536, "gtt_gib": 27.04, "prefill_s": 230.504, "prefill_tok_s": 255.88, "power_w": null}, {"c": 131072, "gtt_gib": 27.78, "prefill_s": 521.276, "prefill_tok_s": 226.3, "power_w": null}, {"c": 196608, "gtt_gib": 28.63, "prefill_s": 859.831, "prefill_tok_s": 205.79, "power_w": null}, {"c": 262144, "gtt_gib": 29.43, "prefill_s": 1249.411, "prefill_tok_s": 188.83, "power_w": null}], "q5_0": [{"c": 32768, "gtt_gib": 26.49, "prefill_s": 106.613, "prefill_tok_s": 276.62, "power_w": null}, {"c": 65536, "gtt_gib": 26.8, "prefill_s": 234.927, "prefill_tok_s": 251.07, "power_w": null}, {"c": 131072, "gtt_gib": 27.36, "prefill_s": 531.303, "prefill_tok_s": 222.03, "power_w": null}, {"c": 196608, "gtt_gib": 27.89, "prefill_s": 887.096, "prefill_tok_s": 199.47, "power_w": null}, {"c": 262144, "gtt_gib": 28.49, "prefill_s": 1295.778, "prefill_tok_s": 182.08, "power_w": null}], "q4_0": [{"c": 131072, "gtt_gib": 27.21, "prefill_s": 522.346, "prefill_tok_s": 225.83, "power_w": null}, {"c": 196608, "gtt_gib": 27.83, "prefill_s": 863.298, "prefill_tok_s": 204.97, "power_w": null}, {"c": 262144, "gtt_gib": 28.18, "prefill_s": 1257.32, "prefill_tok_s": 187.64, "power_w": null}]}}}</script>
+<script>
+(function () {
+  const raw = document.getElementById("bench-chart-data");
+  const sel = document.getElementById("cap-model");
+  const ySel = document.getElementById("cap-y");
+  const canvas = document.getElementById("chart-cap");
+  const fallback = document.getElementById("cap-fallback");
+  if (!raw) return;
+  let DATA;
+  try { DATA = JSON.parse(raw.textContent); } catch (e) { return; }
+  const cap = DATA.capacity || {};
+  const models = Object.keys(cap).sort();
+  const hasChart = typeof Chart !== "undefined";
+  const tick = { color: "#9aa0a6" };
+  const grid = { color: "#2a2e37" };
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: "#c4c7cc" } } },
+  };
+  const yLabels = {
+    prefill_s: "Prompt time (s)",
+    prefill_tok_s: "Prompt speed (tok/s)",
+    gtt_gib: "Memory (GiB)",
+    power_w: "GPU watts",
+  };
+  const palette = ["#5b8def", "#7ddea5", "#f0c674", "#f28b82", "#c58af9", "#78d4e8"];
+  let capChart = null;
+  function fmtC(c) {
+    if (c >= 1024) return (c / 1024) + "k";
+    return String(c);
+  }
+  function renderCap(model) {
+    const series = cap[model] || {};
+    const yKey = (ySel && ySel.value) || "prefill_s";
+    const kvs = Object.keys(series).sort();
+    if (!hasChart || !canvas) {
+      if (fallback) {
+        fallback.hidden = false;
+        let html = "<table><thead><tr><th>KV</th><th class=\"n\">Context</th><th class=\"n\">Value</th></tr></thead><tbody>";
+        kvs.forEach((kv) => {
+          (series[kv] || []).forEach((p) => {
+            if (p[yKey] == null) return;
+            html += "<tr><td>" + kv + "</td><td class=\"n\">" + p.c + "</td><td class=\"n\">" + p[yKey] + "</td></tr>";
+          });
+        });
+        html += "</tbody></table>";
+        fallback.innerHTML = html;
+      }
+      return;
+    }
+    const datasets = kvs.map((kv, i) => ({
+      label: kv,
+      data: (series[kv] || []).filter((p) => p[yKey] != null).map((p) => ({ x: p.c, y: p[yKey] })),
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length],
+      tension: 0.15,
+      showLine: true,
+      pointRadius: 4,
+    }));
+    if (capChart) capChart.destroy();
+    capChart = new Chart(canvas, {
+      type: "line",
+      data: { datasets },
+      options: {
+        ...common,
+        parsing: false,
+        scales: {
+          x: {
+            type: "linear",
+            ticks: { ...tick, callback: (v) => fmtC(v) },
+            grid,
+            title: { display: true, text: "context tokens", color: "#9aa0a6" },
+          },
+          y: {
+            ticks: tick,
+            grid,
+            title: { display: true, text: yLabels[yKey] || yKey, color: "#9aa0a6" },
+          },
+        },
+      },
+    });
+  }
+  if (sel && models.length) {
+    models.forEach((m) => {
+      const o = document.createElement("option");
+      o.value = m;
+      o.textContent = m.length > 48 ? m.slice(0, 47) + "…" : m;
+      o.title = m;
+      sel.appendChild(o);
+    });
+    sel.addEventListener("change", () => renderCap(sel.value));
+    if (ySel) ySel.addEventListener("change", () => renderCap(sel.value));
+    renderCap(models[0]);
+  } else if (sel) {
+    sel.outerHTML = '<p class="meta">No capacity series yet.</p>';
+  }
+})();
+</script>
+
+
+<footer class="site">Measured benches on this host · comparable only for the same build (see Host)</footer>
+</body></html>

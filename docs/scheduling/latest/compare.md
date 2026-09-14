@@ -1,408 +1,263 @@
-# Scheduling — Vergleich & Empfehlungen
+# Scheduling — compare & recommendations
 
-Decode-Latenz und Prefill-Durchsatz **unter Last** (2 Slots, rolling prefill). Lab-Router `:11537`, `np=2`.
+Decode latency and prefill throughput **under load** (2 slots, rolling prefill). Bench-a `:11601`, `np=2`.
 
-## Metriken
+## Metrics
 
-| Metrik | Bedeutung | Ziel |
+| Metric | Meaning | Target |
 | --- | --- | --- |
-| **Decode ms** | Zeit pro generiertem Token (Slot A, unter Last) | niedrig (~33 ms) |
-| **Prefill tok/s** | Prompt-Durchsatz während Decode läuft (≈ PP unter Last) | hoch |
-| **Prefill TTFT** | ms bis erster Prefill-Token (4k Prompt) | niedrig |
-| **PP idle** | Prompt-tok/s ohne Last (aus Throughput-Bench) | Referenz |
+| **Decode ms** | time per generated token (slot A, under load) | low (~33 ms) |
+| **Prefill tok/s** | prompt throughput while decode runs (≈ PP under load) | high |
+| **Prefill TTFT** | ms until first prefill token (4k prompt) | low |
+| **PP idle** | prompt tok/s idle (from throughput bench) | reference |
 
-## Empfehlung pro Modell
+## Recommendation per model
 
-| Modell | np ★ | ub ★ | b ★ | c ★ | cont-batch | PP an | PP aus | Decode ms | Prefill tok/s |
+| Model | np ★ | ub ★ | b ★ | c ★ | cont-batch | PP on | PP off | Decode ms | Prefill tok/s |
 | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: |
-| Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL | 2 | 256 | — | — | on (default) | — | — | 12.5 | 63.8 |
-| Qwen3.6-35B-A3B-MTP-UD-Q4_K_M | 2 | 128 | — | 262144 | on ★ | 428.3 | 409.5 | 31.1 | 76.2 |
-| Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL | 4 | 64 | — | 262144 | on ★ | 425.4 | 397.5 | 32.1 | 83.1 |
-| Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL | 2 | 256 | — | 262144 | off ★ | 127.4 | 385.2 | 35.4 | 71.8 |
-| Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL | 4 | 256 | — | 262144 | on ★ | 345.9 | 350.6 | 35.5 | 71.7 |
-| Qwen3.8-27B-Q4_K_M-MTP | 4 | 128 | — | 262144 | off ★ | 59.8 | 239.4 | 130.8 | 16.9 |
-| Qwen3.8-27B-Q4_K_M-MTP-VL | 4 | 64 | — | 262144 | on ★ | 237.7 | 233.9 | 130.6 | 16.9 |
+| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 1 | 128 | — | — | off ★ | 462.8 | 462.4 | 17.9 | 54.4 |
+| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL | 1 | 256 | — | — | on ★ | 462.5 | 462.9 | 37.6 | 63.7 |
+| Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL | 2 | 32 | — | — | off ★ | 491.5 | 491.2 | 15.5 | 69.8 |
+| Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 1 | 64 | — | — | on ★ | 462.8 | 462.9 | 36.2 | 57.8 |
 
 ---
 
-## Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL
+## Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL
 
-**Throughput (idle, lab Vulkan):** PP 1,275 tok/s · TG 82.2 tok/s
-
-### Interleaving — lohnt sich np=2?
-
-| Szenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
-| --- | ---: | ---: | ---: | ---: |
-| 01 solo (Referenz) | 12.7 | 77.7 | — | — |
-| 02 blocked (np=1, schlecht) | 12.8 | 78.1 | 62.8 | 26,629 ⚠ |
-| 03 interleave (np=2) | 12.6 | 79.5 | 63.3 | 52.0 |
-
-→ **Interleaving:** Prefill-TTFT **512× schneller** als blocked (26,629 ms → 52.0 ms). Decode bleibt ~12.6 ms.
-
-### ub-Sweep — beste Batch-Größe unter Last
-
-Getestet mit Szenario 03 (Decode + 4k-Prefill parallel). **Ziel:** niedrige Decode-Latenz + hoher Prefill-Durchsatz + niedrige TTFT.
-
-| ub | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
-| --- | ---: | ---: | ---: | ---: | --- |
-| 256 | 12.5 | 79.7 | 63.8 | 44.2 | **★ best** |
-| 128 | 12.6 | 79.6 | 63.3 | 46.3 |  |
-| 64 | 12.6 | 79.2 | 64.1 | 98.2 |  |
-
-→ **Empfehlung:** `ub = 256`
-
-### np-Sweep — parallele Slots (ub=128 fix)
-
-Szenario 03 unter Last.
-
-| np | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
-| --- | ---: | ---: | ---: | ---: | --- |
-| 2 | 12.6 | 79.5 | 63.7 | 96.2 | **★ best** |
-| 4 | 12.7 | 78.8 | 64.4 | 45.5 |  |
-
-→ **Empfehlung:** `np = 2`
-
-## Qwen3.6-35B-A3B-MTP-UD-Q4_K_M
+**Throughput (idle, lab Vulkan):** PP 1,012 tok/s · TG 56.9 tok/s
 
 ### Interleaving — lohnt sich np=2?
 
-| Szenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
+| Scenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
 | --- | ---: | ---: | ---: | ---: |
-| 01 solo (Referenz) | 66.3 | 28.2 | — | — |
-| 02 blocked (np=1, schlecht) | 32.0 | 91.7 | 46.5 | 297.4 |
-| 03 interleave (np=2) | 32.6 | 88.2 | 78.3 | 300.3 |
+| 01 solo (reference) | 38.0 | 55.9 | — | — |
+| 02 blocked (np=1, schlecht) | 38.0 | 60.5 | 64.8 | 47,077 ⚠ |
+| 03 interleave (np=2) | 37.1 | 59.2 | 68.4 | 158.6 |
 
-### ub-Sweep — beste Batch-Größe unter Last
+→ **Interleaving:** Prefill-TTFT **297× faster** than blocked (47,077 ms → 158.6 ms). Decode bleibt ~37.1 ms.
 
-Getestet mit Szenario 03 (Decode + 4k-Prefill parallel). **Ziel:** niedrige Decode-Latenz + hoher Prefill-Durchsatz + niedrige TTFT.
+### ub-sweep — best batch size under load
+
+Tested with scenario 03 (decode + 4k prefill in parallel). **Goal:** low decode latency + high prefill throughput + low TTFT.
 
 | ub | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 128 | 31.1 | 88.6 | 76.2 | 317.8 | **★ best** |
-| 256 | 32.2 | 88.9 | 81.2 | 328.0 |  |
-| 64 | 32.3 | 84.4 | 73.2 | 401.4 |  |
+| 128 | 17.9 | 75.8 | 54.4 | 31,898 | **★ best** |
+| 256 | 35.9 | 63.9 | 60.0 | 31,911 | ⚠ invalid |
+| 32 | 37.1 | 69.5 | 62.8 | 47,521 | ⚠ invalid |
+| 64 | 37.4 | 55.2 | 49.5 | 31,885 | ⚠ invalid |
 
-→ **Empfehlung:** `ub = 128`
+→ **Recommendation:** `ub = 128`
 
-### np-Sweep — parallele Slots (ub=128 fix)
+### np-sweep — parallel slots (ub=128 fixed)
 
-Szenario 03 unter Last.
+Scenario 03 under load.
 
 | np | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 2 | 32.4 | 86.9 | 80.0 | 278.7 | **★ best** |
+| 1 | 37.5 | 59.8 | 60.0 | 32,707 | **★ best** |
+| 2 | 37.5 | 65.0 | 59.3 | 31,923 | ⚠ invalid |
+| 4 | 37.7 | 65.5 | 53.6 | 31,808 | ⚠ invalid |
 
-→ **Empfehlung:** `np = 2`
+→ **Recommendation:** `np = 1`
 
-### ctx-Sweep — Kontext vs VRAM
-
-Szenario 01 solo pro ctx.
-
-| c | Decode ms | Decode tok/s | VRAM MB | |
-| --- | ---: | ---: | ---: | --- |
-| 16384 | 32.0 | 71.0 | — |  |
-| 32768 | 32.4 | 84.0 | — |  |
-| 65536 | 32.7 | 87.2 | — |  |
-| 131072 | 33.0 | 85.5 | — |  |
-| 262144 | 32.3 | 84.6 | — | **★ best** |
-
-→ **Empfehlung:** `c = 262144`
-
-### cont-batching — an vs. aus
+### cont-batching — on vs off
 
 | Modus | PP tok/s | TG tok/s | Decode ms | Prefill tok/s | Prefill TTFT |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| an (cont-batching) | 428.3 | 74.6 | 32.1 | 77.9 | 388.1 |
-| aus (--no-cont-batching) | 409.5 | 73.5 | 32.4 | 72.8 | 376.1 |
+| an (cont-batching) | 462.8 | 62.3 | 37.3 | 50.5 | 185.2 |
+| aus (--no-cont-batching) | 462.4 | 64.3 | 37.8 | 54.1 | 176.2 |
 
-→ **Empfehlung:** cont-batching **on**
+→ **Recommendation:** cont-batching **off**
 
-## Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL
+### MTP — off vs draft-mtp n-max
+
+| n | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 1 | 25.8 | 59.4 | 58.0 | 47,868 |  |
+| 2 | 31.6 | 68.0 | 52.3 | 47,091 |  |
+| 3 | 37.5 | 69.1 | 57.2 | 47,510 | **★ best** |
+| 4 | 43.6 | 56.9 | 47.1 | 47,889 |  |
+| off | 17.3 | 56.8 | 51.1 | 46,010 |  |
+
+→ **Recommendation:** `spec-draft-n-max = 3`
+
+## Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL
+
+**Throughput (idle, lab Vulkan):** PP 1,012 tok/s · TG 56.9 tok/s
 
 ### Interleaving — lohnt sich np=2?
 
-| Szenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
+| Scenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
 | --- | ---: | ---: | ---: | ---: |
-| 01 solo (Referenz) | 32.3 | 84.3 | — | — |
-| 02 blocked (np=1, schlecht) | 32.6 | 87.3 | 81.1 | 42,650 ⚠ |
-| 03 interleave (np=2) | 32.8 | 86.6 | 78.8 | 286.4 |
+| 01 solo (reference) | 37.4 | 64.5 | — | — |
+| 02 blocked (np=1, schlecht) | 38.0 | 62.7 | 54.1 | 47,042 ⚠ |
+| 03 interleave (np=2) | 17.2 | 74.5 | 66.4 | 136.8 |
 
-→ **Interleaving:** Prefill-TTFT **149× schneller** als blocked (42,650 ms → 286.4 ms). Decode bleibt ~32.8 ms.
+→ **Interleaving:** Prefill-TTFT **344× faster** than blocked (47,042 ms → 136.8 ms). Decode bleibt ~17.2 ms.
 
-### ub-Sweep — beste Batch-Größe unter Last
+### ub-sweep — best batch size under load
 
-Getestet mit Szenario 03 (Decode + 4k-Prefill parallel). **Ziel:** niedrige Decode-Latenz + hoher Prefill-Durchsatz + niedrige TTFT.
+Tested with scenario 03 (decode + 4k prefill in parallel). **Goal:** low decode latency + high prefill throughput + low TTFT.
 
 | ub | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 64 | 32.1 | 85.6 | 83.1 | 365.4 | **★ best** |
-| 256 | 32.3 | 88.9 | 77.3 | 343.8 |  |
-| 128 | 32.6 | 87.3 | 78.5 | 297.4 |  |
+| 256 | 37.6 | 64.1 | 63.7 | 31,868 | **★ best** |
+| 32 | 37.7 | 67.2 | 57.8 | 47,541 | ⚠ invalid |
+| 64 | 38.1 | 63.4 | 56.3 | 31,916 | ⚠ invalid |
+| 128 | 38.2 | 71.6 | 52.6 | 31,915 | ⚠ invalid |
 
-→ **Empfehlung:** `ub = 64`
+→ **Recommendation:** `ub = 256`
 
-### np-Sweep — parallele Slots (ub=128 fix)
+### np-sweep — parallel slots (ub=128 fixed)
 
-Szenario 03 unter Last.
+Scenario 03 under load.
 
 | np | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 4 | 32.1 | 86.6 | 74.9 | 274.0 | **★ best** |
-| 2 | 32.6 | 87.3 | 82.5 | 333.6 |  |
+| 1 | 37.5 | 64.2 | 52.1 | 32,734 | **★ best** |
+| 2 | 38.2 | 54.0 | 57.3 | 31,877 | ⚠ invalid |
+| 4 | 38.3 | 64.8 | 64.5 | 31,853 | ⚠ invalid |
 
-→ **Empfehlung:** `np = 4`
+→ **Recommendation:** `np = 1`
 
-### ctx-Sweep — Kontext vs VRAM
-
-Szenario 01 solo pro ctx.
-
-| c | Decode ms | Decode tok/s | VRAM MB | |
-| --- | ---: | ---: | ---: | --- |
-| 16384 | 31.6 | 74.3 | — |  |
-| 32768 | 33.1 | 82.0 | — |  |
-| 65536 | 32.2 | 85.4 | — |  |
-| 131072 | 32.8 | 83.0 | — |  |
-| 262144 | 32.7 | 86.8 | — | **★ best** |
-
-→ **Empfehlung:** `c = 262144`
-
-### cont-batching — an vs. aus
+### cont-batching — on vs off
 
 | Modus | PP tok/s | TG tok/s | Decode ms | Prefill tok/s | Prefill TTFT |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| an (cont-batching) | 425.4 | 87.2 | 32.8 | 82.5 | 388.9 |
-| aus (--no-cont-batching) | 397.5 | 68.7 | 32.5 | 77.9 | 363.1 |
+| an (cont-batching) | 462.5 | 59.1 | 38.0 | 63.9 | 184.8 |
+| aus (--no-cont-batching) | 462.9 | 63.8 | 37.6 | 63.1 | 182.8 |
 
-→ **Empfehlung:** cont-batching **on**
+→ **Recommendation:** cont-batching **on**
+
+### MTP — off vs draft-mtp n-max
+
+| n | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 1 | 25.6 | 66.6 | 59.3 | 47,901 |  |
+| 2 | 32.0 | 65.7 | 57.6 | 47,114 |  |
+| 3 | 36.2 | 68.9 | 59.6 | 47,509 | **★ best** |
+| 4 | 44.5 | 59.6 | 51.4 | 47,901 |  |
+| off | 17.5 | 54.7 | 50.8 | 46,086 |  |
+
+→ **Recommendation:** `spec-draft-n-max = 3`
 
 ## Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL
 
-### Interleaving — lohnt sich np=2?
-
-| Szenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
-| --- | ---: | ---: | ---: | ---: |
-| 01 solo (Referenz) | 35.8 | 76.2 | — | — |
-| 02 blocked (np=1, schlecht) | 35.6 | 79.4 | 72.3 | 46,055 ⚠ |
-| 03 interleave (np=2) | 36.1 | 76.2 | 76.8 | 273.1 |
-
-→ **Interleaving:** Prefill-TTFT **169× schneller** als blocked (46,055 ms → 273.1 ms). Decode bleibt ~36.1 ms.
-
-### ub-Sweep — beste Batch-Größe unter Last
-
-Getestet mit Szenario 03 (Decode + 4k-Prefill parallel). **Ziel:** niedrige Decode-Latenz + hoher Prefill-Durchsatz + niedrige TTFT.
-
-| ub | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
-| --- | ---: | ---: | ---: | ---: | --- |
-| 256 | 35.4 | 80.0 | 71.8 | 343.9 | **★ best** |
-| 64 | 35.7 | 80.2 | 69.0 | 397.1 |  |
-| 128 | 35.9 | 79.5 | 69.3 | 349.8 |  |
-
-→ **Empfehlung:** `ub = 256`
-
-### np-Sweep — parallele Slots (ub=128 fix)
-
-Szenario 03 unter Last.
-
-| np | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
-| --- | ---: | ---: | ---: | ---: | --- |
-| 2 | 35.1 | 81.2 | 73.9 | 296.4 | **★ best** |
-| 4 | 35.9 | 78.8 | 75.1 | 239.3 |  |
-
-→ **Empfehlung:** `np = 2`
-
-### ctx-Sweep — Kontext vs VRAM
-
-Szenario 01 solo pro ctx.
-
-| c | Decode ms | Decode tok/s | VRAM MB | |
-| --- | ---: | ---: | ---: | --- |
-| 16384 | 35.5 | 70.8 | — |  |
-| 32768 | 36.0 | 78.1 | — |  |
-| 65536 | 35.5 | 79.3 | — |  |
-| 131072 | 36.0 | 78.7 | — |  |
-| 262144 | 35.9 | 76.9 | — | **★ best** |
-
-→ **Empfehlung:** `c = 262144`
-
-### cont-batching — an vs. aus
-
-| Modus | PP tok/s | TG tok/s | Decode ms | Prefill tok/s | Prefill TTFT |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| an (cont-batching) | 127.4 | 79.1 | 35.8 | 72.2 | 397.3 |
-| aus (--no-cont-batching) | 385.2 | 72.0 | 35.8 | 70.8 | 403.7 |
-
-→ **Empfehlung:** cont-batching **off**
-
-## Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL
+**Throughput (idle, lab Vulkan):** PP 1,033 tok/s · TG 57.1 tok/s
 
 ### Interleaving — lohnt sich np=2?
 
-| Szenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
+| Scenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
 | --- | ---: | ---: | ---: | ---: |
-| 01 solo (Referenz) | 35.6 | 79.3 | — | — |
-| 02 blocked (np=1, schlecht) | 35.3 | 79.1 | 73.0 | 46,517 ⚠ |
-| 03 interleave (np=2) | 36.4 | 75.0 | 73.7 | 259.7 |
+| 01 solo (reference) | 31.2 | 88.4 | — | — |
+| 02 blocked (np=1, schlecht) | 31.5 | 88.5 | 79.5 | 45,232 ⚠ |
+| 03 interleave (np=2) | 32.4 | 82.4 | 72.2 | 736.0 |
 
-→ **Interleaving:** Prefill-TTFT **179× schneller** als blocked (46,517 ms → 259.7 ms). Decode bleibt ~36.4 ms.
+→ **Interleaving:** Prefill-TTFT **61× faster** than blocked (45,232 ms → 736.0 ms). Decode bleibt ~32.4 ms.
 
-### ub-Sweep — beste Batch-Größe unter Last
+### ub-sweep — best batch size under load
 
-Getestet mit Szenario 03 (Decode + 4k-Prefill parallel). **Ziel:** niedrige Decode-Latenz + hoher Prefill-Durchsatz + niedrige TTFT.
+Tested with scenario 03 (decode + 4k prefill in parallel). **Goal:** low decode latency + high prefill throughput + low TTFT.
 
 | ub | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 256 | 35.5 | 80.2 | 71.7 | 350.9 | **★ best** |
-| 128 | 35.5 | 79.9 | 72.7 | 369.5 |  |
-| 64 | 35.6 | 79.6 | 69.4 | 405.1 |  |
+| 32 | 15.5 | 80.5 | 69.8 | 44,867 | **★ best** |
+| 128 | 32.0 | 84.8 | 69.4 | 30,032 | ⚠ invalid |
+| 64 | 32.1 | 79.8 | 67.6 | 30,006 | ⚠ invalid |
+| 256 | 34.4 | 90.0 | 69.1 | 30,055 | ⚠ invalid |
 
-→ **Empfehlung:** `ub = 256`
+→ **Recommendation:** `ub = 32`
 
-### np-Sweep — parallele Slots (ub=128 fix)
+### np-sweep — parallel slots (ub=128 fixed)
 
-Szenario 03 unter Last.
+Scenario 03 under load.
 
 | np | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 4 | 35.7 | 78.7 | 72.7 | 293.3 | **★ best** |
-| 2 | 35.8 | 79.0 | 75.0 | 322.4 |  |
+| 2 | 31.2 | 85.8 | 68.8 | 29,904 | **★ best** |
+| 1 | 31.2 | 79.3 | 70.4 | 30,516 | ⚠ invalid |
+| 4 | 35.6 | 88.3 | 68.3 | 29,994 | ⚠ invalid |
 
-→ **Empfehlung:** `np = 4`
+→ **Recommendation:** `np = 2`
 
-### ctx-Sweep — Kontext vs VRAM
-
-Szenario 01 solo pro ctx.
-
-| c | Decode ms | Decode tok/s | VRAM MB | |
-| --- | ---: | ---: | ---: | --- |
-| 16384 | 36.1 | 73.8 | — |  |
-| 32768 | 35.4 | 83.4 | — |  |
-| 65536 | 35.4 | 72.5 | — |  |
-| 131072 | 36.2 | 76.9 | — |  |
-| 262144 | 36.0 | 76.3 | — | **★ best** |
-
-→ **Empfehlung:** `c = 262144`
-
-### cont-batching — an vs. aus
+### cont-batching — on vs off
 
 | Modus | PP tok/s | TG tok/s | Decode ms | Prefill tok/s | Prefill TTFT |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| an (cont-batching) | 345.9 | 83.2 | 35.2 | 75.9 | 380.1 |
-| aus (--no-cont-batching) | 350.6 | 78.6 | 35.8 | 71.1 | 380.6 |
+| an (cont-batching) | 491.5 | 79.3 | 30.9 | 77.9 | 147.0 |
+| aus (--no-cont-batching) | 491.2 | 78.6 | 15.9 | 82.0 | 151.2 |
 
-→ **Empfehlung:** cont-batching **on**
+→ **Recommendation:** cont-batching **off**
 
-## Qwen3.8-27B-Q4_K_M-MTP
+### MTP — off vs draft-mtp n-max
+
+| n | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 1 | 25.4 | 73.7 | 68.0 | 45,350 |  |
+| 2 | 31.6 | 78.0 | 72.1 | 44,915 |  |
+| 3 | 41.4 | 91.3 | 82.7 | 45,340 | **★ best** |
+| 4 | 49.4 | 90.2 | 76.4 | 45,664 |  |
+| off | 17.4 | 57.1 | 53.0 | 43,714 |  |
+
+→ **Recommendation:** `spec-draft-n-max = 3`
+
+## Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL
+
+**Throughput (idle, lab Vulkan):** PP 1,020 tok/s · TG 56.9 tok/s
 
 ### Interleaving — lohnt sich np=2?
 
-| Szenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
+| Scenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
 | --- | ---: | ---: | ---: | ---: |
-| 01 solo (Referenz) | 129.4 | 20.3 | — | — |
-| 02 blocked (np=1, schlecht) | 134.7 | 20.6 | 15.4 | 72,644 ⚠ |
-| 03 interleave (np=2) | 134.2 | 18.3 | 22.3 | 509.6 |
+| 01 solo (reference) | 18.7 | 69.0 | — | — |
+| 02 blocked (np=1, schlecht) | 37.1 | 71.2 | 66.2 | 47,213 ⚠ |
+| 03 interleave (np=2) | 38.5 | 58.5 | 60.5 | 147.4 |
 
-→ **Interleaving:** Prefill-TTFT **143× schneller** als blocked (72,644 ms → 509.6 ms). Decode bleibt ~134.2 ms.
+→ **Interleaving:** Prefill-TTFT **320× faster** than blocked (47,213 ms → 147.4 ms). Decode bleibt ~38.5 ms.
 
-### ub-Sweep — beste Batch-Größe unter Last
+### ub-sweep — best batch size under load
 
-Getestet mit Szenario 03 (Decode + 4k-Prefill parallel). **Ziel:** niedrige Decode-Latenz + hoher Prefill-Durchsatz + niedrige TTFT.
+Tested with scenario 03 (decode + 4k prefill in parallel). **Goal:** low decode latency + high prefill throughput + low TTFT.
 
 | ub | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 128 | 130.8 | 23.9 | 16.9 | 619.0 | **★ best** |
-| 256 | 131.9 | 17.1 | 19.7 | 630.4 |  |
-| 64 | 132.1 | 18.5 | 18.2 | 694.3 |  |
+| 64 | 36.2 | 61.9 | 57.8 | 31,980 | **★ best** |
+| 32 | 36.7 | 67.2 | 50.8 | 47,634 | ⚠ invalid |
+| 128 | 37.6 | 52.1 | 51.9 | 31,932 | ⚠ invalid |
+| 256 | 38.0 | 69.7 | 52.4 | 31,990 | ⚠ invalid |
 
-→ **Empfehlung:** `ub = 128`
+→ **Recommendation:** `ub = 64`
 
-### np-Sweep — parallele Slots (ub=128 fix)
+### np-sweep — parallel slots (ub=128 fixed)
 
-Szenario 03 unter Last.
-
-| np | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
-| --- | ---: | ---: | ---: | ---: | --- |
-| 4 | 131.6 | 23.7 | 19.1 | 527.2 | **★ best** |
-| 2 | 132.4 | 22.2 | 15.1 | 581.0 |  |
-
-→ **Empfehlung:** `np = 4`
-
-### ctx-Sweep — Kontext vs VRAM
-
-Szenario 01 solo pro ctx.
-
-| c | Decode ms | Decode tok/s | VRAM MB | |
-| --- | ---: | ---: | ---: | --- |
-| 16384 | 129.6 | 24.0 | — |  |
-| 32768 | 129.9 | 15.8 | — |  |
-| 65536 | 129.0 | 23.0 | — |  |
-| 131072 | 127.2 | 22.2 | — |  |
-| 262144 | 129.5 | 24.0 | — | **★ best** |
-
-→ **Empfehlung:** `c = 262144`
-
-### cont-batching — an vs. aus
-
-| Modus | PP tok/s | TG tok/s | Decode ms | Prefill tok/s | Prefill TTFT |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| an (cont-batching) | 59.8 | 18.4 | 131.6 | 19.1 | 678.4 |
-| aus (--no-cont-batching) | 239.4 | 23.6 | 131.6 | 16.1 | 667.5 |
-
-→ **Empfehlung:** cont-batching **off**
-
-## Qwen3.8-27B-Q4_K_M-MTP-VL
-
-### Interleaving — lohnt sich np=2?
-
-| Szenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
-| --- | ---: | ---: | ---: | ---: |
-| 01 solo (Referenz) | 129.6 | 22.1 | — | — |
-| 02 blocked (np=1, schlecht) | 131.9 | 20.7 | 18.1 | 71,838 ⚠ |
-| 03 interleave (np=2) | 134.4 | 20.6 | 19.4 | 495.5 |
-
-→ **Interleaving:** Prefill-TTFT **145× schneller** als blocked (71,838 ms → 495.5 ms). Decode bleibt ~134.4 ms.
-
-### ub-Sweep — beste Batch-Größe unter Last
-
-Getestet mit Szenario 03 (Decode + 4k-Prefill parallel). **Ziel:** niedrige Decode-Latenz + hoher Prefill-Durchsatz + niedrige TTFT.
-
-| ub | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
-| --- | ---: | ---: | ---: | ---: | --- |
-| 64 | 130.6 | 21.1 | 16.9 | 698.8 | **★ best** |
-| 128 | 130.7 | 20.1 | 22.7 | 641.5 |  |
-| 256 | 131.8 | 17.8 | 16.2 | 612.5 |  |
-
-→ **Empfehlung:** `ub = 64`
-
-### np-Sweep — parallele Slots (ub=128 fix)
-
-Szenario 03 unter Last.
+Scenario 03 under load.
 
 | np | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 4 | 131.2 | 18.4 | 20.6 | 490.4 | **★ best** |
-| 2 | 132.5 | 20.1 | 18.9 | 528.8 |  |
+| 1 | 36.9 | 62.7 | 60.2 | 32,702 | **★ best** |
+| 4 | 37.2 | 65.2 | 56.1 | 31,842 | ⚠ invalid |
+| 2 | 37.9 | 63.8 | 47.0 | 31,992 | ⚠ invalid |
 
-→ **Empfehlung:** `np = 4`
+→ **Recommendation:** `np = 1`
 
-### ctx-Sweep — Kontext vs VRAM
-
-Szenario 01 solo pro ctx.
-
-| c | Decode ms | Decode tok/s | VRAM MB | |
-| --- | ---: | ---: | ---: | --- |
-| 16384 | 130.1 | 17.9 | — |  |
-| 32768 | 129.6 | 22.9 | — |  |
-| 65536 | 129.7 | 19.0 | — |  |
-| 131072 | 129.5 | 22.2 | — |  |
-| 262144 | 129.8 | 22.1 | — | **★ best** |
-
-→ **Empfehlung:** `c = 262144`
-
-### cont-batching — an vs. aus
+### cont-batching — on vs off
 
 | Modus | PP tok/s | TG tok/s | Decode ms | Prefill tok/s | Prefill TTFT |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| an (cont-batching) | 237.7 | 20.9 | 130.2 | 18.0 | 700.6 |
-| aus (--no-cont-batching) | 233.9 | 19.9 | 133.8 | 18.4 | 710.1 |
+| an (cont-batching) | 462.8 | 59.5 | 37.4 | 59.0 | 178.2 |
+| aus (--no-cont-batching) | 462.9 | 59.1 | 37.0 | 57.9 | 188.7 |
 
-→ **Empfehlung:** cont-batching **on**
+→ **Recommendation:** cont-batching **on**
+
+### MTP — off vs draft-mtp n-max
+
+| n | Decode ms | Decode tok/s | Prefill tok/s | Prefill TTFT | |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 1 | 25.7 | 63.4 | 62.1 | 47,984 |  |
+| 2 | 31.6 | 68.2 | 55.2 | 47,236 |  |
+| 3 | 36.9 | 78.9 | 52.5 | 47,629 | **★ best** |
+| 4 | 37.8 | 60.0 | 50.0 | 48,035 |  |
+| off | 17.4 | 56.8 | 50.9 | 46,200 |  |
+
+→ **Recommendation:** `spec-draft-n-max = 3`

@@ -1,0 +1,15 @@
+{
+  "updated": "2026-09-14T14:11:08Z",
+  "index": 60,
+  "total": 60,
+  "pct": 100,
+  "remaining_run": 0,
+  "must_run_total": 0,
+  "skipped": 60,
+  "ran": 0,
+  "timed_n": 0,
+  "eta_s": null,
+  "eta": null,
+  "avg_cell_s": null,
+  "detail": "vulkan|solo|Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL|q4_0|262144"
+}

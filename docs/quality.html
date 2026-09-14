@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LLM Bench — Overview</title>
+<title>LLM Bench — Quality</title>
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -76,68 +76,23 @@ select.model-pick { background: #12141a; color: #e8eaed; border: 1px solid #2a2e
 footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35;
   color: #9aa0a6; font-size: .82rem; }
 </style>
-<script src="chart.umd.min.js"></script>
 
 </head><body>
-<nav class="site-nav" aria-label="Site"><a href="index.html" class="active">Overview</a><a href="context.html">Context</a><a href="quality.html">Quality</a><a href="host.html">Host</a></nav>
+<nav class="site-nav" aria-label="Site"><a href="index.html">Overview</a><a href="context.html">Context</a><a href="quality.html" class="active">Quality</a><a href="host.html">Host</a></nav>
 
 <header>
-<h1>LLM bench results</h1>
-<p class="lede">Speed, longest usable context, and code correctness — measured on this host.</p>
+<h1>Code correctness</h1>
+<p class="lede">HumanEval-style Python coding problems. Measures whether generated code passes unit tests — not chat style, reasoning prose, or speed.</p>
 </header>
 <p class="host-line">c5:00.0 Display controller: Advanced Micro Devi… · 124.9 GiB RAM · vulkan · llama.cpp <code>d1a92352</code> · <a href="host.html">Host details</a></p>
-<section class="card" id="verdict" aria-label="At a glance"><h2>At a glance</h2><p class="meta">Best measured numbers on this host.</p><div class="verdict-grid"><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Code quality<span class="tip-text" role="tooltip">HumanEval: share of Python problems solved on the first try. Code correctness only — not chat or speed.</span></span></div><div class="verdict-value">62.3%</div><div class="verdict-sub" title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Generation<span class="tip-text" role="tooltip">Tokens/s while writing the reply (alone on the server). Higher is better.</span></span></div><div class="verdict-value">57.3 <span class="unit">tok/s</span></div><div class="verdict-sub" title="Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Prompt<span class="tip-text" role="tooltip">Tokens/s while reading the prompt (alone). Higher is better.</span></span></div><div class="verdict-value">1,031 <span class="unit">tok/s</span></div><div class="verdict-sub" title="Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest context length that loaded and ran successfully.</span></span></div><div class="verdict-value">256k</div><div class="verdict-sub" title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B · KV q8_0</div></div></div></section>
-<div class="card" id="charts">
-<h2>Prompt vs generation</h2>
-<p class="meta">Tokens per second with the model alone on the server. Higher is better.</p>
-<div class="chart-box"><div class="chart-wrap"><canvas id="chart-thr"></canvas></div></div>
-</div>
-<div class="card" id="throughput"><h2>Single-user throughput</h2><p class="meta">One request at a time. Higher tokens/s is better.</p><p class="more"><a href="throughput/latest/compare.html">→ Full throughput details</a></p><table><thead><tr><th>Model</th><th class="n"><span class="tip" tabindex="0">Prompt<span class="tip-text" role="tooltip">Tokens/s reading ~512-token prompt.</span></span></th><th class="n"><span class="tip" tabindex="0">Generation<span class="tip-text" role="tooltip">Tokens/s writing ~128 tokens.</span></span></th></tr></thead><tbody><tr><td title="Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</td><td class="n">1030.6</td><td class="n">57.3</td></tr><tr><td title="Qwen3.6-35B-A3B-MTP-Q5_K_XL">Qwen3.6-35B-A3B</td><td class="n">1029.6</td><td class="n">57.0</td></tr><tr><td title="Tiel-Coder-35B-A3B-MTP-Q5_K_XL">Tiel-Coder-35B-A3B</td><td class="n">1023.9</td><td class="n">56.5</td></tr></tbody></table></div>
-<div class="card" id="quality-preview">
-<h2>Code correctness</h2>
-<p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a></p>
+<div class="card">
+<h2>HumanEval</h2>
+<p class="meta"><strong>pass@k</strong> = share of problems solved within k samples.
+Columns appear for every k present in your runs (e.g. pass@10 needs <code>--n 10</code>, pass@100 needs <code>--n 100</code>).
+Duration is wall time for that run. Higher % is better; only the best pass@1 row is highlighted.</p>
 <table><thead><tr><th>Benchmark</th><th>Model</th><th class="n"><span class="tip" tabindex="0">pass@1<span class="tip-text" role="tooltip">Share of problems solved within 1 sample(s). Blank if this run used fewer samples.</span></span></th><th class="n"><span class="tip" tabindex="0">pass@10<span class="tip-text" role="tooltip">Share of problems solved within 10 sample(s). Blank if this run used fewer samples.</span></span></th><th class="n"><span class="tip" tabindex="0">n<span class="tip-text" role="tooltip">Samples drawn per problem. pass@k needs n≥k.</span></span></th><th class="n"><span class="tip" tabindex="0">Duration<span class="tip-text" role="tooltip">Wall time for generate (+ eval) of this run.</span></span></th><th>Measured</th></tr></thead><tbody><tr><td>HumanEval</td><td title="Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</td><td class="n">58.5%</td><td class="n">—</td><td class="n meta">1</td><td class="n meta">4 min</td><td class="meta">2026-09-14 16:59 UTC</td></tr><tr><td>HumanEval</td><td title="Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">Qwen3.6-35B-A3B</td><td class="n">59.8%</td><td class="n">—</td><td class="n meta">1</td><td class="n meta">4 min</td><td class="meta">2026-09-14 17:45 UTC</td></tr><tr><td>HumanEval</td><td title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B</td><td class="n best">62.3%</td><td class="n">79.9%</td><td class="n meta">10</td><td class="n meta">34 min</td><td class="meta">2026-09-14 18:34 UTC</td></tr></tbody></table>
+<p class="more"><a href="quality/latest/compare.md">→ Per-run details</a></p>
 </div>
-<p class="links-row">
-  <a href="context.html">Context &amp; memory →</a>
-  <a href="quality.html">Quality details →</a>
-  <a href="host.html">Host &amp; build →</a>
-  <a href="scheduling/latest/compare.html">Under-load sweeps →</a>
-</p>
-
-<script id="bench-chart-data" type="application/json">{"throughput": {"labels": ["Cyber-Tiel-Coder-35B-…", "Qwen3.6-35B-A3B", "Tiel-Coder-35B-A3B"], "pp": [1030.6, 1029.6, 1023.9], "tg": [57.3, 57.0, 56.5]}}</script>
-<script>
-(function () {
-  const raw = document.getElementById("bench-chart-data");
-  if (!raw || typeof Chart === "undefined") return;
-  let DATA;
-  try { DATA = JSON.parse(raw.textContent); } catch (e) { return; }
-  const thr = DATA.throughput || {};
-  if (!(thr.labels || []).length) return;
-  const tick = { color: "#9aa0a6" };
-  const grid = { color: "#2a2e37" };
-  new Chart(document.getElementById("chart-thr"), {
-    type: "bar",
-    data: {
-      labels: thr.labels,
-      datasets: [
-        { label: "Prompt (tok/s)", data: thr.pp, backgroundColor: "#5b8def" },
-        { label: "Generation (tok/s)", data: thr.tg, backgroundColor: "#7ddea5" },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: "#c4c7cc" } } },
-      scales: {
-        x: { ticks: tick, grid },
-        y: { ticks: tick, grid, title: { display: true, text: "tokens / s", color: "#9aa0a6" } },
-      },
-    },
-  });
-})();
-</script>
-
 
 <footer class="site">Measured benches on this host · comparable only for the same build (see Host)</footer>
 </body></html>

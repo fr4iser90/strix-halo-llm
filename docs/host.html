@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Bench — Host</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { font: 15px/1.55 "Segoe UI", system-ui, sans-serif; margin: 0 auto;
+  padding: 1.5rem 1.35rem 3rem; max-width: 980px; background: #0f1115; color: #e8eaed; }
+h1 { font-size: 1.45rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 .3rem; }
+h2 { font-size: 1.05rem; margin: 0 0 .5rem; color: #e8eaed; font-weight: 600; }
+h3 { font-size: .95rem; margin: 1.1rem 0 .35rem; color: #c4c7cc; }
+.meta { color: #9aa0a6; font-size: .9rem; }
+.lede { color: #b8bdc5; font-size: .95rem; max-width: 40rem; margin: 0 0 1rem; }
+a { color: #8ab4f8; }
+.more { font-size: .85rem; margin: .25rem 0 1rem; }
+.site-nav { display: flex; flex-wrap: wrap; gap: .25rem; margin: 0 0 1.35rem;
+  padding: .35rem; background: #171a21; border: 1px solid #252a35; border-radius: 10px; }
+.site-nav a { color: #9aa0a6; text-decoration: none; padding: .45rem .75rem;
+  border-radius: 7px; font-size: .88rem; font-weight: 500; }
+.site-nav a:hover { color: #e8eaed; background: #1e2330; }
+.site-nav a.active { color: #e8eaed; background: #2a3444; }
+.host-line { font-size: .88rem; color: #9aa0a6; margin: 0 0 1.25rem;
+  padding: .55rem .75rem; background: #171a21; border-radius: 8px; border: 1px solid #252a35; }
+.host-line a { color: #9aa0a6; }
+table { border-collapse: collapse; width: 100%; margin: .5rem 0 1rem; }
+th, td { padding: .45rem .6rem; border-bottom: 1px solid #2a2e37; }
+th { text-align: left; color: #9aa0a6; font-weight: 600; font-size: .8rem; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "Cascadia Mono", monospace; }
+.best { color: #7ddea5; font-weight: 600; }
+.ok { color: #7ddea5; }
+.fail { color: #f28b82; }
+.card { background: #171a21; border: 1px solid #252a35; border-radius: 10px;
+  padding: 1rem 1.15rem; margin: 1rem 0; }
+.card h2 { margin-top: 0; }
+.verdict-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: .7rem; margin-top: .75rem; }
+.verdict-card { background: #12141a; border: 1px solid #252a35; border-radius: 10px;
+  padding: .85rem .95rem; min-height: 5rem; }
+.verdict-card.muted { opacity: .72; }
+.verdict-label { font-size: .76rem; color: #9aa0a6; margin-bottom: .3rem; }
+.verdict-value { font-size: 1.4rem; font-weight: 650; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; }
+.verdict-value .unit { font-size: .72rem; font-weight: 500; color: #9aa0a6; }
+.verdict-sub { font-size: .76rem; color: #9aa0a6; margin-top: .3rem; word-break: break-word; }
+.tip { position: relative; border-bottom: 1px dotted #6b7280; cursor: help; }
+.tip .tip-text {
+  visibility: hidden; opacity: 0; position: absolute; z-index: 40;
+  left: 0; bottom: calc(100% + 8px); width: min(280px, 70vw);
+  padding: .55rem .7rem; border-radius: 6px; background: #2a3140; color: #e8eaed;
+  font-size: .8rem; font-weight: 400; line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35); pointer-events: none;
+}
+.tip:hover .tip-text, .tip:focus .tip-text, .tip:focus-within .tip-text {
+  visibility: visible; opacity: 1;
+}
+details.panel { background: #171a21; border: 1px solid #252a35; border-radius: 10px;
+  padding: .75rem 1.05rem 1rem; margin: 1rem 0; }
+summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
+.chart-box { background: #12141a; border-radius: 8px; padding: .75rem 1rem 1rem;
+  border: 1px solid #252a35; margin: .75rem 0; }
+.chart-wrap { position: relative; height: 280px; }
+.chart-wrap.tall { height: 320px; }
+.btn { display: inline-block; margin: .3rem .4rem .3rem 0; padding: .45rem .85rem;
+  background: #2a3444; color: #e8eaed; border: none; border-radius: 6px; cursor: pointer;
+  font: inherit; }
+.btn.active { background: #3d5a3d; }
+.metric-tabs { margin: .5rem 0 1rem; }
+select.model-pick { background: #12141a; color: #e8eaed; border: 1px solid #2a2e37;
+  border-radius: 4px; padding: .35rem .5rem; font: inherit; margin: .25rem .5rem .75rem 0; }
+.scroll { overflow-x: auto; margin: .5rem 0 1rem; }
+.scroll table { min-width: 480px; }
+.links-row { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; margin: 1.25rem 0 0;
+  font-size: .9rem; }
+footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35;
+  color: #9aa0a6; font-size: .82rem; }
+</style>
+
+</head><body>
+<nav class="site-nav" aria-label="Site"><a href="index.html">Overview</a><a href="context.html">Context</a><a href="quality.html">Quality</a><a href="host.html" class="active">Host</a></nav>
+
+<header>
+<h1>Host &amp; build</h1>
+<p class="lede">Results only compare fairly on the same machine, driver, and llama.cpp build.</p>
+</header>
+<div class="card" id="hardware"><h2>Host machine <span class="meta"><span class="tip" tabindex="0">Why this matters<span class="tip-text" role="tooltip">Same model numbers only compare fairly on the same machine, driver, and llama.cpp build.</span></span></span></h2><p class="meta">AMD Strix Halo / unified memory: GTT is the GPU-usable UMA pool (not discrete VRAM). Compare benches only across similar GTT/RAM.</p><table><tbody><tr><th>Host</th><td>Jarvis</td></tr><tr><th>OS</th><td>NixOS 26.05 (Yarara)</td></tr><tr><th>Kernel</th><td>7.2.2</td></tr><tr><th>CPU</th><td>AMD RYZEN AI MAX+ 395 w/ Radeon 8060S (32 threads)</td></tr><tr><th>RAM</th><td>124.9 GiB (avail ~77.3 GiB)</td></tr><tr><th>Swap</th><td>18.7 GiB</td></tr><tr><th>Shared GPU memory (GTT)</th><td>100.0 GiB (used ~28.8 GiB)</td></tr><tr><th>Visible VRAM</th><td>512 MiB</td></tr><tr><th>GPU</th><td>c5:00.0 Display controller: Advanced Micro Devices, Inc. [AMD/ATI] Strix Halo [Radeon Graphics / Radeon 8050S Graphics / Radeon 8060S Graphics] (rev c1)</td></tr><tr><th>Inference backend</th><td>vulkan</td></tr><tr><th>Container image</th><td>llama-cpp-vulkan-nix:latest (366f8b040ab0)</td></tr><tr><th>llama.cpp</th><td>qwen4exp/mtp @ d1a92352cbd4</td></tr><tr><th>Probed</th><td>2026-09-14T19:40:55Z</td></tr></tbody></table></div>
+<div class="card" id="fingerprint">
+<h2>Build fingerprint</h2>
+<p class="meta"><span class="tip" tabindex="0">Comparability<span class="tip-text" role="tooltip">Speed and context numbers only compare fairly when the container image and llama.cpp build match. Stale cells may come from an older image.</span></span></p>
+<table><tbody>
+<tr><th>Current image</th><td><code>366f8b040ab0</code> · llama-cpp-vulkan-nix:latest</td></tr>
+<tr><th>llama.cpp</th><td>qwen4exp/mtp @ <code>d1a92352cbd4</code></td></tr>
+<tr><th>Measured cells</th><td>74 · same build 74</td></tr>
+</tbody></table>
+<h3>Seen in results</h3>
+<table><thead><tr><th>Server version</th><th>Image</th><th class="n">Cells</th><th>vs current</th></tr></thead><tbody>
+<tr><td><code>version: 0.3.0-dev (build 0, commit unknown)</code></td><td><code>sha256:366f8b040ab0…</code></td><td class="n">74</td><td><span class="ok">same build</span></td></tr>
+</tbody></table></div>
+
+<footer class="site">Measured benches on this host · comparable only for the same build (see Host)</footer>
+</body></html>

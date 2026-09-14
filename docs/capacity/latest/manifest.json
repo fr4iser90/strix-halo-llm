@@ -1,0 +1,17 @@
+{
+  "stamp": "20260914T140859Z",
+  "tag": "kv-ctx",
+  "backend": "vulkan",
+  "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL,Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
+  "model_list": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL,Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
+  "url_a": "",
+  "url_b": "",
+  "kv_list": "q8_0,q5_0,q4_0",
+  "c_list": "32768,65536,131072,196608,262144",
+  "dual_c_list": "",
+  "skip_existing": "1",
+  "force": "0",
+  "server_version": "version: 0.3.0-dev (build 0, commit unknown)",
+  "image_id": "sha256:366f8b040ab04854e20667a26c9090aee918fd14631b4afb2feb3713040cd34e",
+  "image_name": "llama-cpp-vulkan-nix"
+}

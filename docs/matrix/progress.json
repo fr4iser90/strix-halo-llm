@@ -1,0 +1,516 @@
+{
+  "updated": "2026-09-14T15:27:03Z",
+  "phase": "throughput",
+  "detail": "vulkan",
+  "profile": "/home/Jarvis/Documents/llama-cpp/tools/bench/matrix/profiles/full.json",
+  "log": [
+    {
+      "t": "2026-09-13T11:02:46Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T11:02:46Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T11:36:34Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T11:36:35Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T11:40:29Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T11:40:30Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T12:07:08Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T12:07:10Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T12:11:49Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T12:11:50Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T12:12:45Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T12:12:46Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T12:35:19Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T12:35:20Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T12:36:11Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T12:36:12Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T15:05:32Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T15:05:34Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T15:43:21Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T15:43:22Z",
+      "phase": "capacity",
+      "detail": "kv-ctx"
+    },
+    {
+      "t": "2026-09-13T16:52:44Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T16:52:45Z",
+      "phase": "capacity",
+      "detail": "kv-ctx | 39/270 (14%) runs_left 200 ETA ~22h40m | vulkan|solo|Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL|q5_0|196608"
+    },
+    {
+      "t": "2026-09-13T19:53:54Z",
+      "phase": "capacity",
+      "detail": "dual | 45/45 (100%) runs_left 0 ETA ~0s | vulkan|solo|Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL|q4_0|262144"
+    },
+    {
+      "t": "2026-09-13T21:17:59Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T21:18:01Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / auto"
+    },
+    {
+      "t": "2026-09-13T21:19:13Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / ub_sweep"
+    },
+    {
+      "t": "2026-09-13T21:23:17Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / np_sweep"
+    },
+    {
+      "t": "2026-09-13T21:26:17Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / b_sweep"
+    },
+    {
+      "t": "2026-09-13T21:31:13Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / cont_batch"
+    },
+    {
+      "t": "2026-09-13T21:33:43Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-13T21:42:09Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / auto"
+    },
+    {
+      "t": "2026-09-13T21:44:59Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / ub_sweep"
+    },
+    {
+      "t": "2026-09-13T21:49:23Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / np_sweep"
+    },
+    {
+      "t": "2026-09-13T21:52:23Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / b_sweep"
+    },
+    {
+      "t": "2026-09-13T21:56:24Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / cont_batch"
+    },
+    {
+      "t": "2026-09-13T21:58:47Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-13T22:08:23Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-13T22:08:24Z",
+      "phase": "capacity",
+      "detail": "kv-ctx | 2/9 (22%) runs_left 8 ETA ~3h40m | vulkan|dual|Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL|q5_0|262144"
+    },
+    {
+      "t": "2026-09-14T04:17:19Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-14T04:17:20Z",
+      "phase": "capacity",
+      "detail": "kv-ctx | 7/165 (4%) runs_left 104 | vulkan|solo|Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL|q5_0|65536"
+    },
+    {
+      "t": "2026-09-14T04:26:19Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-14T04:26:20Z",
+      "phase": "capacity",
+      "detail": "kv-ctx | 34/165 (20%) runs_left 101 ETA ~3h03m | vulkan|solo|Qwen3.8-27B-UD-Q4_K_M-MTP|q8_0|196608"
+    },
+    {
+      "t": "2026-09-14T06:57:30Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / auto"
+    },
+    {
+      "t": "2026-09-14T06:58:34Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / ub_sweep"
+    },
+    {
+      "t": "2026-09-14T07:02:03Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / np_sweep"
+    },
+    {
+      "t": "2026-09-14T07:04:31Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / b_sweep"
+    },
+    {
+      "t": "2026-09-14T07:08:00Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / cont_batch"
+    },
+    {
+      "t": "2026-09-14T07:10:03Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-14T07:15:32Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / auto"
+    },
+    {
+      "t": "2026-09-14T07:16:39Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / ub_sweep"
+    },
+    {
+      "t": "2026-09-14T07:20:18Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / np_sweep"
+    },
+    {
+      "t": "2026-09-14T07:22:53Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / b_sweep"
+    },
+    {
+      "t": "2026-09-14T07:26:32Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / cont_batch"
+    },
+    {
+      "t": "2026-09-14T07:28:40Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-14T07:34:23Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / auto"
+    },
+    {
+      "t": "2026-09-14T07:35:29Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / ub_sweep"
+    },
+    {
+      "t": "2026-09-14T07:39:08Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / np_sweep"
+    },
+    {
+      "t": "2026-09-14T07:41:43Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / b_sweep"
+    },
+    {
+      "t": "2026-09-14T07:45:23Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / cont_batch"
+    },
+    {
+      "t": "2026-09-14T07:47:30Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-14T07:53:30Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / auto"
+    },
+    {
+      "t": "2026-09-14T07:54:36Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / ub_sweep"
+    },
+    {
+      "t": "2026-09-14T07:58:29Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / np_sweep"
+    },
+    {
+      "t": "2026-09-14T08:01:05Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / b_sweep"
+    },
+    {
+      "t": "2026-09-14T08:04:44Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / cont_batch"
+    },
+    {
+      "t": "2026-09-14T08:06:52Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-14T08:12:31Z",
+      "phase": "throughput",
+      "detail": "vulkan"
+    },
+    {
+      "t": "2026-09-14T08:23:20Z",
+      "phase": "quality",
+      "detail": "humaneval / Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL"
+    },
+    {
+      "t": "2026-09-14T08:24:09Z",
+      "phase": "quality",
+      "detail": "humaneval / Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL"
+    },
+    {
+      "t": "2026-09-14T08:24:24Z",
+      "phase": "quality",
+      "detail": "humaneval / Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL"
+    },
+    {
+      "t": "2026-09-14T08:24:31Z",
+      "phase": "quality",
+      "detail": "humaneval / Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL"
+    },
+    {
+      "t": "2026-09-14T08:24:51Z",
+      "phase": "index",
+      "detail": ""
+    },
+    {
+      "t": "2026-09-14T08:24:53Z",
+      "phase": "done",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-14T14:08:56Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-14T14:08:57Z",
+      "phase": "capacity",
+      "detail": "kv-ctx | 60/60 (100%) runs_left 0 ETA ~0s | vulkan|solo|Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL|q4_0|262144"
+    },
+    {
+      "t": "2026-09-14T14:11:37Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / auto"
+    },
+    {
+      "t": "2026-09-14T14:12:41Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / ub_sweep"
+    },
+    {
+      "t": "2026-09-14T14:16:09Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / np_sweep"
+    },
+    {
+      "t": "2026-09-14T14:18:37Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / b_sweep"
+    },
+    {
+      "t": "2026-09-14T14:22:06Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / cont_batch"
+    },
+    {
+      "t": "2026-09-14T14:24:08Z",
+      "phase": "sched",
+      "detail": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-14T14:30:07Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / auto"
+    },
+    {
+      "t": "2026-09-14T14:31:13Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / ub_sweep"
+    },
+    {
+      "t": "2026-09-14T14:34:53Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / np_sweep"
+    },
+    {
+      "t": "2026-09-14T14:37:28Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / b_sweep"
+    },
+    {
+      "t": "2026-09-14T14:41:08Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / cont_batch"
+    },
+    {
+      "t": "2026-09-14T14:43:16Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-14T14:49:00Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / auto"
+    },
+    {
+      "t": "2026-09-14T14:50:06Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / ub_sweep"
+    },
+    {
+      "t": "2026-09-14T14:53:45Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / np_sweep"
+    },
+    {
+      "t": "2026-09-14T14:56:21Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / b_sweep"
+    },
+    {
+      "t": "2026-09-14T15:00:00Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / cont_batch"
+    },
+    {
+      "t": "2026-09-14T15:02:09Z",
+      "phase": "sched",
+      "detail": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-14T15:08:11Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / auto"
+    },
+    {
+      "t": "2026-09-14T15:09:18Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / ub_sweep"
+    },
+    {
+      "t": "2026-09-14T15:13:00Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / np_sweep"
+    },
+    {
+      "t": "2026-09-14T15:15:35Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / b_sweep"
+    },
+    {
+      "t": "2026-09-14T15:19:15Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / cont_batch"
+    },
+    {
+      "t": "2026-09-14T15:21:23Z",
+      "phase": "sched",
+      "detail": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL / mtp_sweep"
+    },
+    {
+      "t": "2026-09-14T15:27:03Z",
+      "phase": "throughput",
+      "detail": "vulkan"
+    }
+  ],
+  "capacity": {
+    "index": 60,
+    "total": 60,
+    "pct": 100,
+    "eta": null,
+    "detail": "vulkan|solo|Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL|q4_0|262144",
+    "updated": "2026-09-14T14:11:08Z"
+  }
+}

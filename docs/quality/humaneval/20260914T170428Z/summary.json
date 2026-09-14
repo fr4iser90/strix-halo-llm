@@ -1,0 +1,11 @@
+{
+  "suite": "humaneval",
+  "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
+  "base_url": "http://127.0.0.1:11601/v1",
+  "stamp": "20260914T170428Z",
+  "n_tasks": 164,
+  "n_samples_per_task": 1,
+  "limit": 0,
+  "metrics": {},
+  "notes": "HumanEval \u2014 https://github.com/openai/human-eval"
+}

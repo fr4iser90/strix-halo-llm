@@ -1,10 +1,10 @@
 {
-  "stamp": "20260906T191051Z",
-  "tag": "sched-coexist",
-  "base_url": "",
-  "model": "",
-  "np": "",
-  "ub": "",
-  "b": "",
-  "ub_list": ""
+  "stamp": "20260914T152123Z",
+  "tag": "sched-bench",
+  "base_url": "http://localhost:11601",
+  "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
+  "np": "2",
+  "ub": "32",
+  "b": "64",
+  "ub_list": "32,64,128,256"
 }
