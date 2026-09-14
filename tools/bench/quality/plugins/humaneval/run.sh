@@ -33,8 +33,8 @@ TEMPERATURE="${QUALITY_TEMPERATURE:-0.2}"
 TIMEOUT="${QUALITY_TIMEOUT:-120}"
 DO_EVAL=1
 DRY_RUN=0
-INSTALL_HINT=1
 USE_BENCH=1
+EVAL_ONLY_DIR=""
 
 usage() {
   cat <<EOF
@@ -54,6 +54,7 @@ Options:
   --timeout SEC         HTTP timeout per completion (default $TIMEOUT)
   --eval                run functional correctness after generate (default)
   --no-eval             generate only (no pass@k scores)
+  --eval-only DIR       score existing samples.jsonl in DIR (no generate / no bench load)
   --vendor DIR          human-eval checkout (default $VENDOR)
   --dry-run             print plan, exit
   -h, --help
@@ -62,7 +63,7 @@ Env:
   QUALITY_BASE_URL  QUALITY_MODEL  QUALITY_N  QUALITY_LIMIT
   QUALITY_SKIP_BENCH=1   same as --no-bench
   HUMAN_EVAL_EXECUTE=0   force --no-eval
-  QUALITY_SYNC_SOURCES   default coder,chat,lab (INI catalog for bench-a)
+  QUALITY_SYNC_SOURCES   default coder,chat (lab never bulk-synced; missing model = one section from lab)
 
 Quants: HumanEval uses the *weight* preset (section name / GGUF), not a KV
 sweep. KV (ctk/ctv) stays whatever is in models-bench.ini (usually q8_0).
@@ -197,6 +198,7 @@ while [[ $# -gt 0 ]]; do
     --timeout) TIMEOUT="$2"; shift 2 ;;
     --eval) DO_EVAL=1; shift ;;
     --no-eval) DO_EVAL=0; shift ;;
+    --eval-only) EVAL_ONLY_DIR="$2"; DO_EVAL=1; USE_BENCH=0; shift 2 ;;
     --vendor) VENDOR="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     *) echo "unknown arg: $1" >&2; usage; exit 1 ;;
@@ -206,11 +208,59 @@ done
 [[ "${HUMAN_EVAL_EXECUTE:-1}" == "0" ]] && DO_EVAL=0
 [[ "${QUALITY_SKIP_BENCH:-0}" == "1" ]] && USE_BENCH=0
 
-[[ -n "$MODEL" ]] || {
-  echo "error: --model / QUALITY_MODEL required" >&2
-  usage
-  exit 1
-}
+if [[ -n "$EVAL_ONLY_DIR" ]]; then
+  RUN_DIR="$EVAL_ONLY_DIR"
+  SAMPLES="$RUN_DIR/samples.jsonl"
+  [[ -f "$SAMPLES" ]] || { echo "error: no samples.jsonl in $RUN_DIR" >&2; exit 1; }
+  # Recover model/stamp from summary if present
+  if [[ -f "$RUN_DIR/summary.json" ]]; then
+    MODEL="$(bench_python - "$RUN_DIR/summary.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1])).get("model", ""))
+PY
+)"
+    STAMP="$(basename "$RUN_DIR")"
+    N_SAMPLES="$(bench_python - "$RUN_DIR/summary.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1])).get("n_samples_per_task", 1))
+PY
+)"
+    LIMIT="$(bench_python - "$RUN_DIR/summary.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1])).get("limit", 0))
+PY
+)"
+    API="$(bench_python - "$RUN_DIR/summary.json" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1])).get("base_url", "http://127.0.0.1:11601/v1"))
+PY
+)"
+  else
+    STAMP="$(basename "$RUN_DIR")"
+    MODEL="${MODEL:-unknown}"
+    API="${BASE_URL%/}/v1"
+  fi
+  export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
+  if [[ -z "${BENCH_PYTHON:-}" ]] && [[ -x "$(quality_venv_python)" ]]; then
+    BENCH_PYTHON="$(quality_venv_python)"
+    export BENCH_PYTHON BENCH_PYTHON_MODE="$BENCH_PYTHON"
+  fi
+  if ! bench_python -c "import human_eval.data" 2>/dev/null; then
+    ensure_human_eval_ready || exit 1
+  fi
+  echo "=== HumanEval (eval-only) ==="
+  echo "  dir:   $RUN_DIR"
+  echo "  model: $MODEL"
+  # jump to shared eval block via sourcing continuation — fall through below
+  SKIP_GENERATE=1
+else
+  SKIP_GENERATE=0
+  [[ -n "$MODEL" ]] || {
+    echo "error: --model / QUALITY_MODEL required" >&2
+    usage
+    exit 1
+  }
+fi
 
 # shellcheck source=../../lib/server.sh
 source "$ROOT/tools/bench/quality/lib/server.sh"
@@ -219,85 +269,84 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "=== HumanEval (dry-run) ==="
   echo "  model: $MODEL"
   echo "  bench: $([[ "$USE_BENCH" -eq 1 ]] && echo yes || echo no) → ${BASE_URL:-http://127.0.0.1:11601}"
+  echo "  eval-only: ${EVAL_ONLY_DIR:-no}"
   exit 0
 fi
 
+if [[ "$SKIP_GENERATE" -eq 0 ]]; then
   if [[ "$USE_BENCH" -eq 1 ]]; then
-  export QUALITY_SKIP_BENCH=0
-  if ! quality_bench_load "$MODEL"; then
-    echo "error: could not load $MODEL on bench-a" >&2
-    exit 1
+    export QUALITY_SKIP_BENCH=0
+    if ! quality_bench_load "$MODEL"; then
+      echo "error: could not load $MODEL on bench-a" >&2
+      exit 1
+    fi
+    BASE_URL="$QUALITY_BASE_URL"
+    trap quality_bench_cleanup EXIT
+  else
+    export QUALITY_SKIP_BENCH=1
+    quality_log "no-bench mode → $BASE_URL"
   fi
-  BASE_URL="$QUALITY_BASE_URL"
-  trap quality_bench_cleanup EXIT
-else
-  export QUALITY_SKIP_BENCH=1
-  quality_log "no-bench mode → $BASE_URL"
+
+  # Normalize base URL to …/v1
+  API="$BASE_URL"
+  [[ "$API" == */v1 ]] || API="${API%/}/v1"
+
+  STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+  RUN_DIR="$OUT_ROOT/$SUITE/$STAMP"
+  mkdir -p "$RUN_DIR"
+
+  echo "=== HumanEval ==="
+  echo "  model:    $MODEL"
+  echo "  api:      $API"
+  echo "  n:        $N_SAMPLES"
+  echo "  limit:    ${LIMIT:-all}"
+  echo "  eval:     $DO_EVAL"
+  echo "  out:      $RUN_DIR"
+  echo ""
+
+  export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
+  export QUALITY_API="$API"
+  export QUALITY_MODEL="$MODEL"
+  export QUALITY_N="$N_SAMPLES"
+  export QUALITY_LIMIT="$LIMIT"
+  export QUALITY_MAX_TOKENS="$MAX_TOKENS"
+  export QUALITY_TEMPERATURE="$TEMPERATURE"
+  export QUALITY_TIMEOUT="$TIMEOUT"
+  export QUALITY_RUN_DIR="$RUN_DIR"
+  export HUMAN_EVAL_VENDOR="$VENDOR"
+
+  if [[ -z "${BENCH_PYTHON:-}" ]] && [[ -x "$(quality_venv_python)" ]]; then
+    export BENCH_PYTHON
+    BENCH_PYTHON="$(quality_venv_python)"
+    export BENCH_PYTHON_MODE="$BENCH_PYTHON"
+  fi
+
+  if ! bench_python -c "import human_eval.data" 2>/dev/null; then
+    echo "→ human_eval missing — running ensure_human_eval_ready…"
+    ensure_human_eval_ready || {
+      echo "error: human_eval not importable after auto-setup" >&2
+      exit 1
+    }
+  fi
+
+  [[ "${HUMAN_EVAL_EXECUTE:-1}" == "0" ]] && DO_EVAL=0
+
+  bench_python "$PLUGIN_DIR/generate.py"
+
+  SAMPLES="$RUN_DIR/samples.jsonl"
+  [[ -f "$SAMPLES" ]] || { echo "error: no samples written" >&2; exit 1; }
 fi
-
-# Normalize base URL to …/v1
-API="$BASE_URL"
-[[ "$API" == */v1 ]] || API="${API%/}/v1"
-
-STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-RUN_DIR="$OUT_ROOT/$SUITE/$STAMP"
-mkdir -p "$RUN_DIR"
-
-echo "=== HumanEval ==="
-echo "  model:    $MODEL"
-echo "  api:      $API"
-echo "  n:        $N_SAMPLES"
-echo "  limit:    ${LIMIT:-all}"
-echo "  eval:     $DO_EVAL"
-echo "  out:      $RUN_DIR"
-echo ""
-
-export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
-export QUALITY_API="$API"
-export QUALITY_MODEL="$MODEL"
-export QUALITY_N="$N_SAMPLES"
-export QUALITY_LIMIT="$LIMIT"
-export QUALITY_MAX_TOKENS="$MAX_TOKENS"
-export QUALITY_TEMPERATURE="$TEMPERATURE"
-export QUALITY_TIMEOUT="$TIMEOUT"
-export QUALITY_RUN_DIR="$RUN_DIR"
-export HUMAN_EVAL_VENDOR="$VENDOR"
-
-# Prefer quality venv if present (matrix / NixOS)
-if [[ -z "${BENCH_PYTHON:-}" ]] && [[ -x "$(quality_venv_python)" ]]; then
-  export BENCH_PYTHON
-  BENCH_PYTHON="$(quality_venv_python)"
-  export BENCH_PYTHON_MODE="$BENCH_PYTHON"
-fi
-
-if ! bench_python -c "import human_eval.data" 2>/dev/null; then
-  echo "→ human_eval missing — running ensure_human_eval_ready…"
-  ensure_human_eval_ready || {
-    echo "error: human_eval not importable after auto-setup" >&2
-    exit 1
-  }
-fi
-
-# Matrix / HUMAN_EVAL_EXECUTE=0 can force generate-only
-[[ "${HUMAN_EVAL_EXECUTE:-1}" == "0" ]] && DO_EVAL=0
-
-bench_python "$PLUGIN_DIR/generate.py"
-
-SAMPLES="$RUN_DIR/samples.jsonl"
-[[ -f "$SAMPLES" ]] || { echo "error: no samples written" >&2; exit 1; }
 
 METRICS_JSON="{}"
 if [[ "$DO_EVAL" -eq 1 ]]; then
   echo "→ Evaluating functional correctness (executes model code)…"
+  bench_ensure_libstdcxx || true
   set +e
   bench_python -m human_eval.evaluate_functional_correctness "$SAMPLES" \
     >"$RUN_DIR/eval.log" 2>&1
   EVAL_RC=$?
   set -e
-  cat "$RUN_DIR/eval.log"
-  if [[ "$EVAL_RC" -ne 0 ]]; then
-    echo "warning: evaluate failed (enable unsafe_execute in human_eval/execution.py — see openai/human-eval README)" >&2
-  fi
+  cat "$RUN_DIR/eval.log" || true
   METRICS_JSON="$(bench_python - "$RUN_DIR" <<'PY'
 import json, glob, ast, os, sys
 run_dir = sys.argv[1]
@@ -328,6 +377,20 @@ if not m and results:
 print(json.dumps(m))
 PY
 )"
+  if [[ "$METRICS_JSON" == "{}" || "$METRICS_JSON" == "" ]]; then
+    echo "→ Official evaluate failed/empty — fallback pass@1 (no numpy)…"
+    set +e
+    METRICS_JSON="$(bench_python "$PLUGIN_DIR/eval_pass1.py" "$SAMPLES" 2>"$RUN_DIR/eval_fallback.log")"
+    FB_RC=$?
+    set -e
+    if [[ "$FB_RC" -ne 0 || -z "$METRICS_JSON" || "$METRICS_JSON" == "{}" ]]; then
+      echo "warning: evaluate failed — see $RUN_DIR/eval.log and eval_fallback.log" >&2
+      cat "$RUN_DIR/eval_fallback.log" >&2 || true
+      METRICS_JSON="{}"
+    else
+      echo "$METRICS_JSON" | tee -a "$RUN_DIR/eval.log"
+    fi
+  fi
 fi
 
 # summary.json
@@ -366,4 +429,5 @@ PY
 echo ""
 echo "✓ HumanEval run complete → $RUN_DIR"
 echo "  summary: $RUN_DIR/summary.json"
-echo "  Next: ./bench publish"
+echo "  Next: ./bench index"
+exit 0

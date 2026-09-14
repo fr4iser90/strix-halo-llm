@@ -25,6 +25,31 @@ bench_quality_venv_python() {
   return 1
 }
 
+# NixOS: pip numpy in a venv needs libstdc++ from nixpkgs (not on default PATH/lib).
+bench_ensure_libstdcxx() {
+  if [[ -n "${BENCH_LIBSTDCXX_DONE:-}" ]]; then
+    return 0
+  fi
+  export BENCH_LIBSTDCXX_DONE=1
+  # Already resolvable?
+  if command -v ldconfig >/dev/null 2>&1 && ldconfig -p 2>/dev/null | grep -q 'libstdc++\.so\.6'; then
+    return 0
+  fi
+  if [[ -n "${NIX_CC:-}" && -d "${NIX_CC}/lib" ]]; then
+    export LD_LIBRARY_PATH="${NIX_CC}/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    return 0
+  fi
+  if command -v nix-build >/dev/null 2>&1; then
+    local lib
+    lib="$(env -u TMPDIR nix-build --no-out-link -E 'with import <nixpkgs> {}; stdenv.cc.cc.lib' 2>/dev/null || true)"
+    if [[ -n "$lib" && -d "$lib/lib" ]]; then
+      export LD_LIBRARY_PATH="${lib}/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      return 0
+    fi
+  fi
+  return 0
+}
+
 bench_find_python() {
   if [[ -n "${BENCH_PYTHON:-}" ]]; then
     printf '%s\n' "$BENCH_PYTHON"
@@ -63,6 +88,12 @@ bench_python() {
     printf '[bench] error: no python3 (set BENCH_PYTHON or: nix-shell -p python3)\n' >&2
     return 127
   }
+  # venv + numpy on NixOS
+  case "$mode" in
+    */.venv-quality/*|*/output/bench/.venv-quality/*)
+      bench_ensure_libstdcxx || true
+      ;;
+  esac
 
   # Inline script: bench_python - arg1 arg2 <<'PY'
   if [[ "${1:-}" == "-" ]]; then
