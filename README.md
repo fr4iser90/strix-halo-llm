@@ -14,7 +14,8 @@ Docker setup for [llama.cpp](https://github.com/ggml-org/llama.cpp) in **router 
 
 They share `./models` but run as **separate containers** — sticky chat stays loaded while embeddings and the extractor run in parallel for RAG / knowledge build.
 
-Hardware / GTT / Sticky vs Lab budgets: see [`setup.md`](setup.md).
+Hardware / GTT / Sticky vs Lab budgets: see [`setup.md`](setup.md).  
+**Other GPUs (NVIDIA CUDA, ROCm, forks):** see [`HARDWARE.md`](HARDWARE.md) — same bench/Pages pipeline, different compose file.
 
 ## Model folders
 
@@ -120,6 +121,9 @@ Canonical path (Strix Halo / gfx1151):
 docker compose up -d
 ```
 
+NVIDIA / CUDA hosts: see [`HARDWARE.md`](HARDWARE.md) (`Dockerfile.cuda`, `compose.cuda.yaml`).  
+AMD ROCm alternate stack: `compose.rocm.yaml` + `Dockerfile.rocm`.
+
 Pin file: [`docs/llama-pin.md`](docs/llama-pin.md) (rewritten by fetch). When [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp) catches up:
 
 ```bash
@@ -131,27 +135,33 @@ Legacy Ubuntu `Dockerfile` is **deprecated** (Mesa/glibc mismatch on this host).
 
 Budgets: [`setup.md`](setup.md).
 
-## Backend: Vulkan vs ROCm
+## Backend: Vulkan vs ROCm vs CUDA
 
-Two separate stacks — **only one at a time** (same ports, same GPU).
+Pick **one** stack at a time (same ports).
 
-| | Vulkan (default) | ROCm |
-|---|---|---|
-| Compose | `compose.yaml` | `compose.rocm.yaml` |
-| Image | `llama-cpp-vulkan-nix` via `./build-nix-image.sh` | `Dockerfile.rocm` |
-| GPU | `/dev/dri` (RADV from Nix closure) | `/dev/kfd` + `/dev/dri`, `HSA_OVERRIDE_GFX_VERSION` |
+| | Vulkan (default / Halo) | ROCm | CUDA (NVIDIA) |
+|---|---|---|---|
+| Compose | `compose.yaml` | `compose.rocm.yaml` | `compose.cuda.yaml` |
+| Image | `llama-cpp-vulkan-nix` | `Dockerfile.rocm` | `Dockerfile.cuda` |
+| GPU | `/dev/dri` (RADV) | `/dev/kfd` + `/dev/dri` | NVIDIA runtime |
+| Guide | [`setup.md`](setup.md) | below | [`HARDWARE.md`](HARDWARE.md) |
 
 ```bash
-# Vulkan (default)
+# Vulkan (default / Strix Halo)
 ./scripts/fetch-llama.sh && ./build-nix-image.sh
 docker compose up -d
 
-# ROCm (alternative; often faster on AMD)
+# ROCm (alternative AMD)
 docker compose down
 docker compose -f compose.rocm.yaml up -d --build
+
+# NVIDIA CUDA — see HARDWARE.md
+# docker compose down
+# docker build -f Dockerfile.cuda -t llama-cpp-cuda:latest .
+# docker compose -f compose.cuda.yaml up -d
 ```
 
-`models.ini` and `models-embeddings.ini` are identical for both backends.
+`models.ini` / sticky INIs are the same across backends; only the compose/image changes.
 
 ## Download models
 

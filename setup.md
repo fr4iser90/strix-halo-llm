@@ -1,6 +1,8 @@
 # Setup — Jarvis (Strix Halo / Unified Memory)
 
-Hardware notes and **RAM / context budgets** for Sticky vs Lab, so max values (`c`, `np`, quants) and strategies stay clear.
+Hardware notes and **RAM / context budgets** for Sticky vs Lab on **this** host.
+
+For **NVIDIA / other AMD / forks** (CUDA compose, capacity expectations, Pages): see [`HARDWARE.md`](HARDWARE.md).
 
 ## Hardware (live from Jarvis)
 

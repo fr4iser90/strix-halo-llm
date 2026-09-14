@@ -1,0 +1,125 @@
+# NVIDIA / CUDA daily routers (same ports & INIs as Vulkan compose.yaml).
+#
+# Prereqs: NVIDIA driver + Container Toolkit; image built via Dockerfile.cuda
+#   ./scripts/fetch-llama.sh
+#   docker build -f Dockerfile.cuda -t llama-cpp-cuda:latest .
+#   docker compose -f compose.cuda.yaml up -d
+#   docker compose -f compose.cuda.yaml --profile lab up -d
+#
+# Bench routers:
+#   docker compose -f compose.cuda.yaml -f compose.cuda.bench.yaml --profile bench up -d llama-bench-a
+#
+# Do not run Vulkan + CUDA compose projects at once on the same ports.
+name: llama-cpp-cuda
+
+x-llama-gpu: &llama-gpu
+  image: ${LLAMA_CUDA_IMAGE:-llama-cpp-cuda:latest}
+  runtime: nvidia
+  ipc: host
+  shm_size: "16gb"
+  restart: unless-stopped
+  environment:
+    LLAMA_WEBUI: ${LLAMA_WEBUI:-true}
+    NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+    NVIDIA_DRIVER_CAPABILITIES: compute,utility
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: ${NVIDIA_DEVICE_COUNT:-1}
+            capabilities: [gpu]
+  entrypoint: ["/bin/sh", "/entrypoint.sh"]
+
+x-entrypoint-mount: &entrypoint-mount
+  ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
+
+services:
+  llama:
+    <<: *llama-gpu
+    container_name: llama-router
+    volumes:
+      - ./models:/models
+      - ./models.ini:/etc/llama-cpp/models.ini:ro
+      - *entrypoint-mount
+    ports:
+      - "11535:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+      ]
+
+  llama-coder:
+    <<: *llama-gpu
+    container_name: llama-router-coder
+    volumes:
+      - ./models:/models
+      - ./models-coder.ini:/etc/llama-cpp/models.ini:ro
+      - *entrypoint-mount
+    ports:
+      - "11538:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+      ]
+
+  llama-lab:
+    <<: *llama-gpu
+    profiles: ["lab"]
+    container_name: llama-router-lab
+    volumes:
+      - ./models:/models
+      - ./models-lab.ini:/etc/llama-cpp/models.ini:ro
+      - *entrypoint-mount
+    ports:
+      - "11537:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+        "--sleep-idle-seconds", "900",
+      ]
+
+  llama-embeddings:
+    <<: *llama-gpu
+    container_name: llama-embeddings
+    shm_size: "2gb"
+    volumes:
+      - ./models:/models
+      - ./models-embeddings.ini:/etc/llama-cpp/models-embeddings.ini:ro
+      - *entrypoint-mount
+    ports:
+      - "11536:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models-embeddings.ini",
+        "--models-max", "1",
+      ]
+
+  llama-extractor:
+    <<: *llama-gpu
+    container_name: llama-extractor
+    shm_size: "2gb"
+    volumes:
+      - ./models:/models
+      - ./models-extractor.ini:/etc/llama-cpp/models-extractor.ini:ro
+      - *entrypoint-mount
+    ports:
+      - "11539:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models-extractor.ini",
+        "--models-max", "1",
+      ]
