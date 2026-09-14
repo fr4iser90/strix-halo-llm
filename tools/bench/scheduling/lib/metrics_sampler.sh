@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Sample GTT / VRAM / system memory / GPU util / sidecar power+temp while a scenario runs.
 #
-# Sidecar (Docker on host): off unless GPU_POWER_URL / GPU_THERMAL_URL are set.
-#   cd sidecar && docker compose up -d --build
-#   GPU_POWER_URL=http://127.0.0.1:9105/power GPU_THERMAL_URL=http://127.0.0.1:9105/thermal ./bench …
+# Sidecar (Docker on host): off unless GPU_POWER=true or GPU_*_URL set.
+#   GPU_POWER=true  → http://127.0.0.1:9105/power + /thermal
 # Unreachable URL → empty watts/temp (no hard fail).
 set -euo pipefail
 
@@ -11,6 +10,7 @@ out="${METRICS_OUT:?}"
 interval_ms="${METRICS_INTERVAL_MS:-250}"
 interval_s="$(awk -v ms="$interval_ms" 'BEGIN { printf "%.3f", ms / 1000.0 }')"
 
+# URLs already resolved by metrics_start → metrics_resolve_sidecar_urls
 POWER_URL="${GPU_POWER_URL:-}"
 THERMAL_URL="${GPU_THERMAL_URL:-}"
 case "${POWER_URL}" in ""|off|OFF|0|false|FALSE) POWER_URL="" ;; esac

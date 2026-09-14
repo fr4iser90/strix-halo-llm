@@ -10,6 +10,15 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Load project .env so GPU_POWER=true etc. apply to ./bench (compose already reads .env).
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
 THROUGHPUT="$ROOT/tools/bench/throughput/run.sh"
 SCHED="$ROOT/tools/bench/scheduling/run.sh"
 QUALITY="$ROOT/tools/bench/quality/run.sh"

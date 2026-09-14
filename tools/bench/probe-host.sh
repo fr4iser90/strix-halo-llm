@@ -10,11 +10,23 @@ OUT="${HOST_JSON:-$ROOT/output/bench/host.json}"
 # shellcheck source=lib/python.sh
 source "$ROOT/tools/bench/lib/python.sh"
 
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
 mkdir -p "$(dirname "$OUT")"
 
 PIN_FILE="$ROOT/.build/llama.pin"
 PIN_MD="$ROOT/docs/llama-pin.md"
 IMAGE="${LLAMA_IMAGE:-llama-cpp-vulkan-nix:latest}"
+POWER_URL="${GPU_POWER_URL:-}"
+THERMAL_URL="${GPU_THERMAL_URL:-}"
+# shellcheck source=scheduling/lib/metrics.sh
+source "$ROOT/tools/bench/scheduling/lib/metrics.sh"
+metrics_resolve_sidecar_urls
 POWER_URL="${GPU_POWER_URL:-}"
 THERMAL_URL="${GPU_THERMAL_URL:-}"
 

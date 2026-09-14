@@ -583,7 +583,7 @@ def capacity_html_card():
         f'<p class="more"><a href="capacity/latest/compare.md">→ Details</a> · ledger cells: <strong>{cap_cells}</strong></p>',
         '<p class="meta"><strong>Prefill s</strong> ≈ TTFT for ~0.9×c prompt tokens · '
         '<strong>Prefill tok/s</strong> = fill_tokens / prefill_s · '
-        '<strong>W</strong> = avg GPU draw via sidecar (only if <code>GPU_POWER_URL</code> set).</p>',
+        '<strong>W</strong> = avg GPU draw via sidecar (enable with <code>GPU_POWER=true</code> in <code>.env</code>).</p>',
         '<div class="metric-tabs" id="cap-metric-tabs">'
         '<button type="button" class="btn secondary active" data-metric="all">All</button>'
         '<button type="button" class="btn secondary" data-metric="gtt">GTT only</button>'
