@@ -331,31 +331,102 @@ def thr_table_html(thr_models: list) -> str:
     )
 
 
+def fmt_dur(sec: Any) -> str:
+    if sec is None or sec == "" or sec == "—":
+        return "—"
+    try:
+        s = float(sec)
+    except (TypeError, ValueError):
+        return "—"
+    if s < 90:
+        return f"{s:.0f}s"
+    if s < 3600:
+        return f"{s / 60:.0f} min"
+    return f"{s / 3600:.1f} h"
+
+
+def qual_pass_ks(row: dict) -> dict[str, Any]:
+    """Normalize pass@k map from a quality latest row."""
+    pks = dict(row.get("pass_ks") or {})
+    if not pks:
+        if row.get("pass_at_1") is not None:
+            pks["pass@1"] = row["pass_at_1"]
+        if row.get("pass_at_10") is not None:
+            pks["pass@10"] = row["pass_at_10"]
+        # also flatten metrics if present
+        for k, v in (row.get("metrics") or {}).items():
+            if isinstance(k, str) and k.startswith("pass@"):
+                pks[k] = v
+    return pks
+
+
 def qual_table_html(qual_rows: list, *, fmt_stamp) -> str:
+    # Discover pass@k columns across all rows (grows with n=10, n=100, …)
+    all_ks: list[str] = []
+    seen = set()
+    for r in qual_rows or []:
+        for k in qual_pass_ks(r):
+            if k not in seen:
+                seen.add(k)
+                all_ks.append(k)
+    all_ks.sort(key=lambda s: int(s.split("@", 1)[1]) if s.split("@", 1)[-1].isdigit() else 0)
+    if not all_ks:
+        all_ks = ["pass@1", "pass@10"]
+
+    # Best pass@1 for subtle highlight (same style family for all pass cols)
+    best_p1 = None
+    for r in qual_rows or []:
+        v = parse_float(qual_pass_ks(r).get("pass@1"))
+        if v is None:
+            continue
+        if best_p1 is None or v > best_p1:
+            best_p1 = v
+
     rows = []
     if qual_rows:
         for r in qual_rows:
-            p1, p10 = r.get("pass_at_1"), r.get("pass_at_10")
             suite = r.get("suite") or "—"
             suite_label = "HumanEval" if "humaneval" in str(suite).lower() else suite
             full = r.get("model") or "—"
-            p1s = fmt_pct(p1) if parse_float(p1) is not None else esc(p1 or "—")
-            p10s = fmt_pct(p10) if parse_float(p10) is not None else esc(p10 or "—")
+            pks = qual_pass_ks(r)
+            p1 = parse_float(pks.get("pass@1"))
+            row_best = best_p1 is not None and p1 is not None and abs(p1 - best_p1) < 1e-9
+            cells = []
+            for k in all_ks:
+                val = pks.get(k)
+                shown = fmt_pct(val) if parse_float(val) is not None else "—"
+                cls = "n best" if (row_best and k == "pass@1") else "n"
+                cells.append(f'<td class="{cls}">{shown}</td>')
+            n_s = r.get("n_samples")
+            n_label = esc(str(n_s)) if n_s is not None else "—"
+            dur = fmt_dur(r.get("elapsed_s") if r.get("elapsed_s") is not None else r.get("generate_s"))
             rows.append(
                 f"<tr><td>{esc(suite_label)}</td>"
                 f'<td title="{esc(full)}">{esc(display_name(full, 40))}</td>'
-                f'<td class="n best">{p1s}</td>'
-                f'<td class="n">{p10s}</td>'
+                + "".join(cells)
+                + f'<td class="n meta">{n_label}</td>'
+                f'<td class="n meta">{esc(dur)}</td>'
                 f'<td class="meta">{esc(fmt_stamp(r.get("stamp") or ""))}</td></tr>'
             )
     else:
-        rows.append('<tr><td colspan="5" class="meta">No code-quality runs yet.</td></tr>')
+        cols = 4 + len(all_ks)
+        rows.append(f'<tr><td colspan="{cols}" class="meta">No code-quality runs yet.</td></tr>')
+
+    head_ks = []
+    for k in all_ks:
+        kn = k.split("@", 1)[-1]
+        explain = (
+            f"Share of problems solved within {kn} sample(s). "
+            "Blank if this run used fewer samples."
+        )
+        head_ks.append(f'<th class="n">{tip(k, explain)}</th>')
     return (
         "<table><thead><tr>"
         "<th>Benchmark</th><th>Model</th>"
-        f'<th class="n">{tip("pass@1", "Share solved on the first sample (%).")}</th>'
-        f'<th class="n">{tip("pass@10", "Needs n≥10 samples; else blank.")}</th>'
-        "<th>Measured</th></tr></thead><tbody>"
+        + "".join(head_ks)
+        + f'<th class="n">{tip("n", "Samples drawn per problem. pass@k needs n≥k.")}</th>'
+        + f'<th class="n">{tip("Duration", "Wall time for generate (+ eval) of this run.")}</th>'
+        + "<th>Measured</th></tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
     )
@@ -670,7 +741,7 @@ def write_public_pages(
 {thr_table_html(thr_models)}
 <div class="card" id="quality-preview">
 <h2>Code correctness</h2>
-<p class="meta">HumanEval pass@1 — code only, not chat quality. <a href="quality.html">→ Quality page</a></p>
+<p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a></p>
 {qual_table_html(qual_rows, fmt_stamp=fmt_stamp)}
 </div>
 <p class="links-row">
@@ -746,8 +817,9 @@ def write_public_pages(
 {host_one_liner(host)}
 <div class="card">
 <h2>HumanEval</h2>
-<p class="meta"><strong>pass@1</strong> = share of problems solved with a single sample.
-<strong>pass@10</strong> needs multiple samples per problem (n≥10); otherwise blank.</p>
+<p class="meta"><strong>pass@k</strong> = share of problems solved within k samples.
+Columns appear for every k present in your runs (e.g. pass@10 needs <code>--n 10</code>, pass@100 needs <code>--n 100</code>).
+Duration is wall time for that run. Higher % is better; only the best pass@1 row is highlighted.</p>
 {qual_table_html(qual_rows, fmt_stamp=fmt_stamp)}
 <p class="more"><a href="quality/latest/compare.md">→ Per-run details</a></p>
 </div>

@@ -331,10 +331,19 @@ if [[ "$SKIP_GENERATE" -eq 0 ]]; then
 
   [[ "${HUMAN_EVAL_EXECUTE:-1}" == "0" ]] && DO_EVAL=0
 
+  QUALITY_WALL_START="$(date +%s)"
+  export QUALITY_WALL_START
+
   bench_python "$PLUGIN_DIR/generate.py"
 
   SAMPLES="$RUN_DIR/samples.jsonl"
   [[ -f "$SAMPLES" ]] || { echo "error: no samples written" >&2; exit 1; }
+fi
+
+# Wall clock for summary (generate+eval); eval-only keeps generate_meta only
+: "${QUALITY_WALL_START:=}"
+if [[ -z "$QUALITY_WALL_START" && -n "${EVAL_ONLY_DIR:-}" ]]; then
+  QUALITY_WALL_START=""  # no new wall time
 fi
 
 METRICS_JSON="{}"
@@ -470,19 +479,45 @@ PY
 fi
 
 # summary.json
-bench_python - "$RUN_DIR" "$SUITE" "$MODEL" "$API" "$STAMP" "$N_SAMPLES" "$LIMIT" "$METRICS_JSON" <<'PY'
+WALL_END="$(date +%s)"
+bench_python - "$RUN_DIR" "$SUITE" "$MODEL" "$API" "$STAMP" "$N_SAMPLES" "$LIMIT" "$METRICS_JSON" "${QUALITY_WALL_START:-}" "$WALL_END" <<'PY'
 import json, os, sys
-run_dir, suite, model, api, stamp, n, limit, metrics_s = sys.argv[1:9]
+run_dir, suite, model, api, stamp, n, limit, metrics_s, wall_start, wall_end = sys.argv[1:11]
 try:
     metrics = json.loads(metrics_s)
 except json.JSONDecodeError:
     metrics = {}
+# Normalize numpy-ish leftovers to float
+clean = {}
+for k, v in (metrics or {}).items():
+    if str(k).startswith("pass@"):
+        try:
+            clean[str(k)] = float(v)
+        except (TypeError, ValueError):
+            pass
+metrics = clean
+
 n_tasks = 0
 with open(os.path.join(run_dir, "samples.jsonl"), encoding="utf-8") as f:
     tasks = set()
     for line in f:
         tasks.add(json.loads(line)["task_id"])
     n_tasks = len(tasks)
+
+generate_s = None
+meta_path = os.path.join(run_dir, "generate_meta.json")
+if os.path.isfile(meta_path):
+    try:
+        generate_s = json.load(open(meta_path, encoding="utf-8")).get("elapsed_s")
+    except (OSError, json.JSONDecodeError):
+        pass
+
+elapsed_s = None
+if wall_start and wall_end and str(wall_start).isdigit() and str(wall_end).isdigit():
+    elapsed_s = max(0, int(wall_end) - int(wall_start))
+elif generate_s is not None:
+    elapsed_s = float(generate_s)
+
 summary = {
     "suite": suite,
     "model": model,
@@ -492,6 +527,8 @@ summary = {
     "n_samples_per_task": int(n),
     "limit": int(limit),
     "metrics": metrics,
+    "generate_s": generate_s,
+    "elapsed_s": elapsed_s,
     "notes": "HumanEval — https://github.com/openai/human-eval",
 }
 with open(os.path.join(run_dir, "summary.json"), "w", encoding="utf-8") as f:

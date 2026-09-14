@@ -445,6 +445,42 @@ if os.path.isfile(qual_sum):
     except (OSError, json.JSONDecodeError):
         qual_rows = []
 
+# Enrich older summaries: pass_ks + elapsed from generate_meta / summary on disk
+for r in qual_rows:
+    pks = dict(r.get("pass_ks") or {})
+    if not pks:
+        if r.get("pass_at_1") is not None:
+            pks["pass@1"] = r["pass_at_1"]
+        if r.get("pass_at_10") is not None:
+            pks["pass@10"] = r["pass_at_10"]
+    path = r.get("path")
+    if path and os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                raw = json.load(f)
+            for k, v in (raw.get("metrics") or {}).items():
+                if isinstance(k, str) and k.startswith("pass@"):
+                    pks[k] = v
+            if r.get("elapsed_s") is None:
+                r["elapsed_s"] = raw.get("elapsed_s") or raw.get("generate_s")
+            if r.get("n_samples") is None:
+                r["n_samples"] = raw.get("n_samples_per_task")
+        except (OSError, json.JSONDecodeError):
+            pass
+    if r.get("elapsed_s") is None and path:
+        meta = os.path.join(os.path.dirname(path), "generate_meta.json")
+        if os.path.isfile(meta):
+            try:
+                with open(meta, encoding="utf-8") as f:
+                    r["elapsed_s"] = json.load(f).get("elapsed_s")
+            except (OSError, json.JSONDecodeError):
+                pass
+    r["pass_ks"] = pks
+    if "pass@1" in pks:
+        r["pass_at_1"] = pks["pass@1"]
+    if "pass@10" in pks:
+        r["pass_at_10"] = pks["pass@10"]
+
 lines += ["", "## Quality — task correctness", ""]
 if qual_rows:
     lines += [
@@ -1396,40 +1432,78 @@ details.panel .card {{ margin: .75rem 0; border: none; background: #12141a; }}
 </div>
 """
 
-# Quality card
-qual_table = ""
-if qual_rows:
-    for r in qual_rows:
-        p1, p10 = r.get("pass_at_1"), r.get("pass_at_10")
-        suite = r.get("suite") or "—"
-        suite_label = "HumanEval" if "humaneval" in str(suite).lower() else suite
-        p1s = fmt_pct(p1) if parse_float(p1) is not None else esc(p1 or "—")
-        p10s = fmt_pct(p10) if parse_float(p10) is not None else esc(p10 or "—")
-        qual_table += (
-            f"<tr><td>{esc(suite_label)}</td>"
-            f"<td>{esc(r.get('model','—'))}</td>"
-            f'<td class="n best">{p1s}</td>'
-            f'<td class="n">{p10s}</td>'
-            f"<td class=\"meta\">{esc(fmt_stamp(r.get('stamp') or ''))}</td></tr>"
-        )
-else:
-    qual_table = (
-        '<tr><td colspan="5" class="meta">No code-quality runs yet.</td></tr>'
+# Quality card (ops) — same columns as public; built after helpers available
+def _ops_qual_table():
+    all_ks = []
+    seen = set()
+    for r in qual_rows or []:
+        for k in (r.get("pass_ks") or {}):
+            if k not in seen:
+                seen.add(k)
+                all_ks.append(k)
+    all_ks.sort(key=lambda s: int(s.split("@", 1)[1]) if s.split("@", 1)[-1].isdigit() else 0)
+    if not all_ks:
+        all_ks = ["pass@1", "pass@10"]
+    best_p1 = None
+    for r in qual_rows or []:
+        v = parse_float((r.get("pass_ks") or {}).get("pass@1", r.get("pass_at_1")))
+        if v is not None and (best_p1 is None or v > best_p1):
+            best_p1 = v
+
+    def _dur(sec):
+        if sec is None:
+            return "—"
+        try:
+            s = float(sec)
+        except (TypeError, ValueError):
+            return "—"
+        if s < 90:
+            return f"{s:.0f}s"
+        if s < 3600:
+            return f"{s/60:.0f} min"
+        return f"{s/3600:.1f} h"
+
+    body = ""
+    if qual_rows:
+        for r in qual_rows:
+            suite = r.get("suite") or "—"
+            suite_label = "HumanEval" if "humaneval" in str(suite).lower() else suite
+            pks = r.get("pass_ks") or {}
+            p1 = parse_float(pks.get("pass@1", r.get("pass_at_1")))
+            row_best = best_p1 is not None and p1 is not None and abs(p1 - best_p1) < 1e-9
+            cells = ""
+            for k in all_ks:
+                val = pks.get(k)
+                if k == "pass@1" and val is None:
+                    val = r.get("pass_at_1")
+                if k == "pass@10" and val is None:
+                    val = r.get("pass_at_10")
+                shown = fmt_pct(val) if parse_float(val) is not None else "—"
+                cls = "n best" if (row_best and k == "pass@1") else "n"
+                cells += f'<td class="{cls}">{shown}</td>'
+            body += (
+                f"<tr><td>{esc(suite_label)}</td><td>{esc(r.get('model','—'))}</td>"
+                f"{cells}"
+                f'<td class="n meta">{esc(r.get("n_samples") if r.get("n_samples") is not None else "—")}</td>'
+                f'<td class="n meta">{esc(_dur(r.get("elapsed_s")))}</td>'
+                f'<td class="meta">{esc(fmt_stamp(r.get("stamp") or ""))}</td></tr>'
+            )
+    else:
+        body = f'<tr><td colspan="{4 + len(all_ks)}" class="meta">No code-quality runs yet.</td></tr>'
+    heads = "".join(f'<th class="n">{esc(k)}</th>' for k in all_ks)
+    return (
+        f"<table><thead><tr><th>Benchmark</th><th>Model</th>{heads}"
+        '<th class="n">n</th><th class="n">Duration</th><th>Measured</th>'
+        f"</tr></thead><tbody>{body}</tbody></table>"
     )
 
 page += f"""
 <div class="card" id="quality">
 <h2>Code correctness (HumanEval)</h2>
-<p class="meta">Python coding problems from HumanEval. <strong>pass@1</strong> = share solved on the first sample.
-This measures code correctness only — not chat quality, reasoning style, or speed.
-<strong>pass@10</strong> needs multiple samples per problem (n≥10); otherwise it stays blank.</p>
+<p class="meta">pass@k columns grow with your runs (n=10 → pass@10, n=100 → pass@100).
+Duration = wall time. Best pass@1 highlighted. Public view: <a href="quality.html">quality.html</a></p>
 <p class="more"><a href="quality/latest/compare.md">→ Per-run details</a></p>
-<table><thead><tr>
-<th>Benchmark</th><th>Model</th>
-<th class="n">{tip("pass@1", "Fraction of problems solved with a single attempt (shown as %).")}</th>
-<th class="n">{tip("pass@10", "Fraction solved if up to 10 attempts are allowed. Empty when only one sample was drawn.")}</th>
-<th>Measured</th>
-</tr></thead><tbody>{qual_table}</tbody></table>
+{_ops_qual_table()}
 </div>
 
 <details class="panel" id="capacity">

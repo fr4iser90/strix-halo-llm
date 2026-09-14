@@ -107,15 +107,23 @@ for path in sorted(glob.glob(os.path.join(root, "*", "*", "summary.json"))):
     except (ValueError, IndexError):
         suite, stamp = "?", "?"
     metrics = data.get("metrics") or {}
+    # Collect pass@k dynamically (pass@1, pass@10, pass@100, …)
+    pass_ks = {}
+    for k, v in metrics.items():
+        if isinstance(k, str) and k.startswith("pass@"):
+            pass_ks[k] = v
     rows.append({
         "suite": suite,
         "stamp": stamp,
         "model": data.get("model", "—"),
         "endpoint": data.get("base_url", "—"),
-        "pass_at_1": metrics.get("pass@1", metrics.get("pass_at_1")),
-        "pass_at_10": metrics.get("pass@10", metrics.get("pass_at_10")),
+        "pass_at_1": pass_ks.get("pass@1", metrics.get("pass_at_1")),
+        "pass_at_10": pass_ks.get("pass@10", metrics.get("pass_at_10")),
+        "pass_ks": pass_ks,
         "n_tasks": data.get("n_tasks"),
         "n_samples": data.get("n_samples_per_task"),
+        "elapsed_s": data.get("elapsed_s", data.get("generate_s")),
+        "generate_s": data.get("generate_s"),
         "path": path,
     })
 
@@ -132,20 +140,45 @@ os.makedirs(os.path.join(root, "latest"), exist_ok=True)
 with open(os.path.join(root, "latest", "summary.json"), "w", encoding="utf-8") as f:
     json.dump({"generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "rows": latest}, f, indent=2)
 
+# Dynamic pass@k columns present in any latest row
+all_ks = sorted(
+    {k for r in latest for k in (r.get("pass_ks") or {})},
+    key=lambda s: int(s.split("@", 1)[1]) if s.split("@", 1)[1].isdigit() else 0,
+)
+if not all_ks:
+    all_ks = ["pass@1", "pass@10"]
+
+def fmt(x):
+    if x is None: return "—"
+    if isinstance(x, float): return f"{x:.3f}"
+    return str(x)
+
+def fmt_dur(sec):
+    if sec is None: return "—"
+    try:
+        s = float(sec)
+    except (TypeError, ValueError):
+        return "—"
+    if s < 90:
+        return f"{s:.0f}s"
+    if s < 3600:
+        return f"{s/60:.0f}m"
+    return f"{s/3600:.1f}h"
+
+header = "| Suite | Model | " + " | ".join(all_ks) + " | n | samples/task | Duration | Stamp |"
+sep = "| --- | --- | " + " | ".join(["---:"] * len(all_ks)) + " | ---: | ---: | --- | --- |"
 lines = [
     "# Quality benchmarks — latest",
     "",
-    "| Suite | Model | pass@1 | pass@10 | n | samples/task | Stamp |",
-    "| --- | --- | ---: | ---: | ---: | ---: | --- |",
+    header,
+    sep,
 ]
 for r in latest:
-    def fmt(x):
-        if x is None: return "—"
-        if isinstance(x, float): return f"{x:.3f}"
-        return str(x)
+    pks = r.get("pass_ks") or {}
+    cells = [fmt(pks.get(k, r.get("pass_at_1") if k == "pass@1" else r.get("pass_at_10") if k == "pass@10" else None)) for k in all_ks]
     lines.append(
-        f"| {r['suite']} | `{r['model']}` | {fmt(r['pass_at_1'])} | {fmt(r['pass_at_10'])} | "
-        f"{fmt(r['n_tasks'])} | {fmt(r['n_samples'])} | `{r['stamp']}` |"
+        f"| {r['suite']} | `{r['model']}` | " + " | ".join(cells) +
+        f" | {fmt(r['n_tasks'])} | {fmt(r['n_samples'])} | {fmt_dur(r.get('elapsed_s'))} | `{r['stamp']}` |"
     )
 lines.append("")
 md = "\n".join(lines)
