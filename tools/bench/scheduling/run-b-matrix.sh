@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# b_sweep (06) for all lab models — fills b ★ in dashboard.
+# b_sweep (06) for listed models on bench-a — fills b ★ in dashboard.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -17,15 +17,14 @@ MODELS=(
 export SCHED_SWEEP_NP="${SCHED_SWEEP_NP:-2}"
 export SCHED_SWEEP_UB="${SCHED_SWEEP_UB:-128}"
 export SCHED_B_LIST="${SCHED_B_LIST:-32,64,128,256}"
-export SCHED_RESTART_LAB=1
+export SCHED_RESTART_BENCH=1
 
 LOG="${BENCH_B_LOG:-$ROOT/output/bench/scheduling/b-matrix-$(date -u +%Y%m%dT%H%M%SZ).log}"
 mkdir -p "$(dirname "$LOG")"
 exec >>"$LOG" 2>&1
 
 echo "=== b_sweep matrix $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-docker compose --profile lab up -d llama-lab
-sleep 3
+echo "using llama-bench-a via ./bench sched (lab router not used)"
 
 for m in "${MODELS[@]}"; do
   export SCHED_MODEL="$m"

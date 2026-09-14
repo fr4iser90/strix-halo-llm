@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # llama-bench: PP/TG on Vulkan, ROCm, and/or CPU (sourced from run.sh).
-# Stops sticky/lab first — llama-bench and serve share the GPU.
+# Stops stickys first — llama-bench and serve share the GPU (lab untouched).
 set -euo pipefail
 export LC_ALL=C LANG=C
 
@@ -30,7 +30,7 @@ Usage: ./bench throughput [options] [filter]
        (also: tools/bench/throughput/run.sh)
 
 Suites (default: --bench → models-bench.ini):
-  --bench       models-bench.ini (synced from sticky/lab; default)
+  --bench       models-bench.ini (synced from sticky + models-lab.ini catalog; default)
   --daily       models.ini (sticky chat)
   --lab         models-lab.ini
   --all         every chat/*.gguf except mmproj / mtp draft files

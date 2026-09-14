@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync models-bench.ini (+ -b) from sticky/lab presets. Strips load-on-startup.
+# Sync models-bench.ini (+ -b) from sticky + models-lab.ini catalog. Strips load-on-startup.
 set -euo pipefail
 
 # Expects: PROJECT_ROOT, CAPACITY_INI_A, CAPACITY_INI_B, bench_python, log, die

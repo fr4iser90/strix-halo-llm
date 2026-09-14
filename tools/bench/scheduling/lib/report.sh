@@ -57,10 +57,15 @@ def ttft_valid(v):
 
 
 def load_throughput():
-    """Latest lab vulkan PP/TG per model basename."""
+    """Latest vulkan PP/TG per model basename (throughput CSVs)."""
     import csv
     pp, tg = {}, {}
-    csvs = sorted(glob.glob(os.path.join(thr_root, "llama-bench-*-lab-vulkan.csv")), reverse=True)
+    # Prefer bench-scoped CSVs; fall back to any vulkan CSV
+    csvs = sorted(glob.glob(os.path.join(thr_root, "llama-bench-*-bench-vulkan.csv")), reverse=True)
+    if not csvs:
+        csvs = sorted(glob.glob(os.path.join(thr_root, "llama-bench-*-vulkan.csv")), reverse=True)
+    if not csvs:
+        csvs = sorted(glob.glob(os.path.join(thr_root, "llama-bench-*-lab-vulkan.csv")), reverse=True)
     for path in csvs:
         with open(path, newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
@@ -381,7 +386,7 @@ for model in sorted(models.keys()):
     # --- Markdown section ---
     md = [f"## {model}", ""]
     if pp_idle or tg_idle:
-        md.append(f"**Throughput (idle, lab Vulkan):** PP {fmt_num(pp_idle)} tok/s · TG {fmt_num(tg_idle)} tok/s")
+        md.append(f"**Throughput (idle, Vulkan):** PP {fmt_num(pp_idle)} tok/s · TG {fmt_num(tg_idle)} tok/s")
         md.append("")
 
     md += [

@@ -66,8 +66,7 @@ model_done() {
 }
 
 echo "=== sched matrix resume $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-docker compose --profile lab up -d llama-lab
-sleep 3
+echo "using llama-bench-a via ./bench sched (lab router not used)"
 
 for m in "${MODELS[@]}"; do
   if model_done "$m"; then
@@ -78,9 +77,9 @@ for m in "${MODELS[@]}"; do
   echo ""
   echo "======== MODEL: $m ========"
   model_has_auto "$m" || ./bench sched --auto
-  model_has_sweep "$m" "04_ub_sweep" || SCHED_RESTART_LAB=1 ./bench sched --scenario ub_sweep
-  model_has_sweep "$m" "05_np_sweep" || SCHED_RESTART_LAB=1 ./bench sched --scenario np_sweep
-  model_has_sweep "$m" "06_b_sweep" || SCHED_RESTART_LAB=1 ./bench sched --scenario b_sweep
+  model_has_sweep "$m" "04_ub_sweep" || SCHED_RESTART_BENCH=1 ./bench sched --scenario ub_sweep
+  model_has_sweep "$m" "05_np_sweep" || SCHED_RESTART_BENCH=1 ./bench sched --scenario np_sweep
+  model_has_sweep "$m" "06_b_sweep" || SCHED_RESTART_BENCH=1 ./bench sched --scenario b_sweep
 done
 
 ./bench index

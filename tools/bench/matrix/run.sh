@@ -284,7 +284,6 @@ run_sched() {
   export SCHED_NP_LIST="$SCHED_NP_LIST_VAL"
   export SCHED_B_LIST="$SCHED_B_LIST_VAL"
   export SCHED_MTP_LIST="$SCHED_MTP_LIST_VAL"
-  export SCHED_RESTART_LAB=1
   export SCHED_RESTART_BENCH=1
   export SCHED_BENCH_OWNED=1
   sched_bench_prepare

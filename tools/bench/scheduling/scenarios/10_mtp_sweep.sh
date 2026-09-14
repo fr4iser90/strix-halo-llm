@@ -13,7 +13,7 @@ IFS=',' read -ra MTP_VALUES <<< "${SCHED_MTP_LIST:-off,1,2,3,4}"
 fix_np="${SCHED_SWEEP_NP:-${SCHED_NP:-2}}"
 fix_ub="${SCHED_SWEEP_UB:-${SCHED_UB:-128}}"
 section="$SCHED_MODEL"
-restart="${SCHED_RESTART_LAB:-1}"
+restart="${SCHED_RESTART_BENCH:-1}"
 
 orig_type="$(get_bench_ini_section_key "$section" "spec-type")"
 orig_nmax="$(get_bench_ini_section_key "$section" "spec-draft-n-max")"
@@ -43,7 +43,7 @@ for n in "${MTP_VALUES[@]}"; do
   mkdir -p "$sub"
 
   if [[ "$restart" != "1" ]]; then
-    log "n=$n (set SCHED_RESTART_LAB=1 to auto-patch ini / restart)"
+    log "n=$n (set SCHED_RESTART_BENCH=1 to auto-patch ini / restart)"
   else
     if [[ "$n" == "off" ]]; then
       log "MTP off — patch [${section}] spec-type=none"

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Throughput isolation: stop sticky/lab, optional sync models-bench.ini, restore after.
+# Throughput isolation: stop stickys, optional sync models-bench.ini, restore after.
 # Unlike quality/sched, this suite runs llama-bench one-shot (no bench-a HTTP server).
+# Lab router (:11537) is not touched.
 #
 #   source "$PROJECT_ROOT/tools/bench/throughput/lib/server.sh"
 #   throughput_bench_prepare
@@ -46,10 +47,10 @@ throughput_bench_prepare() {
     export THROUGHPUT_BENCH_READY
     return 0
   fi
-  throughput_log "stop sticky + lab so llama-bench owns the GPU"
-  (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama llama-coder llama-lab llama-embeddings llama-extractor 2>/dev/null) || true
+  throughput_log "stop sticky routers so llama-bench owns the GPU (lab untouched)"
+  (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
   if [[ -f "$ROCM_COMPOSE" ]]; then
-    (cd "$PROJECT_ROOT" && docker compose -f "$ROCM_COMPOSE" stop llama llama-coder llama-lab llama-embeddings llama-extractor 2>/dev/null) || true
+    (cd "$PROJECT_ROOT" && docker compose -f "$ROCM_COMPOSE" stop llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
   fi
   THROUGHPUT_BENCH_READY=1
   export THROUGHPUT_BENCH_READY

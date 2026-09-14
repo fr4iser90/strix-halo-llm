@@ -9,7 +9,7 @@ sdir="$(scenario_dir "$SCENARIO")"
 mkdir -p "$sdir"
 
 IFS=',' read -ra C_VALUES <<< "${SCHED_C_LIST:-16384,32768,65536,131072,262144}"
-restart="${SCHED_RESTART_LAB:-0}"
+restart="${SCHED_RESTART_BENCH:-0}"
 
 for c in "${C_VALUES[@]}"; do
   c="${c// /}"
@@ -18,12 +18,12 @@ for c in "${C_VALUES[@]}"; do
   mkdir -p "$sub"
 
   if [[ "$restart" == "1" ]]; then
-    log "patch ini c=$c and restart lab router"
+    log "patch ini c=$c and restart bench-a"
     patch_bench_ini c "$c"
     patch_bench_ini fit off
     restart_bench_server 0
   else
-    log "c=$c (set SCHED_RESTART_LAB=1 to auto-patch ini)"
+    log "c=$c (set SCHED_RESTART_BENCH=1 to auto-patch ini)"
   fi
 
   export SCHED_RUN_DIR="$sub"

@@ -12,7 +12,7 @@ mkdir -p "$sdir"
 IFS=',' read -ra B_VALUES <<< "${SCHED_B_LIST:-32,64,128,256}"
 fix_ub="${SCHED_SWEEP_UB:-128}"
 fix_np="${SCHED_SWEEP_NP:-2}"
-restart="${SCHED_RESTART_LAB:-0}"
+restart="${SCHED_RESTART_BENCH:-0}"
 
 if [[ "$restart" == "1" ]]; then
   patch_bench_ini ub "$fix_ub"
@@ -27,11 +27,11 @@ for b in "${B_VALUES[@]}"; do
   mkdir -p "$sub"
 
   if [[ "$restart" == "1" ]]; then
-    log "patch ini b=$b np=$fix_np ub=$fix_ub and restart lab router"
+    log "patch ini b=$b np=$fix_np ub=$fix_ub and restart bench-a"
     patch_bench_ini b "$b"
     restart_bench_patched
   else
-    log "b=$b (set SCHED_RESTART_LAB=1 to auto-patch ini)"
+    log "b=$b (set SCHED_RESTART_BENCH=1 to auto-patch ini)"
   fi
 
   export SCHED_RUN_DIR="$sub"

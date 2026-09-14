@@ -37,7 +37,7 @@ Dual context sizes:
 
 Auto (default):
   • sync models-bench.ini + models-bench-b.ini from CAPACITY_SYNC_SOURCES
-  • stop sticky/lab for clean GTT, start llama-bench-a[/b], restore after
+  • stop stickys for clean GTT, start llama-bench-a[/b], restore after (lab untouched)
   • skip cells already ok in cells.jsonl **with same server_version + image_id**
 
 Options:

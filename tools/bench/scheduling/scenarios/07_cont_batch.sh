@@ -16,7 +16,7 @@ mkdir -p "$sdir"
 fix_np="${SCHED_SWEEP_NP:-2}"
 fix_ub="${SCHED_SWEEP_UB:-128}"
 fix_b="${SCHED_B:-64}"
-if [[ "${SCHED_RESTART_LAB:-0}" == "1" ]]; then
+if [[ "${SCHED_RESTART_BENCH:-0}" == "1" ]]; then
   patch_bench_ini np "$fix_np"
   patch_bench_ini ub "$fix_ub"
   patch_bench_ini b "$fix_b"

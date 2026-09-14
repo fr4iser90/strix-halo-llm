@@ -33,18 +33,16 @@ echo "=== sched full matrix $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
 echo "models=${#MODELS[@]} np=$SCHED_NP ub_list=$SCHED_UB_LIST"
 echo "log=$LOG"
 
-echo "restart lab with np=2 ini"
-docker compose --profile lab up -d llama-lab
-sleep 5
+echo "sched suites manage llama-bench-a (:11601) — lab router not used"
 
 for m in "${MODELS[@]}"; do
   export SCHED_MODEL="$m"
   echo ""
   echo "======== MODEL: $m ========"
   ./bench sched --auto
-  SCHED_RESTART_LAB=1 ./bench sched --scenario ub_sweep
-  SCHED_RESTART_LAB=1 ./bench sched --scenario np_sweep
-  SCHED_RESTART_LAB=1 ./bench sched --scenario b_sweep
+  SCHED_RESTART_BENCH=1 ./bench sched --scenario ub_sweep
+  SCHED_RESTART_BENCH=1 ./bench sched --scenario np_sweep
+  SCHED_RESTART_BENCH=1 ./bench sched --scenario b_sweep
 done
 
 ./bench index

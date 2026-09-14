@@ -103,7 +103,7 @@ Pages = pick + snippet/plan; writing INIs is local-only via `apply-ini`.
 
 ## Capacity
 
-Auto-sync from sticky/lab → `models-bench.ini`. Skip includes llama.cpp fingerprint.
+Auto-sync from sticky + `models-lab.ini` (disk catalog) → `models-bench.ini`. Skip includes llama.cpp fingerprint.
 
 ```bash
 ./bench capacity kv-ctx
@@ -117,7 +117,7 @@ Auto-sync from sticky/lab → `models-bench.ini`. Skip includes llama.cpp finger
 | Mode | Behavior |
 |------|----------|
 | `capacity` / `matrix` capacity | Stickys stopped, bench-a/b, then restore |
-| `sched` / `matrix` sched | Stickys stopped, **bench-a :11601**, then restore (coexist: sticky+lab) |
+| `sched` / `matrix` sched | Stickys stopped, **bench-a :11601**, then restore (lab untouched; coexist suite uses lab explicitly) |
 | `throughput` / `matrix` throughput | Stickys stopped, models-bench.ini → llama-bench, then restore |
 | `quality` / `matrix` quality | Stickys stopped, **bench-a :11601**, then restore |
 

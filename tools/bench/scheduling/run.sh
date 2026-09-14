@@ -19,8 +19,8 @@ usage() {
 Usage: ./bench sched [options]
 
 Decode latency while concurrent long prefill (bench-a :11601).
-Stops stickys/lab, syncs models-bench.ini, restores after (unless --no-restore).
-Coexist scenarios still use sticky + lab :11537.
+Stops stickys, syncs models-bench.ini, restores after (unless --no-restore).
+Sweeps restart bench-a only — not llama-lab. Coexist scenarios use lab :11537 explicitly.
 
 Options:
   --list              list scenarios / matrices
@@ -29,12 +29,12 @@ Options:
   --scenario NAME     one scenario (baseline_solo, interleave_np2, …)
   --compare           rebuild output/bench/scheduling/latest/compare.md
   --restart-bench     with sweeps: patch models-bench.ini + restart bench-a
-  --restart-lab       alias for --restart-bench (compat)
   --no-restore        skip auto-restore (stickys stay stopped)
 
 Env:
   SCHED_MODEL SCHED_NP SCHED_UB SCHED_B SCHED_UB_LIST SCHED_NP_LIST SCHED_B_LIST SCHED_C_LIST
   SCHED_MTP_LIST          (default off,1,2,3,4 — for mtp_sweep)
+  SCHED_RESTART_BENCH=1   same as --restart-bench
   COEXIST_CHAT_MODEL COEXIST_CODER_MODEL COEXIST_C_LIST COEXIST_NP_PAIRS
   SCHED_SWEEP_UB SCHED_SWEEP_NP  (fixed params during cross-sweeps)
   SCHED_BASE_URL (default http://127.0.0.1:11601)
@@ -44,9 +44,9 @@ Examples:
   ./bench sched --auto
   SCHED_NP=2 SCHED_UB=32 ./bench sched --scenario interleave_np2
   ./bench sched --matrix qwen36_vl.yaml
-  SCHED_RESTART_LAB=1 ./bench sched --scenario ub_sweep
-  SCHED_RESTART_LAB=1 ./bench sched --scenario np_sweep
-  SCHED_RESTART_LAB=1 ./bench sched --scenario b_sweep
+  SCHED_RESTART_BENCH=1 ./bench sched --scenario ub_sweep
+  SCHED_RESTART_BENCH=1 ./bench sched --scenario np_sweep
+  SCHED_RESTART_BENCH=1 ./bench sched --scenario b_sweep
   SCHED_MODEL=Qwen3.8-27B-Q4_K_M-MTP ./bench sched --scenario mtp_sweep
   COEXIST_CODER_MODEL=Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL ./bench sched --scenario coexist_capacity
 
@@ -135,7 +135,7 @@ while [[ $# -gt 0 ]]; do
       [[ $# -gt 0 ]] || die "--scenario needs a name"
       SCENARIOS+=("$1")
       ;;
-    --restart-lab|--restart-bench) export SCHED_RESTART_LAB=1; export SCHED_RESTART_BENCH=1 ;;
+    --restart-bench) export SCHED_RESTART_BENCH=1 ;;
     -*) die "unknown option: $1" ;;
     *) SCENARIOS+=("$1") ;;
   esac

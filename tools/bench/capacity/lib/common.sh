@@ -232,8 +232,8 @@ prepare_capacity_gpu() {
   if [[ "$CAPACITY_KEEP_STICKY" == "1" ]]; then
     log "KEEP_STICKY=1 — leaving sticky routers running"
   else
-    log "stop sticky/lab routers for clean capacity curve (configs untouched)"
-    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama llama-coder llama-lab 2>/dev/null) || true
+    log "stop sticky routers for clean capacity curve (configs untouched; lab untouched)"
+    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama llama-coder 2>/dev/null) || true
     if [[ "$CAPACITY_STOP_EMB" == "1" ]]; then
       (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama-embeddings llama-extractor 2>/dev/null) || true
     fi

@@ -8,12 +8,12 @@ source "$SCHED_BENCH_ROOT/lib/ini_patch.sh"
 sdir="$(scenario_dir "$SCENARIO")"
 mkdir -p "$sdir"
 
-if [[ "${SCHED_RESTART_LAB:-0}" == "1" ]]; then
-  log "enable fit=on and restart lab"
+if [[ "${SCHED_RESTART_BENCH:-0}" == "1" ]]; then
+  log "enable fit=on and restart bench-a"
   patch_bench_ini fit on
   restart_bench_server 0
 else
-  log "fit probe (set SCHED_RESTART_LAB=1 to patch ini)"
+  log "fit probe (set SCHED_RESTART_BENCH=1 to patch ini)"
 fi
 
 preflight
@@ -40,7 +40,7 @@ with open(path, "w", encoding="utf-8") as f:
 print(f"wrote {path}")
 PY
 
-if [[ "${SCHED_RESTART_LAB:-0}" == "1" ]]; then
+if [[ "${SCHED_RESTART_BENCH:-0}" == "1" ]]; then
   patch_bench_ini fit off
   restart_bench_server 0
 fi

@@ -114,7 +114,7 @@ PY
 }
 
 install_human_eval_into_venv() {
-  local venv py pip
+  local venv py pip reqs
   venv="$(quality_venv_dir)"
   py="$(quality_venv_python)"
   mkdir -p "$(dirname "$venv")"
@@ -130,11 +130,19 @@ install_human_eval_into_venv() {
     fi
   fi
   pip="$venv/bin/pip"
-  echo "→ pip install -e $VENDOR → $venv"
-  "$pip" install -U pip setuptools wheel >/dev/null
-  "$pip" install -e "$VENDOR"
+  # openai/human-eval setup.py imports pkg_resources at build time → breaks on
+  # Python 3.12+ editable installs. Skip -e; put clone on PYTHONPATH instead.
+  echo "→ install human-eval deps into $venv (no editable install)"
+  "$pip" install -U 'pip>=24' 'setuptools>=70' wheel >/dev/null
+  reqs="$VENDOR/requirements.txt"
+  if [[ -f "$reqs" ]]; then
+    "$pip" install -r "$reqs"
+  else
+    "$pip" install tqdm fire numpy
+  fi
   export BENCH_PYTHON="$py"
   export BENCH_PYTHON_MODE="$py"
+  export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
 }
 
 ensure_human_eval_ready() {
@@ -151,10 +159,19 @@ ensure_human_eval_ready() {
   export BENCH_PYTHON_MODE="$BENCH_PYTHON"
   export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
   if ! bench_python -c "import human_eval.data" 2>/dev/null; then
+    echo "→ import failed — recreating venv and retrying…"
+    rm -rf "$(quality_venv_dir)"
+    install_human_eval_into_venv
+    BENCH_PYTHON="$(quality_venv_python)"
+    export BENCH_PYTHON BENCH_PYTHON_MODE="$BENCH_PYTHON"
+    export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
+  fi
+  if ! bench_python -c "import human_eval.data" 2>/dev/null; then
     echo "error: human_eval still not importable after --setup" >&2
+    echo "  VENDOR=$VENDOR PYTHONPATH=$PYTHONPATH BENCH_PYTHON=$BENCH_PYTHON" >&2
     return 1
   fi
-  echo "→ human_eval OK via $BENCH_PYTHON"
+  echo "→ human_eval OK via $BENCH_PYTHON (PYTHONPATH=$VENDOR)"
 }
 
 setup_harness() {
