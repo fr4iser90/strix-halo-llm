@@ -12,6 +12,7 @@ setup” decisions. Items below are polish — track here so they are not forgot
 - [x] Move `./bench sched` from lab `:11537` onto bench-a (same isolation as capacity/quality)
 - [x] Throughput default suite = models-bench.ini (same model pool); stickys stopped like other benches
 - [x] Naming: bench / lab / sticky only — no “real”/adjective wrappers that blur routers
+- [x] Suite layout: `run.sh` + `lib/server.sh` + scenarios/plugins (throughput + capacity aligned)
 - [ ] Suite-level ETA for sched / throughput / quality (after first samples)
 - [ ] Live line on Pages dashboard (poll `matrix/progress.json`)
 

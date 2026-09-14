@@ -25,22 +25,12 @@ KV_LIST="${CAPACITY_DUAL_KV_LIST:-${CAPACITY_KV_LIST:-q8_0,q5_0,q4_0}}"
 C_LIST="$(resolve_dual_c_list)"
 export CAPACITY_DUAL_C_LIST="$C_LIST"
 
-ensure_synced() {
-  if [[ "${CAPACITY_AUTO_SYNC:-1}" == "1" ]]; then
-    log "auto-sync models-bench.ini from: $CAPACITY_SYNC_SOURCES"
-    sync_bench_inis "$CAPACITY_SYNC_SOURCES"
-  fi
-}
-
 cleanup_dual() {
-  if [[ "${CAPACITY_AUTO_SYNC:-1}" == "1" ]]; then
-    sync_bench_inis "$CAPACITY_SYNC_SOURCES" >/dev/null || true
-  fi
-  [[ "${CAPACITY_NO_RESTORE:-0}" == "1" ]] || restore_after_capacity
+  capacity_bench_cleanup
 }
 trap cleanup_dual EXIT
 
-ensure_synced
+capacity_bench_prepare dual
 
 MODELS=()
 mapfile -t MODELS < <(resolve_bench_models)
@@ -51,10 +41,6 @@ CAPACITY_MODEL_LIST="$(IFS=,; echo "${MODELS[*]}")"
 log "models (${#MODELS[@]}): $CAPACITY_MODEL_LIST"
 log "dual c list: $C_LIST"
 
-prepare_capacity_gpu
-compose_bench up -d llama-bench-a llama-bench-b
-wait_for_url "$CAPACITY_URL_A" 120 || die "bench-a not reachable"
-wait_for_url "$CAPACITY_URL_B" 120 || die "bench-b not reachable"
 detect_server_fingerprint
 probe_kv_cache_types
 filter_kv_list_inplace "$KV_LIST"

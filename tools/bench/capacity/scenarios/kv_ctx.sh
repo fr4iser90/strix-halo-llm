@@ -9,23 +9,12 @@ source "$CAPACITY_ROOT/lib/common.sh"
 KV_LIST="${CAPACITY_KV_LIST}"
 C_LIST="${CAPACITY_C_LIST}"
 
-ensure_synced() {
-  if [[ "${CAPACITY_AUTO_SYNC:-1}" == "1" ]]; then
-    log "auto-sync models-bench.ini from: $CAPACITY_SYNC_SOURCES"
-    sync_bench_inis "$CAPACITY_SYNC_SOURCES"
-  fi
-}
-
 cleanup_kv_ctx() {
-  # Re-sync restores bench INIs from sticky/lab sources (undo ctk/c patches)
-  if [[ "${CAPACITY_AUTO_SYNC:-1}" == "1" ]]; then
-    sync_bench_inis "$CAPACITY_SYNC_SOURCES" >/dev/null || true
-  fi
-  [[ "${CAPACITY_NO_RESTORE:-0}" == "1" ]] || restore_after_capacity
+  capacity_bench_cleanup
 }
 trap cleanup_kv_ctx EXIT
 
-ensure_synced
+capacity_bench_prepare solo
 
 # Resolve model list (--model / CAPACITY_MODELS / --no-vl)
 MODELS=()
@@ -36,8 +25,6 @@ export CAPACITY_MODEL_LIST
 CAPACITY_MODEL_LIST="$(IFS=,; echo "${MODELS[*]}")"
 log "models (${#MODELS[@]}): $CAPACITY_MODEL_LIST"
 
-prepare_capacity_gpu
-start_bench_a
 detect_server_fingerprint
 probe_kv_cache_types
 filter_kv_list_inplace "${CAPACITY_KV_LIST}"

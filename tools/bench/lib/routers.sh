@@ -52,17 +52,41 @@ for m in data.get('data') or data.get('models') or []:
 " <<< "$models_json")
 }
 
+# Restore sticky stack. Default: Vulkan only — and stop any ROCm leftovers.
+# Set BENCH_RESTORE_BACKEND=rocm|both only when you intentionally use ROCm.
 bench_restore_daily() {
   local root="${PROJECT_ROOT:?}"
   local vk="${VK_COMPOSE:-$root/compose.yaml}"
   local rocm="${ROCM_COMPOSE:-$root/compose.rocm.yaml}"
+  local backend="${BENCH_RESTORE_BACKEND:-${CAPACITY_BACKEND:-vulkan}}"
 
   command -v docker >/dev/null 2>&1 || return 0
-  bench_router_log "start sticky chat + coder + embeddings + extractor"
-  (cd "$root" && docker compose -f "$vk" up -d llama llama-coder llama-embeddings llama-extractor) || true
-  if [[ -f "$rocm" ]]; then
-    (cd "$root" && docker compose -f "$rocm" up -d llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
-  fi
+
+  case "$backend" in
+    rocm)
+      bench_router_log "restore ROCm sticky chat + coder + embeddings + extractor"
+      [[ -f "$rocm" ]] || { bench_router_log "missing $rocm"; return 0; }
+      # Stop Vulkan stickys so they do not fight for the GPU
+      (cd "$root" && docker compose -f "$vk" stop llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
+      (cd "$root" && docker compose -f "$rocm" up -d llama llama-coder llama-embeddings llama-extractor) || true
+      ;;
+    both|all)
+      bench_router_log "restore Vulkan + ROCm sticky stacks"
+      (cd "$root" && docker compose -f "$vk" up -d llama llama-coder llama-embeddings llama-extractor) || true
+      if [[ -f "$rocm" ]]; then
+        (cd "$root" && docker compose -f "$rocm" up -d llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
+      fi
+      ;;
+    *)
+      # vulkan (default) — never start ROCm; stop ROCm if still running
+      bench_router_log "restore Vulkan sticky chat + coder + embeddings + extractor"
+      if [[ -f "$rocm" ]]; then
+        bench_router_log "stop ROCm leftovers (if any)"
+        (cd "$root" && docker compose -f "$rocm" stop 2>/dev/null) || true
+      fi
+      (cd "$root" && docker compose -f "$vk" up -d llama llama-coder llama-embeddings llama-extractor) || true
+      ;;
+  esac
 }
 
 bench_restore_after_throughput() {

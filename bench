@@ -10,7 +10,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-THROUGHPUT="$ROOT/tools/bench/throughput/llama-bench-all.sh"
+THROUGHPUT="$ROOT/tools/bench/throughput/run.sh"
 SCHED="$ROOT/tools/bench/scheduling/run.sh"
 QUALITY="$ROOT/tools/bench/quality/run.sh"
 CAPACITY="$ROOT/tools/bench/capacity/run.sh"

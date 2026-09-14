@@ -14,7 +14,7 @@ OUT="$ROOT/output/bench/matrix"
 PROGRESS="$OUT/progress.json"
 CAPACITY="$ROOT/tools/bench/capacity/run.sh"
 SCHED="$ROOT/tools/bench/scheduling/run.sh"
-THROUGHPUT="$ROOT/tools/bench/throughput/llama-bench-all.sh"
+THROUGHPUT="$ROOT/tools/bench/throughput/run.sh"
 QUALITY="$ROOT/tools/bench/quality/run.sh"
 BUILD_INDEX="$ROOT/tools/bench/build-index.sh"
 

@@ -244,14 +244,13 @@ restore_after_capacity() {
   [[ "${CAPACITY_NO_RESTORE:-0}" == "1" ]] && return 0
   compose_bench stop llama-bench-a llama-bench-b 2>/dev/null || true
   log "restore sticky routers that were running before capacity"
-  if [[ "${CAPACITY_HAD_DAILY:-0}" == "1" ]] || [[ "$CAPACITY_KEEP_STICKY" != "1" ]]; then
-    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" up -d llama) || true
-  fi
-  if [[ "${CAPACITY_HAD_CODER:-0}" == "1" ]] || [[ "${CAPACITY_RESTORE_CODER:-0}" == "1" ]]; then
-    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" up -d llama-coder) || true
-  fi
-  if [[ "$CAPACITY_STOP_EMB" == "1" ]]; then
-    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" up -d llama-embeddings llama-extractor) || true
+  # Always go through bench_restore_daily so ROCm leftovers get stopped (Vulkan default).
+  # shellcheck source=../../lib/routers.sh
+  source "$PROJECT_ROOT/tools/bench/lib/routers.sh"
+  if [[ "${CAPACITY_HAD_DAILY:-0}" == "1" ]] || [[ "${CAPACITY_HAD_CODER:-0}" == "1" ]] || [[ "$CAPACITY_KEEP_STICKY" != "1" ]]; then
+    bench_restore_daily
+  elif [[ "$CAPACITY_STOP_EMB" == "1" ]]; then
+    bench_restore_daily
   fi
 }
 
@@ -326,7 +325,7 @@ detect_server_fingerprint() {
 
 # Parse --cache-type-k allowed values from llama-server -h (inside image).
 probe_kv_cache_types() {
-  local help="" raw="" help_file
+  local help="" raw=""
   CAPACITY_IMAGE_NAME="${CAPACITY_IMAGE_NAME:-llama-cpp-vulkan-nix}"
   if command -v docker >/dev/null 2>&1; then
     if container_running llama-bench-a; then
@@ -335,25 +334,20 @@ probe_kv_cache_types() {
       help="$(docker run --rm --pull=never --entrypoint /bin/llama-server "$CAPACITY_IMAGE_NAME" -h 2>&1 || true)"
     fi
   fi
-  help_file="$(mktemp)"
-  printf '%s\n' "$help" >"$help_file"
-  raw="$(bench_python - "$help_file" <<'PY'
-import re, sys
-from pathlib import Path
-text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
-# Main -ctk / --cache-type-k (not -draft)
+  raw="$(HELP_TEXT="$help" bench_python - <<'PY'
+import os, re
+text = os.environ.get("HELP_TEXT") or ""
 m = re.search(
     r"(?:-ctk,\s*)?--cache-type-k(?!-draft)\b.*?allowed values:\s*([^\n(]+)",
     text,
     flags=re.I | re.S,
 )
 if not m:
-    sys.exit(0)
+    raise SystemExit(0)
 vals = [v.strip().lower() for v in m.group(1).split(",") if v.strip()]
 print(",".join(vals))
 PY
 )"
-  rm -f "$help_file"
   if [[ -n "$raw" ]]; then
     CAPACITY_KV_ALLOWED="$raw"
   else
@@ -368,11 +362,10 @@ PY
 # Requires probe_kv_cache_types (or CAPACITY_KV_ALLOWED). Updates CAPACITY_KV_LIST.
 filter_kv_list_inplace() {
   local requested="${1:-$CAPACITY_KV_LIST}"
-  local tmp_err out
+  local out
   [[ -n "${CAPACITY_KV_ALLOWED:-}" ]] || probe_kv_cache_types
-  tmp_err="$(mktemp)"
   out="$(
-    bench_python - "$requested" "$CAPACITY_KV_ALLOWED" 2>"$tmp_err" <<'PY'
+    bench_python - "$requested" "$CAPACITY_KV_ALLOWED" <<'PY'
 import sys
 req, allowed_csv = sys.argv[1], sys.argv[2]
 allowed = {x.strip().lower() for x in allowed_csv.split(",") if x.strip()}
@@ -417,10 +410,6 @@ if not out:
 print(",".join(out))
 PY
   )"
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ -n "$line" ]] && log "$line"
-  done <"$tmp_err"
-  rm -f "$tmp_err"
   [[ -n "$out" ]] || die "no usable KV cache types after filter (requested=$requested allowed=$CAPACITY_KV_ALLOWED)"
   CAPACITY_KV_LIST="$out"
   export CAPACITY_KV_LIST
@@ -937,3 +926,5 @@ SCHED_BENCH_ROOT="${SCHED_BENCH_ROOT:-$PROJECT_ROOT/tools/bench/scheduling}"
 export SCHED_BENCH_ROOT
 # shellcheck source=../../scheduling/lib/metrics.sh
 source "$PROJECT_ROOT/tools/bench/scheduling/lib/metrics.sh"
+# shellcheck source=server.sh
+source "$CAPACITY_ROOT/lib/server.sh"

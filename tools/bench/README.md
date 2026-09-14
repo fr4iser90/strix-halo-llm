@@ -20,7 +20,10 @@ Most users only need **A** (and maybe **B**). Dual (**D**) is optional — not p
 | `./bench capacity` | `tools/bench/capacity/` | KV×ctx + dual (`bench-a/b`) |
 | `./bench sched` | `tools/bench/scheduling/` | np/ub under load (**bench-a** `:11601`) |
 | `./bench quality` | `tools/bench/quality/` | HumanEval on **bench-a** |
+| `./bench throughput` | `tools/bench/throughput/` | PP/TG llama-bench (stickys stopped) |
 | `./bench publish` | `tools/bench/publish-docs.sh` | → `docs/` GitHub Pages |
+
+**Suite layout:** `run.sh` + `lib/server.sh` (prepare/cleanup) + `scenarios/` or `plugins/` + `README.md`.
 
 **Routers:** sticky `:11535`/`:11538` · lab `:11537` (coexist) · bench `:11601`/`:11602` (capacity/quality/sched) · llama-bench one-shot (throughput).
 
