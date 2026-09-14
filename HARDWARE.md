@@ -77,9 +77,9 @@ Capacity “GTT” wording on the dashboard is UMA-oriented; on discrete NVIDIA,
 
 ## Forks & Pages
 
-1. Enable Pages: `main` → `/docs`
+1. Enable Pages once: **Settings → Pages → Deploy from a branch → `main` / `/docs`**
 2. Run benches on **your** hardware
-3. `./bench index && ./bench publish` → commit `docs/`
+3. `./bench index && ./bench publish` → commit `docs/` → push
 
 You keep the tooling; you replace the published numbers.
 

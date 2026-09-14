@@ -102,8 +102,8 @@ Add another quality suite: copy `tools/bench/quality/plugins/_template` → `plu
 Details: [`tools/bench/README.md`](tools/bench/README.md)  
 **Index of all runs:** [`output/bench/index.md`](output/bench/index.md) · `./bench index`  
 **Interactive planner:** [`output/bench/planner.html`](output/bench/planner.html)  
-**Public site:** `docs/` → GitHub Pages (`/docs` on `main`).  
-Forks: enable Pages once (Settings → Pages → `main` / `/docs`), then after benches:
+**Public site:** `docs/` → GitHub Pages. Enable once: **Settings → Pages → Deploy from a branch → `main` / `/docs`**.  
+Forks: same setting on their repo, then after benches:
 
 ```bash
 ./bench publish && git add docs && git commit -m "docs: refresh" && git push

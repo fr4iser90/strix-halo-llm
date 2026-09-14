@@ -105,8 +105,10 @@ Recommendation planner / apply-ini stay on the bench host (`output/bench/`), not
 Enable once per fork:
 
 1. Repo **Settings → Pages → Build and deployment**
-2. Source: **Deploy from a branch**
+2. Source: **Deploy from a branch** (not “GitHub Actions”)
 3. Branch: `main` → folder **`/docs`** → Save
+
+Site: https://\<user\>.github.io/\<repo\>/
 
 ```bash
 ./bench publish
