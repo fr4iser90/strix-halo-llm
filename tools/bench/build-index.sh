@@ -490,7 +490,8 @@ def capacity_html_card():
         '<div class="card" id="capacity">',
         '<h2>Capacity — KV×ctx <span class="meta">GTT peak · fill tok/s</span></h2>',
         f'<p class="more"><a href="capacity/latest/compare.md">→ Details</a> · ledger cells: <strong>{cap_cells}</strong></p>',
-        '<p class="meta">Cell = GTT MiB · stream tok/s at that context (FAIL if OOM / stream error)</p>',
+        '<p class="meta">Primary metric: <strong>GTT MiB</strong> at context <em>c</em> × KV type. '
+        'Optional t/s = generation during fill (often tiny at 128k+ — not PP throughput).</p>',
     ]
     for model in sorted({r["model"] for r in solo}):
         sub = [r for r in solo if r["model"] == model]
@@ -734,13 +735,45 @@ summary {{ cursor: pointer; color: #9aa0a6; font-weight: 600; }}
 .cmd {{ background: #12141a; padding: .75rem 1rem; border-radius: 6px; font-family: ui-monospace, monospace;
   font-size: .85rem; margin: .5rem 0; overflow-x: auto; }}
 h3 {{ font-size: .95rem; margin: 1.25rem 0 .4rem; color: #c4c7cc; }}
-</style></head><body>
+.charts {{ display: grid; grid-template-columns: 1fr; gap: 1.25rem; }}
+@media (min-width: 900px) {{
+  .charts.two {{ grid-template-columns: 1fr 1fr; }}
+}}
+.chart-box {{ background: #12141a; border-radius: 6px; padding: .75rem 1rem 1rem; }}
+.chart-box h3 {{ margin-top: 0; }}
+.chart-wrap {{ position: relative; height: 280px; }}
+select.model-pick {{ background: #12141a; color: #e8eaed; border: 1px solid #2a2e37;
+  border-radius: 4px; padding: .35rem .5rem; font: inherit; margin: .25rem 0 .75rem; }}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head><body>
 
 <h1>Bench Dashboard</h1>
-<p class="meta">Measured benches · Prefill/TG tok/s = under load / idle · Capacity = GTT · fill tok/s</p>
+<p class="meta">Measured benches · Prefill/TG tok/s = under load / idle · Capacity = GTT peak vs context</p>
 {{LOCAL_NAV}}
 
 {host_html_card(host)}
+
+<div class="card" id="charts">
+<h2>Charts</h2>
+<p class="meta">GitHub Pages–friendly overview (Chart.js). Tables below have full numbers.</p>
+<div class="charts two">
+  <div class="chart-box">
+    <h3>Throughput — PP vs TG (tok/s)</h3>
+    <div class="chart-wrap"><canvas id="chart-thr"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h3>Scheduling — Prefill tok/s &amp; Decode ms</h3>
+    <div class="chart-wrap"><canvas id="chart-sched"></canvas></div>
+  </div>
+</div>
+<div class="chart-box" style="margin-top:1.25rem">
+  <h3>Capacity — GTT MiB vs context</h3>
+  <label class="meta" for="cap-model">Model </label>
+  <select id="cap-model" class="model-pick"></select>
+  <div class="chart-wrap" style="height:320px"><canvas id="chart-cap"></canvas></div>
+</div>
+</div>
 
 {capacity_html_card()}
 
@@ -828,6 +861,53 @@ local_tools = f"""
 </div>
 """
 
+# Chart.js payloads (Pages-safe measured data only)
+def _short(name, n=28):
+    s = str(name or "")
+    return s if len(s) <= n else s[: n - 1] + "…"
+
+def _num(x):
+    if x is None or x == "" or x == "—":
+        return None
+    if isinstance(x, (int, float)):
+        return float(x)
+    try:
+        return float(str(x).replace(",", ""))
+    except ValueError:
+        return None
+
+thr_chart = {
+    "labels": [_short(m["model"]) for m in thr_models],
+    "pp": [_num(m.get("pp")) for m in thr_models],
+    "tg": [_num(m.get("tg")) for m in thr_models],
+}
+sch_chart = {
+    "labels": [_short(r.get("model")) for r in sch_recs],
+    "prefill": [_num(r.get("prefill_tps")) for r in sch_recs],
+    "decode": [_num(r.get("decode_ms")) for r in sch_recs],
+}
+# capacity: model -> {kv -> [{c, gtt_gib}]}
+cap_chart = {}
+for r in cap_latest.values():
+    if r.get("mode") != "solo" or r.get("skipped") or not r.get("ok"):
+        continue
+    model = r.get("model") or "?"
+    kv = r.get("kv") or "?"
+    gtt = (r.get("metrics_peak") or {}).get("gtt_used_mb") or (r.get("mem_after") or {}).get("gtt_used_mb")
+    if gtt is None:
+        continue
+    cap_chart.setdefault(model, {}).setdefault(kv, []).append(
+        {"c": int(r.get("c") or 0), "gtt_gib": round(float(gtt) / 1024.0, 2)}
+    )
+for model in cap_chart:
+    for kv in cap_chart[model]:
+        cap_chart[model][kv] = sorted(cap_chart[model][kv], key=lambda p: p["c"])
+
+chart_json = json.dumps(
+    {"throughput": thr_chart, "scheduling": sch_chart, "capacity": cap_chart},
+    ensure_ascii=False,
+)
+
 footer = f"""
 <details>
 <summary>Run history ({len(thr_rows)} throughput · {len(sch_rows)} scheduling)</summary>
@@ -839,15 +919,128 @@ footer = f"""
 <tbody>{hist_sch or '<tr><td colspan="4">—</td></tr>'}</tbody></table>
 </details>
 
+<script id="bench-chart-data" type="application/json">{chart_json.replace("<", "\\\\u003c")}</script>
+<script>
+(function () {{
+  const raw = document.getElementById("bench-chart-data");
+  if (!raw || typeof Chart === "undefined") return;
+  const DATA = JSON.parse(raw.textContent);
+  const tick = {{ color: "#9aa0a6" }};
+  const grid = {{ color: "#2a2e37" }};
+  const common = {{
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {{ legend: {{ labels: {{ color: "#c4c7cc" }} }} }},
+  }};
+
+  const thr = DATA.throughput || {{}};
+  if ((thr.labels || []).length) {{
+    new Chart(document.getElementById("chart-thr"), {{
+      type: "bar",
+      data: {{
+        labels: thr.labels,
+        datasets: [
+          {{ label: "PP tok/s", data: thr.pp, backgroundColor: "#5b8def" }},
+          {{ label: "TG tok/s", data: thr.tg, backgroundColor: "#7ddea5" }},
+        ],
+      }},
+      options: {{
+        ...common,
+        scales: {{
+          x: {{ ticks: tick, grid }},
+          y: {{ ticks: tick, grid, title: {{ display: true, text: "tok/s", color: "#9aa0a6" }} }},
+        }},
+      }},
+    }});
+  }}
+
+  const sch = DATA.scheduling || {{}};
+  if ((sch.labels || []).length) {{
+    new Chart(document.getElementById("chart-sched"), {{
+      type: "bar",
+      data: {{
+        labels: sch.labels,
+        datasets: [
+          {{ label: "Prefill tok/s", data: sch.prefill, backgroundColor: "#5b8def", yAxisID: "y" }},
+          {{ label: "Decode ms", data: sch.decode, backgroundColor: "#f0c674", yAxisID: "y1" }},
+        ],
+      }},
+      options: {{
+        ...common,
+        scales: {{
+          x: {{ ticks: tick, grid }},
+          y: {{ position: "left", ticks: tick, grid, title: {{ display: true, text: "tok/s", color: "#9aa0a6" }} }},
+          y1: {{ position: "right", ticks: tick, grid: {{ drawOnChartArea: false }}, title: {{ display: true, text: "ms", color: "#9aa0a6" }} }},
+        }},
+      }},
+    }});
+  }}
+
+  const cap = DATA.capacity || {{}};
+  const models = Object.keys(cap).sort();
+  const sel = document.getElementById("cap-model");
+  const canvas = document.getElementById("chart-cap");
+  let capChart = null;
+  const palette = ["#5b8def", "#7ddea5", "#f0c674", "#f28b82", "#c58af9", "#78d4e8"];
+
+  function renderCap(model) {{
+    const series = cap[model] || {{}};
+    const kvs = Object.keys(series).sort();
+    const datasets = kvs.map((kv, i) => ({{
+      label: kv,
+      data: (series[kv] || []).map((p) => ({{ x: p.c, y: p.gtt_gib }})),
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length],
+      tension: 0.15,
+      showLine: true,
+    }}));
+    if (capChart) capChart.destroy();
+    capChart = new Chart(canvas, {{
+      type: "scatter",
+      data: {{ datasets }},
+      options: {{
+        ...common,
+        scales: {{
+          x: {{
+            type: "linear",
+            ticks: tick,
+            grid,
+            title: {{ display: true, text: "context tokens", color: "#9aa0a6" }},
+          }},
+          y: {{
+            ticks: tick,
+            grid,
+            title: {{ display: true, text: "GTT GiB", color: "#9aa0a6" }},
+          }},
+        }},
+      }},
+    }});
+  }}
+
+  if (sel && models.length) {{
+    models.forEach((m) => {{
+      const o = document.createElement("option");
+      o.value = m;
+      o.textContent = m;
+      sel.appendChild(o);
+    }});
+    sel.addEventListener("change", () => renderCap(sel.value));
+    renderCap(models[0]);
+  }} else if (sel) {{
+    sel.outerHTML = '<p class="meta">No capacity GTT series yet.</p>';
+  }}
+}})();
+</script>
+
 <p class="meta">Rebuild: <code>./bench index</code></p>
 </body></html>"""
 
 # Local full dashboard (benches + capacity + local apply/planner)
-LOCAL_NAV = '<p class="more"><a href="#capacity">Capacity</a> · <a href="#local-tools">Local apply / planner</a></p>'
+LOCAL_NAV = '<p class="more"><a href="#charts">Charts</a> · <a href="#capacity">Capacity</a> · <a href="#local-tools">Local apply / planner</a></p>'
 page_local = page.replace("{LOCAL_NAV}", LOCAL_NAV) + local_tools + footer
 
 # GitHub Pages: measured benches only (no recommendations / apply / planner)
-LOCAL_NAV = ""
+LOCAL_NAV = '<p class="more"><a href="#charts">Charts</a> · <a href="#capacity">Capacity</a></p>'
 page_pages = page.replace("{LOCAL_NAV}", LOCAL_NAV) + footer
 page_pages = page_pages.replace(
     "<h1>Bench Dashboard</h1>",
