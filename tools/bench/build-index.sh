@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build output/bench/index.md + index.html — dashboard with recommendations.
+# Build output/bench/index.html (local: benches + apply/planner) and
+# pages-index.html (GitHub Pages: measured benches only).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -412,25 +413,124 @@ else:
         "`./bench quality humaneval --model … --limit 10`*"
     )
 
-# Capacity (KV×ctx / dual)
+# Capacity (KV×ctx / dual) — full tables from ledger
 cap_root = os.path.join(out_root, "capacity")
 cap_cmp = os.path.join(cap_root, "latest", "compare.md")
-cap_cells = 0
 cap_ledger = os.path.join(cap_root, "cells.jsonl")
+cap_latest = {}
 if os.path.isfile(cap_ledger):
     with open(cap_ledger, encoding="utf-8") as f:
-        cap_cells = sum(1 for line in f if line.strip())
-lines += ["", "## Capacity — KV×ctx / dual", ""]
-if os.path.isfile(cap_cmp):
-    lines += [
-        f"[Details →]({rel('capacity/latest/compare.md')}) · "
-        f"ledger cells: **{cap_cells}** · `./bench capacity kv-ctx`",
-        "",
-        "```bash",
-        "./bench capacity kv-ctx --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
-        "./bench capacity dual --kv q5_0,q4_0   # c auto from RAM/GTT",
-        "```",
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            key = row.get("key")
+            if key:
+                cap_latest[key] = row
+cap_cells = len(cap_latest)
+
+
+def cap_cell_label(r):
+    if not r:
+        return "—"
+    if r.get("skipped"):
+        return "skip"
+    if not r.get("ok"):
+        return f"FAIL:{r.get('phase') or '?'}"
+    gtt = (r.get("metrics_peak") or {}).get("gtt_used_mb") or (r.get("mem_after") or {}).get("gtt_used_mb")
+    tps = (r.get("stream") or {}).get("tokens_per_sec")
+    parts = []
+    if gtt is not None:
+        parts.append(f"{int(gtt)} MiB")
+    if tps is not None:
+        parts.append(f"{tps} t/s")
+    return " · ".join(parts) if parts else "ok"
+
+
+def capacity_md_tables():
+    out = []
+    solo = [r for r in cap_latest.values() if r.get("mode") == "solo" and not r.get("skipped")]
+    if not solo and not any(r.get("mode") == "dual" for r in cap_latest.values()):
+        return out
+    for model in sorted({r["model"] for r in solo}):
+        sub = [r for r in solo if r["model"] == model]
+        kvs = sorted({r["kv"] for r in sub})
+        cs = sorted({int(r["c"]) for r in sub})
+        by = {(r["kv"], int(r["c"])): r for r in sub}
+        out += [f"### {model} (solo)", "", "| c \\ kv | " + " | ".join(kvs) + " |",
+                "| ---: | " + " | ".join(["---"] * len(kvs)) + " |"]
+        for c in cs:
+            cells = [cap_cell_label(by.get((kv, c))) for kv in kvs]
+            out.append(f"| {c} | " + " | ".join(cells) + " |")
+        out.append("")
+    dual = [r for r in cap_latest.values() if r.get("mode") == "dual"]
+    if dual:
+        out += ["### Dual", "", "| model | kv | c | status |", "| --- | --- | ---: | --- |"]
+        for r in sorted(dual, key=lambda x: (x.get("model") or "", x.get("kv") or "", int(x.get("c") or 0))):
+            out.append(
+                f"| {r.get('model')} | {r.get('kv')} | {r.get('c')} | {cap_cell_label(r)} |"
+            )
+        out.append("")
+    return out
+
+
+def capacity_html_card():
+    solo = [r for r in cap_latest.values() if r.get("mode") == "solo" and not r.get("skipped")]
+    dual = [r for r in cap_latest.values() if r.get("mode") == "dual"]
+    if not solo and not dual:
+        return (
+            '<div class="card" id="capacity"><h2>Capacity — KV×ctx</h2>'
+            '<p class="meta">No capacity runs yet — <code>./bench capacity kv-ctx</code> / matrix</p></div>'
+        )
+    parts = [
+        '<div class="card" id="capacity">',
+        '<h2>Capacity — KV×ctx <span class="meta">GTT peak · fill tok/s</span></h2>',
+        f'<p class="more"><a href="capacity/latest/compare.md">→ Details</a> · ledger cells: <strong>{cap_cells}</strong></p>',
+        '<p class="meta">Cell = GTT MiB · stream tok/s at that context (FAIL if OOM / stream error)</p>',
     ]
+    for model in sorted({r["model"] for r in solo}):
+        sub = [r for r in solo if r["model"] == model]
+        kvs = sorted({r["kv"] for r in sub})
+        cs = sorted({int(r["c"]) for r in sub})
+        by = {(r["kv"], int(r["c"])): r for r in sub}
+        parts.append(f"<h3>{esc(model)}</h3>")
+        parts.append('<div class="scroll"><table><thead><tr><th class="n">c \\ kv</th>')
+        for kv in kvs:
+            parts.append(f"<th class=\"n\">{esc(kv)}</th>")
+        parts.append("</tr></thead><tbody>")
+        for c in cs:
+            parts.append(f'<tr><td class="n">{c}</td>')
+            for kv in kvs:
+                lab = cap_cell_label(by.get((kv, c)))
+                cls = "fail" if lab.startswith("FAIL") else ("ok" if lab not in ("—", "skip") else "")
+                parts.append(f'<td class="n {cls}">{esc(lab)}</td>')
+            parts.append("</tr>")
+        parts.append("</tbody></table></div>")
+    if dual:
+        parts.append("<h3>Dual</h3><table><thead><tr><th>Model</th><th>kv</th><th class=\"n\">c</th><th>status</th></tr></thead><tbody>")
+        for r in sorted(dual, key=lambda x: (x.get("model") or "", x.get("kv") or "", int(x.get("c") or 0))):
+            parts.append(
+                f"<tr><td>{esc(r.get('model'))}</td><td>{esc(r.get('kv'))}</td>"
+                f'<td class="n">{esc(r.get("c"))}</td><td>{esc(cap_cell_label(r))}</td></tr>'
+            )
+        parts.append("</tbody></table>")
+    parts.append("</div>")
+    return "\n".join(parts)
+
+
+lines += ["", "## Capacity — KV×ctx / dual", ""]
+if cap_cells:
+    lines += [
+        f"Ledger cells: **{cap_cells}** · [compare.md]({rel('capacity/latest/compare.md')})",
+        "",
+        "Cell = GTT MiB · fill tok/s",
+        "",
+    ]
+    lines += capacity_md_tables()
 else:
     lines.append(
         "*No capacity runs yet — "
@@ -621,6 +721,10 @@ summary {{ cursor: pointer; color: #9aa0a6; font-weight: 600; }}
   gap: .5rem; margin: .75rem 0; font-size: .85rem; }}
 .legend span {{ background: #12141a; padding: .4rem .6rem; border-radius: 4px; display: block; }}
 .pending {{ color: #f0c674; }}
+.ok {{ color: #7ddea5; }}
+.fail {{ color: #f28b82; }}
+.scroll {{ overflow-x: auto; margin: .5rem 0 1.25rem; }}
+.scroll table {{ min-width: 520px; }}
 .btn {{ display: inline-block; margin: .35rem .5rem .35rem 0; padding: .55rem 1rem;
   background: #3d5a3d; color: #e8eaed; border: none; border-radius: 6px; cursor: pointer;
   font: inherit; text-decoration: none; }}
@@ -629,29 +733,19 @@ summary {{ cursor: pointer; color: #9aa0a6; font-weight: 600; }}
 .btn.secondary:hover {{ background: #354152; }}
 .cmd {{ background: #12141a; padding: .75rem 1rem; border-radius: 6px; font-family: ui-monospace, monospace;
   font-size: .85rem; margin: .5rem 0; overflow-x: auto; }}
+h3 {{ font-size: .95rem; margin: 1.25rem 0 .4rem; color: #c4c7cc; }}
 </style></head><body>
 
 <h1>Bench Dashboard</h1>
-<p class="meta">★ = recommended sweep value · Prefill/TG tok/s = under load / idle</p>
-<p class="more"><a href="planner.html"><strong>→ Recommendation planner</strong></a>
-  — host RAM/GTT picks 1 vs 2 stickys · capacity max c · download plan.json</p>
+<p class="meta">Measured benches · Prefill/TG tok/s = under load / idle · Capacity = GTT · fill tok/s</p>
+{{LOCAL_NAV}}
 
 {host_html_card(host)}
 
-<div class="card" id="apply">
-<h2>Apply settings</h2>
-<p class="meta"><code>models-lab.ini</code> (np/ub/b/c) · cont-batch = advisory in apply-plan</p>
-<div class="cmd" id="apply-cmd">./bench apply-ini --lab</div>
-<button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('apply-cmd').textContent)">Copy apply command</button>
-<button type="button" class="btn secondary" onclick="navigator.clipboard.writeText('./bench apply-ini --dry-run --lab')">Copy dry-run</button>
-<p class="more"><a href="scheduling/latest/apply-plan.json">→ apply-plan.json</a> · cont-batching global: <strong>{'on' if global_cb == '1' else 'off'}</strong></p>
-<table><thead><tr>
-<th>Model</th><th class="n">np</th><th class="n">ub</th><th class="n">b</th><th class="n">c</th><th>cont-batch</th>
-</tr></thead><tbody>{apply_table or '<tr><td colspan="6" class="meta">No plan yet — run <code>./bench apply-ini --dry-run --lab</code> first</td></tr>'}</tbody></table>
-</div>
+{capacity_html_card()}
 
 <div class="card">
-<h2>Scheduling — np / ub / b <span class="meta">low decode · fast prefill</span></h2>
+<h2>Scheduling — np / ub / b <span class="meta">sweep winners · under load</span></h2>
 <p class="more"><a href="scheduling/latest/compare.html">→ Details &amp; sweeps per model</a></p>
 <div class="legend">
   <span><strong>np ★</strong> parallel slots (--parallel)</span>
@@ -717,7 +811,24 @@ if status_table:
 </div>
 """
 
-page += f"""
+local_tools = f"""
+<div class="card" id="local-tools">
+<h2>Local only — recommendations / apply</h2>
+<p class="meta">Not published to GitHub Pages. Planner + INI apply stay on the bench host.</p>
+<p class="more"><a href="planner.html"><strong>→ Recommendation planner</strong></a>
+  — host RAM/GTT · capacity max c · download plan.json</p>
+<p class="meta"><code>models-*.ini</code> · cont-batch advisory</p>
+<div class="cmd" id="apply-cmd">./bench apply-ini --dry-run</div>
+<button type="button" class="btn" onclick="navigator.clipboard.writeText('./bench apply-ini --dry-run')">Copy dry-run</button>
+<button type="button" class="btn secondary" onclick="navigator.clipboard.writeText('./bench apply-ini')">Copy apply</button>
+<p class="more"><a href="scheduling/latest/apply-plan.json">→ apply-plan.json</a> · cont-batching global: <strong>{'on' if global_cb == '1' else 'off'}</strong></p>
+<table><thead><tr>
+<th>Model</th><th class="n">np</th><th class="n">ub</th><th class="n">b</th><th class="n">c</th><th>cont-batch</th>
+</tr></thead><tbody>{apply_table or '<tr><td colspan="6" class="meta">No plan yet — run <code>./bench apply-ini --dry-run</code> first</td></tr>'}</tbody></table>
+</div>
+"""
+
+footer = f"""
 <details>
 <summary>Run history ({len(thr_rows)} throughput · {len(sch_rows)} scheduling)</summary>
 <h2>Throughput runs</h2>
@@ -731,14 +842,41 @@ page += f"""
 <p class="meta">Rebuild: <code>./bench index</code></p>
 </body></html>"""
 
+# Local full dashboard (benches + capacity + local apply/planner)
+LOCAL_NAV = '<p class="more"><a href="#capacity">Capacity</a> · <a href="#local-tools">Local apply / planner</a></p>'
+page_local = page.replace("{LOCAL_NAV}", LOCAL_NAV) + local_tools + footer
+
+# GitHub Pages: measured benches only (no recommendations / apply / planner)
+LOCAL_NAV = ""
+page_pages = page.replace("{LOCAL_NAV}", LOCAL_NAV) + footer
+page_pages = page_pages.replace(
+    "<h1>Bench Dashboard</h1>",
+    "<h1>Bench Dashboard</h1>\n<p class=\"meta\">Public benchmark results only — recommendations stay local.</p>",
+    1,
+)
+
+pages_html = os.path.join(out_root, "pages-index.html")
 with open(index_html, "w", encoding="utf-8") as f:
-    f.write(page)
+    f.write(page_local)
+with open(pages_html, "w", encoding="utf-8") as f:
+    f.write(page_pages)
+
+# Refresh capacity compare.md with tok/s if ledger exists
+if cap_cells:
+    cap_md_out = os.path.join(cap_root, "latest", "compare.md")
+    os.makedirs(os.path.dirname(cap_md_out), exist_ok=True)
+    with open(cap_md_out, "w", encoding="utf-8") as f:
+        f.write("# Capacity ledger (latest per cell)\n\n")
+        f.write(f"Cells: {cap_cells}\n\nCell = GTT MiB · fill tok/s\n\n")
+        f.write("\n".join(capacity_md_tables()) + "\n")
 
 print(f"Wrote {index_md}")
-print(f"Wrote {index_html}")
+print(f"Wrote {index_html} (local: benches + apply/planner)")
+print(f"Wrote {pages_html} (GitHub Pages: benches only)")
 print(f"  scheduling models: {len(sch_recs)}")
 print(f"  throughput models: {len(thr_models)}")
+print(f"  capacity cells: {cap_cells}")
 PY
 
-# Interactive dual/solo recommendation planner
+# Interactive dual/solo recommendation planner (local only — not published)
 bash "$SCRIPT_DIR/build-planner.sh"

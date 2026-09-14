@@ -42,8 +42,9 @@ h3 { font-size: .95rem; margin: 1.25rem 0 .4rem; color: #c4c7cc; }
 </style></head><body>
 
 <h1>Bench Dashboard</h1>
+<p class="meta">Public benchmark results only — recommendations stay local.</p>
 <p class="meta">Measured benches · Prefill/TG tok/s = under load / idle · Capacity = GTT · fill tok/s</p>
-<p class="more"><a href="#capacity">Capacity</a> · <a href="#local-tools">Local apply / planner</a></p>
+
 
 <div class="card" id="hardware"><h2>Hardware <span class="meta"><a href="host.json">host.json</a></span></h2><p class="meta">AMD Strix Halo / unified memory: GTT is the GPU-usable UMA pool (not discrete VRAM). Compare benches only across similar GTT/RAM.</p><table><tbody><tr><th>Host</th><td>Gaming</td></tr><tr><th>OS</th><td>NixOS 26.05 (Yarara)</td></tr><tr><th>Kernel</th><td>7.1.5</td></tr><tr><th>CPU</th><td>Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz (16 threads)</td></tr><tr><th>RAM</th><td>31.2 GiB</td></tr><tr><th>GTT (UMA)</th><td>15.6 GiB</td></tr><tr><th>Visible VRAM</th><td>8176 MiB</td></tr><tr><th>GPU</th><td>03:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD/ATI] Navi 23 [Radeon RX 6600/6600 XT/6600M] (rev c7)</td></tr><tr><th>Backend</th><td>vulkan</td></tr><tr><th>Image</th><td>llama-cpp-vulkan-nix:latest (—)</td></tr><tr><th>llama.cpp</th><td>— @ —</td></tr><tr><th>Probed</th><td>2026-09-14T15:45:15Z</td></tr></tbody></table></div>
 
@@ -83,21 +84,6 @@ h3 { font-size: .95rem; margin: 1.25rem 0 .4rem; color: #c4c7cc; }
 <table><thead><tr>
 <th>Suite</th><th>Model</th><th class="n">pass@1</th><th class="n">pass@10</th><th>Stamp</th>
 </tr></thead><tbody><tr><td colspan="5" class="meta">No data yet — <code>./bench quality humaneval --model …</code></td></tr></tbody></table>
-</div>
-
-<div class="card" id="local-tools">
-<h2>Local only — recommendations / apply</h2>
-<p class="meta">Not published to GitHub Pages. Planner + INI apply stay on the bench host.</p>
-<p class="more"><a href="planner.html"><strong>→ Recommendation planner</strong></a>
-  — host RAM/GTT · capacity max c · download plan.json</p>
-<p class="meta"><code>models-*.ini</code> · cont-batch advisory</p>
-<div class="cmd" id="apply-cmd">./bench apply-ini --dry-run</div>
-<button type="button" class="btn" onclick="navigator.clipboard.writeText('./bench apply-ini --dry-run')">Copy dry-run</button>
-<button type="button" class="btn secondary" onclick="navigator.clipboard.writeText('./bench apply-ini')">Copy apply</button>
-<p class="more"><a href="scheduling/latest/apply-plan.json">→ apply-plan.json</a> · cont-batching global: <strong>on</strong></p>
-<table><thead><tr>
-<th>Model</th><th class="n">np</th><th class="n">ub</th><th class="n">b</th><th class="n">c</th><th>cont-batch</th>
-</tr></thead><tbody><tr><td colspan="6" class="meta">No plan yet — run <code>./bench apply-ini --dry-run</code> first</td></tr></tbody></table>
 </div>
 
 <details>

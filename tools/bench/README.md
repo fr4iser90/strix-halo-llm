@@ -92,14 +92,16 @@ Nice-to-haves: [`ROADMAP.md`](ROADMAP.md).
 After a matrix (or locally with existing `cells.jsonl` + sched summary):
 
 ```bash
-./bench index                 # builds planner.html
-# Browser: output/bench/planner.html  →  1 sticky / 2 stickys, download plan.json
+./bench index                 # local dashboard + pages-index + planner.html
+# Browser: output/bench/index.html       → benches + Capacity + local apply/planner
+#          output/bench/pages-index.html → Pages preview (benches only)
+#          output/bench/planner.html     → recommendations (local only)
 ./bench apply-ini --plan plan.json
 ./bench apply-ini --plan plan.json --dry-run
-./bench publish               # Pages including planner
+./bench publish               # docs/ = measured benches only (no planner / apply-plan)
 ```
 
-Pages = pick + snippet/plan; writing INIs is local-only via `apply-ini`.
+Pages = host + capacity + sched/throughput/quality. Recommendations stay local.
 
 ## Capacity
 

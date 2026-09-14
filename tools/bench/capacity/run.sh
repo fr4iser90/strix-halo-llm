@@ -147,9 +147,16 @@ if solo:
                     cells.append("—")
                 elif not r.get("ok"):
                     cells.append("FAIL")
-                else:
+# Enhance ledger compare with GTT + fill tok/s
+    else:
                     gtt = (r.get("metrics_peak") or {}).get("gtt_used_mb") or (r.get("mem_after") or {}).get("gtt_used_mb")
-                    cells.append(str(gtt) if gtt is not None else "?")
+                    tps = (r.get("stream") or {}).get("tokens_per_sec")
+                    parts = []
+                    if gtt is not None:
+                        parts.append(f"{int(gtt)} MiB")
+                    if tps is not None:
+                        parts.append(f"{tps} t/s")
+                    cells.append(" · ".join(parts) if parts else "ok")
             lines.append(f"| {c} | " + " | ".join(cells) + " |")
         lines.append("")
 dual = [r for r in rows if r.get("mode") == "dual"]
