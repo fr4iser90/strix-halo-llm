@@ -606,10 +606,16 @@ def write_public_pages(
 {overview_chart_script(thr_chart)}
 """
     overview = shell("LLM Bench — Overview", "overview", body, chart_js=True)
-    path = os.path.join(out_root, "pages-index.html")
+    # Default entry point = same as GitHub Pages (index.html)
+    path = os.path.join(out_root, "index.html")
     with open(path, "w", encoding="utf-8") as f:
         f.write(overview)
     written.append(path)
+    # Compat alias for older publish / bookmarks
+    alias = os.path.join(out_root, "pages-index.html")
+    with open(alias, "w", encoding="utf-8") as f:
+        f.write(overview)
+    written.append(alias)
 
     # --- Context ---
     power_opt = (

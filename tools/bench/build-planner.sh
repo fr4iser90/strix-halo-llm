@@ -314,7 +314,7 @@ button.copy, button.dl { background:#2a3444;color:var(--text);border:1px solid v
   (models top out near ~256k context — better a second container than one mega sticky).
   Tight hosts without dual capacity stay on <strong>1 sticky</strong>.
   Sched ★ + capacity max <code>c</code>. Pages = view/copy — apply on the host.
-  <a href="index.html">Dashboard</a> · <a href="capacity/latest/compare.md">Capacity</a> · <a href="scheduling/latest/compare.html">Sweeps</a></p>
+  <a href="index.html">Overview</a> · <a href="ops.html">Ops</a> · <a href="capacity/latest/compare.md">Capacity</a> · <a href="scheduling/latest/compare.html">Sweeps</a></p>
   <div class="banner" id="adviceBanner"></div>
 
   <div class="grid">

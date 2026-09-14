@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Build local index.html (operator) + public pages-index/context/quality/host.html
-# (GitHub Pages: overview + detail pages, no apply/planner).
+# Build index.html (= GitHub Pages overview) + context/quality/host + ops.html (operator).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1352,7 +1351,7 @@ details.panel .card {{ margin: .75rem 0; border: none; background: #12141a; }}
 
 <details class="panel" id="scheduling">
 <summary>Best server settings under load (operator)</summary>
-<p class="meta">Winning knobs from scheduling sweeps. Prefer <a href="pages-index.html">public overview</a> for sharing.</p>
+<p class="meta">Winning knobs from scheduling sweeps. Prefer <a href="index.html">overview</a> for sharing.</p>
 <p class="more"><a href="scheduling/latest/compare.html">→ Sweep details per model</a></p>
 <div class="legend">
   <span><strong>Slots</strong> — parallel requests the server keeps active</span>
@@ -1736,6 +1735,7 @@ footer = f"""
 # --- Local full dashboard (operator: benches + apply/planner) ---
 LOCAL_NAV = (
     '<nav class="toc" aria-label="On this page">'
+    '<a href="index.html"><strong>← Overview</strong></a>'
     '<a href="#verdict">At a glance</a>'
     '<a href="#charts">Speed</a>'
     '<a href="#max-ctx">Context</a>'
@@ -1745,16 +1745,15 @@ LOCAL_NAV = (
     '<a href="#capacity">Memory grid</a>'
     '<a href="#details-host">Host</a>'
     '<a href="#local-tools">Local tools</a>'
-    '<span class="meta"> · </span>'
-    '<a href="pages-index.html">Public overview →</a>'
     "</nav>"
 )
 page_local = page.replace("{LOCAL_NAV}", LOCAL_NAV) + local_tools + footer
 
-with open(index_html, "w", encoding="utf-8") as f:
+ops_html = os.path.join(out_root, "ops.html")
+with open(ops_html, "w", encoding="utf-8") as f:
     f.write(page_local)
 
-# --- Public site: overview + detail pages (GitHub Pages) ---
+# --- Public site (= default index.html, same as GitHub Pages) ---
 _lib = os.path.normpath(os.path.join(out_root, "..", "..", "tools", "bench", "lib"))
 if _lib not in sys.path:
     sys.path.insert(0, _lib)
@@ -1781,7 +1780,6 @@ pub_paths = write_public_pages(
     fmt_stamp=fmt_stamp,
     cap_has_power=cap_has_power,
 )
-pages_html = os.path.join(out_root, "pages-index.html")
 
 # Refresh capacity compare.md with tok/s if ledger exists
 if cap_cells:
@@ -1793,7 +1791,7 @@ if cap_cells:
         f.write("\n".join(capacity_md_tables()) + "\n")
 
 print(f"Wrote {index_md}")
-print(f"Wrote {index_html} (local: benches + apply/planner)")
+print(f"Wrote {ops_html} (operator: matrix / apply / full tables)")
 for p in pub_paths:
     print(f"Wrote {p}")
 print(f"  scheduling models: {len(sch_recs)}")

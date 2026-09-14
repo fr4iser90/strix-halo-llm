@@ -30,19 +30,14 @@ if [[ -x "$ROOT/tools/bench/probe-host.sh" ]]; then
   "$ROOT/tools/bench/probe-host.sh" || true
 fi
 
-# Rebuild index (writes index.html local + pages-index.html for Pages)
+# Rebuild index (overview + detail pages + ops.html)
 if [[ -x "$ROOT/tools/bench/build-index.sh" ]]; then
   "$ROOT/tools/bench/build-index.sh" || true
 fi
-# Planner stays local-only (not copied below)
+# Planner / ops stay local-only (not copied below)
 
 copy_if "$SRC/host.json" "$DST/host.json"
-# Prefer pages-index (overview); fall back to index.html
-if [[ -f "$SRC/pages-index.html" ]]; then
-  copy_if "$SRC/pages-index.html" "$DST/index.html"
-else
-  copy_if "$SRC/index.html" "$DST/index.html"
-fi
+copy_if "$SRC/index.html" "$DST/index.html"
 copy_if "$SRC/context.html" "$DST/context.html"
 copy_if "$SRC/quality.html" "$DST/quality.html"
 copy_if "$SRC/host.html" "$DST/host.html"
@@ -73,8 +68,8 @@ if [[ -d "$SRC/quality" ]]; then
   done
 fi
 
-# Remove stale recommendation artifacts from docs/ if previously published
-rm -f "$DST/planner.html" "$DST/scheduling/latest/apply-plan.json" 2>/dev/null || true
+# Remove stale recommendation / operator artifacts from docs/ if previously published
+rm -f "$DST/planner.html" "$DST/ops.html" "$DST/pages-index.html" "$DST/scheduling/latest/apply-plan.json" 2>/dev/null || true
 
 # Landing hint if index missing
 if [[ ! -f "$DST/index.html" ]]; then
