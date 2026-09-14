@@ -133,10 +133,10 @@ def extract_sweep_rows(man, summ, param):
         inner = entry.get("summary") or {}
         slot_a = inner.get("slot_a") or inner.get("decode") or {}
         slot_b = inner.get("slot_b") or inner.get("prefill") or {}
-        if param == "c":
-            if not slot_ok(slot_a):
-                continue
-        elif not slot_ok(slot_a):
+        # Accept rows with decode signal even if chunks flag is quirky
+        if param != "c" and not slot_ok(slot_a) and decode_ms(slot_a) is None:
+            continue
+        if param == "c" and not slot_ok(slot_a) and decode_ms(slot_a) is None:
             continue
         row = {
             "stamp": man.get("stamp", ""),
@@ -158,14 +158,22 @@ def extract_sweep_rows(man, summ, param):
 
 
 def pick_best_sweep(rows, param):
+    # Prefer rows with valid prefill TTFT; if none, fall back to any row with decode
+    # (interleave TTFT is often >5s under load — still produce np/ub/b ★).
     valid = [r for r in rows if r.get("valid")]
+    if not valid:
+        valid = [r for r in rows if r.get("decode_ms") is not None]
+    if not valid:
+        valid = list(rows)
     if not valid:
         return None, []
     def score(r):
         d = r.get("decode_ms") or 999
         t = r.get("prefill_ttft") or 999999
         p = -(r.get("prefill_tps") or 0)
-        return (d, t, p)
+        # Prefer TTFT-valid rows first
+        bad_ttft = 0 if r.get("valid") else 1
+        return (bad_ttft, d, t, p)
     ranked = sorted(valid, key=score)
     best = ranked[0][param]
     for r in ranked:

@@ -321,6 +321,9 @@ run_sched() {
   SCHED_BENCH_OWNED=0
   sched_bench_cleanup
   trap - RETURN
+  # Rebuild ★ recommendations for dashboard (np/ub/b)
+  log "sched compare → scheduling/latest + index"
+  "$SCHED" --compare || true
 }
 
 run_throughput() {
@@ -342,12 +345,46 @@ run_throughput() {
     b="${b// /}"
     [[ -n "$b" ]] && args+=("--$b")
   done
+  # Honor matrix --model filter (same list as capacity/sched/quality)
+  if [[ -n "${MATRIX_MODELS:-}" ]]; then
+    local pat
+    IFS=',' read -ra _mp <<< "$MATRIX_MODELS"
+    for pat in "${_mp[@]}"; do
+      pat="${pat// /}"
+      [[ -n "$pat" ]] && args+=(--models "$pat")
+    done
+  fi
   "$THROUGHPUT" "${args[@]}"
+}
+
+ensure_quality_humaneval() {
+  [[ "$QUAL_SUITE" == "humaneval" ]] || return 0
+  log "HumanEval preflight (venv + harness)…"
+  # Call plugin directly — quality/run.sh uses exec and would replace this matrix process
+  local he_run="$ROOT/tools/bench/quality/plugins/humaneval/run.sh"
+  [[ -f "$he_run" ]] || die "missing $he_run"
+  export PROJECT_ROOT="$ROOT"
+  if ! bash "$he_run" --setup; then
+    die "HumanEval setup failed — fix harness then re-run matrix (same command)"
+  fi
+  local vpy="$ROOT/output/bench/.venv-quality/bin/python3"
+  if [[ -x "$vpy" ]]; then
+    export BENCH_PYTHON="$vpy"
+    export BENCH_PYTHON_MODE="$vpy"
+  fi
+  export HUMAN_EVAL_EXECUTE=1
+  export PYTHONPATH="${ROOT}/tools/bench/quality/.vendor/human-eval${PYTHONPATH:+:$PYTHONPATH}"
+  if ! bench_python -c "import human_eval.data" 2>/dev/null; then
+    die "human_eval not importable after setup — check output/bench/.venv-quality"
+  fi
+  log "HumanEval ready (eval/pass@1 enabled)"
 }
 
 run_quality() {
   [[ "${SUITE_QUALITY_ENABLED:-0}" == "1" ]] || { log "quality disabled"; return 0; }
   suite_wanted quality || { log "skip suite quality"; return 0; }
+
+  ensure_quality_humaneval
 
   # shellcheck source=../quality/lib/server.sh
   source "$ROOT/tools/bench/quality/lib/server.sh"
@@ -357,28 +394,34 @@ run_quality() {
   quality_bench_prepare
   trap 'QUALITY_BENCH_OWNED=0; quality_bench_cleanup' RETURN
 
-  local models=() m qargs=()
+  local models=() m qargs=() failed=0
   mapfile -t models < <(models_from_bench_ini)
-  qargs=(--n "$QUAL_N" --no-bench)
+  qargs=(--n "$QUAL_N" --no-bench --eval)
   [[ "${QUAL_LIMIT:-0}" -gt 0 ]] && qargs+=(--limit "$QUAL_LIMIT")
   export QUALITY_BASE_URL="http://127.0.0.1:11601"
   export QUALITY_SKIP_BENCH=1
+  export HUMAN_EVAL_EXECUTE=1
   for m in "${models[@]}"; do
     [[ -n "$m" ]] || continue
     write_progress "quality" "$QUAL_SUITE / $m"
     log "=== quality $QUAL_SUITE $m (bench-a) ==="
     if ! quality_bench_load "$m"; then
-      log "quality load failed for $m (continue)"
+      log "quality load failed for $m"
+      failed=1
       continue
     fi
     # Plugin must not tear down bench between models (--no-bench + owned lifecycle)
-    QUALITY_MODEL="$m" QUALITY_SKIP_BENCH=1 \
-      "$QUALITY" "$QUAL_SUITE" --model "$m" --base-url "$QUALITY_BASE_URL" "${qargs[@]}" \
-      || log "quality failed for $m (continue)"
+    if ! QUALITY_MODEL="$m" QUALITY_SKIP_BENCH=1 HUMAN_EVAL_EXECUTE=1 \
+      "$QUALITY" "$QUAL_SUITE" --model "$m" --base-url "$QUALITY_BASE_URL" "${qargs[@]}"; then
+      log "quality FAILED for $m"
+      failed=1
+    fi
   done
   QUALITY_BENCH_OWNED=0
   quality_bench_cleanup
   trap - RETURN
+  "$QUALITY" compare || true
+  [[ "$failed" -eq 0 ]] || die "HumanEval/quality failed for one or more models — see log (not silent continue)"
 }
 
 print_plan() {
@@ -404,7 +447,7 @@ Profile: $PROFILE_PATH
   capacity:      enabled=$SUITE_CAPACITY_ENABLED kv=$CAP_KV c=$CAP_C dual=$dual_line
   sched:         enabled=$SUITE_SCHED_ENABLED scenarios=$SCHED_SCENARIOS
   throughput:    enabled=$SUITE_THROUGHPUT_ENABLED $THR_SCOPE $THR_BACKENDS
-  quality:       enabled=$SUITE_QUALITY_ENABLED $QUAL_SUITE n=$QUAL_N limit=$QUAL_LIMIT
+  quality:       enabled=$SUITE_QUALITY_ENABLED $QUAL_SUITE n=$QUAL_N limit=$QUAL_LIMIT (HumanEval auto-setup+eval)
 EOF
 }
 

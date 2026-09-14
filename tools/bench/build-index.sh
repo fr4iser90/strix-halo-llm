@@ -165,9 +165,19 @@ for run_dir in sorted(glob.glob(os.path.join(sch, "20*")), reverse=True):
         if os.path.isfile(os.path.join(scen_dir, "summary.json")):
             scenarios.append(name)
     has_auto = any(s.startswith("0") and "sweep" not in s for s in scenarios)
-    has_ub = "04_ub_sweep" in scenarios
-    has_np = "05_np_sweep" in scenarios
-    has_b = "06_b_sweep" in scenarios
+    # Sweeps count only when summary.json has non-empty runs[]
+    def _sweep_ok(name):
+        if name not in scenarios:
+            return False
+        sp = os.path.join(run_dir, name, "summary.json")
+        try:
+            with open(sp, encoding="utf-8") as f:
+                return bool((json.load(f).get("runs") or []))
+        except (OSError, json.JSONDecodeError):
+            return False
+    has_ub = _sweep_ok("04_ub_sweep")
+    has_np = _sweep_ok("05_np_sweep")
+    has_b = _sweep_ok("06_b_sweep")
     if has_auto and stamp >= model_status[model]["stamp_auto"]:
         model_status[model]["auto"] = True
         model_status[model]["stamp_auto"] = stamp

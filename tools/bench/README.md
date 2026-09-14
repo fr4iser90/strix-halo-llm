@@ -49,7 +49,7 @@ Profiles: `tools/bench/matrix/profiles/{default,full}.json` — edit freely.
 - Dual alone: `./bench capacity dual` (`CAPACITY_FORCE_DUAL=1` to override host gate)
 ### Model filter
 
-`--model` (comma list or repeatable) plus optional `--no-vl`. Match: exact section name **or** unique prefix/substring (non-VL preferred). Capacity ledger keeps skipping finished cells.
+`--model` (comma list or repeatable) plus optional `--no-vl`. Match: exact section name **or** unique prefix/substring (non-VL preferred). Capacity ledger keeps skipping finished cells. Throughput honors the same `--model` list.
 
 ```bash
 # 3-way text compare, full matrix:
@@ -66,6 +66,8 @@ Profiles: `tools/bench/matrix/profiles/{default,full}.json` — edit freely.
 ./bench capacity kv-ctx --model Tiel-Coder-35B,Cyber-Tiel,Qwen3.6-35B
 ./bench capacity dual   --model Tiel-Coder-35B,Cyber-Tiel,Qwen3.6-35B
 ```
+
+**HumanEval:** `full` matrix auto-runs `./bench quality humaneval --setup` (venv under `output/bench/.venv-quality`), enables pass@1 eval, and **fails the matrix** if HumanEval fails (no silent skip).
 
 **Wipe outputs?** Usually **no**. Skip + fingerprint fill gaps on resume. Only reset if you truly want a clean slate:
 

@@ -3,11 +3,35 @@
 #
 # Never uses TMPDIR/mktemp under /tmp/nix-shell-* (vanishes → overnight crash).
 # Heredoc scripts go to output/bench/.scratch/ or python3 stdin.
+#
+# Prefer output/bench/.venv-quality when present (HumanEval / pip packages).
 set -euo pipefail
+
+bench_repo_root() {
+  local root="${PROJECT_ROOT:-}"
+  if [[ -z "$root" ]]; then
+    root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+  fi
+  printf '%s\n' "$root"
+}
+
+bench_quality_venv_python() {
+  local py
+  py="$(bench_repo_root)/output/bench/.venv-quality/bin/python3"
+  if [[ -x "$py" ]]; then
+    printf '%s\n' "$py"
+    return 0
+  fi
+  return 1
+}
 
 bench_find_python() {
   if [[ -n "${BENCH_PYTHON:-}" ]]; then
     printf '%s\n' "$BENCH_PYTHON"
+    return 0
+  fi
+  if py="$(bench_quality_venv_python 2>/dev/null)"; then
+    printf '%s\n' "$py"
     return 0
   fi
   if command -v python3 >/dev/null 2>&1; then
@@ -27,11 +51,8 @@ bench_find_python() {
 
 # Stable scratch under the repo (survives SSH / nix-shell exit).
 bench_scratch_dir() {
-  local root="${PROJECT_ROOT:-}"
-  if [[ -z "$root" ]]; then
-    root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-  fi
-  local d="$root/output/bench/.scratch"
+  local d
+  d="$(bench_repo_root)/output/bench/.scratch"
   mkdir -p "$d"
   printf '%s\n' "$d"
 }

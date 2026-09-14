@@ -57,6 +57,7 @@ output/bench/capacity/progress.json
 output/bench/capacity/progress.plan.jsonl
 output/bench/matrix/progress.json
 output/bench/.scratch/
+output/bench/.venv-quality/
 
 # Keep capacity skip-ledger if you choose to track it (optional — currently covered by *.jsonl)
 # !output/bench/capacity/cells.jsonl

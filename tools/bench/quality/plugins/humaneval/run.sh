@@ -67,28 +67,101 @@ Quants: HumanEval uses the *weight* preset (section name / GGUF), not a KV
 sweep. KV (ctk/ctv) stays whatever is in models-bench.ini (usually q8_0).
 Capacity already sweeps KV×c separately.
 
-Install harness (once):
+Install harness (once — also auto-run by matrix):
   ./bench quality humaneval --setup
 
-Eval note: openai/human-eval comments out unsafe_execute until you opt in.
-See $VENDOR/human_eval/execution.py after --setup.
+Creates output/bench/.venv-quality and installs openai/human-eval there.
+Enables functional eval (unsafe_execute) so matrix can write pass@1.
 EOF
 }
 
-setup_harness() {
+# Repo-local venv so NixOS nix-shell python can still import human_eval.
+quality_venv_dir() {
+  printf '%s\n' "$ROOT/output/bench/.venv-quality"
+}
+
+quality_venv_python() {
+  printf '%s\n' "$(quality_venv_dir)/bin/python3"
+}
+
+enable_human_eval_execute() {
+  local exec_py="$VENDOR/human_eval/execution.py"
+  [[ -f "$exec_py" ]] || return 0
+  bench_python - "$exec_py" <<'PY'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+orig = text
+# Official gate: commented "exec(check_program, exec_globals)"
+text = re.sub(
+    r"(?m)^(\s*)#\s*(exec\(check_program,\s*exec_globals\))\s*$",
+    r"\1\2",
+    text,
+)
+text = re.sub(
+    r"(?m)^(\s*)#\s*(exec\(check_program\))\s*$",
+    r"\1\2",
+    text,
+)
+if text != orig:
+    path.write_text(text, encoding="utf-8")
+    print(f"→ enabled exec(check_program) in {path}")
+elif "exec(check_program" in text:
+    print(f"→ execution already enabled in {path}")
+else:
+    print(f"→ warning: could not find exec(check_program) gate in {path}", file=sys.stderr)
+PY
+}
+
+install_human_eval_into_venv() {
+  local venv py pip
+  venv="$(quality_venv_dir)"
+  py="$(quality_venv_python)"
+  mkdir -p "$(dirname "$venv")"
+  if [[ ! -x "$py" ]]; then
+    echo "→ Creating venv $venv"
+    if command -v python3 >/dev/null 2>&1; then
+      python3 -m venv "$venv"
+    elif command -v nix-shell >/dev/null 2>&1; then
+      env -u TMPDIR nix-shell -p python3 --run "python3 -m venv $(printf '%q' "$venv")"
+    else
+      echo "error: need python3 or nix-shell to create $venv" >&2
+      return 1
+    fi
+  fi
+  pip="$venv/bin/pip"
+  echo "→ pip install -e $VENDOR → $venv"
+  "$pip" install -U pip setuptools wheel >/dev/null
+  "$pip" install -e "$VENDOR"
+  export BENCH_PYTHON="$py"
+  export BENCH_PYTHON_MODE="$py"
+}
+
+ensure_human_eval_ready() {
   mkdir -p "$(dirname "$VENDOR")"
-  if [[ ! -d "$VENDOR/.git" ]]; then
+  if [[ ! -d "$VENDOR/.git" && ! -f "$VENDOR/setup.py" && ! -f "$VENDOR/pyproject.toml" ]]; then
     echo "→ Cloning openai/human-eval → $VENDOR"
     git clone --depth 1 https://github.com/openai/human-eval.git "$VENDOR"
-  else
-    echo "→ human-eval already at $VENDOR"
   fi
+  install_human_eval_into_venv
+  enable_human_eval_execute
+  # Prefer venv for subsequent bench_python calls in this process
+  export BENCH_PYTHON
+  BENCH_PYTHON="$(quality_venv_python)"
+  export BENCH_PYTHON_MODE="$BENCH_PYTHON"
+  export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
+  if ! bench_python -c "import human_eval.data" 2>/dev/null; then
+    echo "error: human_eval still not importable after --setup" >&2
+    return 1
+  fi
+  echo "→ human_eval OK via $BENCH_PYTHON"
+}
+
+setup_harness() {
+  ensure_human_eval_ready
   echo ""
-  echo "Install into the active Python (or nix-shell -p python3Packages.pip):"
-  echo "  pip install -e $(printf '%q' "$VENDOR")"
-  echo ""
-  echo "Before --eval: uncomment the call in human_eval/execution.py"
-  echo "  (official safety gate — reads the disclaimer first)."
+  echo "Harness ready. Matrix / HumanEval will use:"
+  echo "  BENCH_PYTHON=$(quality_venv_python)"
   echo "Docs: https://github.com/openai/human-eval"
 }
 
@@ -172,11 +245,23 @@ export QUALITY_TIMEOUT="$TIMEOUT"
 export QUALITY_RUN_DIR="$RUN_DIR"
 export HUMAN_EVAL_VENDOR="$VENDOR"
 
-if ! bench_python -c "import human_eval.data" 2>/dev/null; then
-  echo "error: human_eval not importable." >&2
-  echo "Run: ./bench quality humaneval --setup && pip install -e $VENDOR" >&2
-  exit 1
+# Prefer quality venv if present (matrix / NixOS)
+if [[ -z "${BENCH_PYTHON:-}" ]] && [[ -x "$(quality_venv_python)" ]]; then
+  export BENCH_PYTHON
+  BENCH_PYTHON="$(quality_venv_python)"
+  export BENCH_PYTHON_MODE="$BENCH_PYTHON"
 fi
+
+if ! bench_python -c "import human_eval.data" 2>/dev/null; then
+  echo "→ human_eval missing — running ensure_human_eval_ready…"
+  ensure_human_eval_ready || {
+    echo "error: human_eval not importable after auto-setup" >&2
+    exit 1
+  }
+fi
+
+# Matrix / HUMAN_EVAL_EXECUTE already set DO_EVAL; default-on when env says so
+[[ "${HUMAN_EVAL_EXECUTE:-0}" == "1" ]] && DO_EVAL=1
 
 bench_python "$PLUGIN_DIR/generate.py"
 

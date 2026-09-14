@@ -5,6 +5,7 @@ SCENARIO="04_ub_sweep"
 source "$SCHED_BENCH_ROOT/lib/common.sh"
 source "$SCHED_BENCH_ROOT/lib/ini_patch.sh"
 
+stamp_dir="$(run_dir)"
 sdir="$(scenario_dir "$SCENARIO")"
 mkdir -p "$sdir"
 
@@ -36,5 +37,8 @@ for ub in "${UB_VALUES[@]}"; do
   mv "$sub/03_interleave_np2" "$sub/run" 2>/dev/null || true
 done
 
+# Restore stamp run dir so report_run / manifest stay at top-level stamp
+export SCHED_RUN_DIR="$stamp_dir"
 merge_sweep_summary "$sdir" ub
-log "done $SCENARIO → $sdir/summary.json"
+[[ -f "$sdir/summary.json" ]] || die "ub_sweep produced no summary.json under $sdir"
+log "done $SCENARIO → $sdir/summary.json ($(bench_python -c "import json;print(len(json.load(open('$sdir/summary.json'))['runs']))" 2>/dev/null || echo '?') runs)"

@@ -203,8 +203,18 @@ def vram_max(path):
 
 sdir, param = sys.argv[1], sys.argv[2]
 merged = {"scenario": os.path.basename(sdir), "runs": []}
-for path in sorted(glob.glob(os.path.join(sdir, f"{param}_*", "run", "summary.json"))):
-    val = os.path.basename(os.path.dirname(os.path.dirname(path))).replace(f"{param}_", "")
+# Prefer …/{param}_*/run/summary.json; also accept …/{param}_*/summary.json
+paths = sorted(glob.glob(os.path.join(sdir, f"{param}_*", "run", "summary.json")))
+if not paths:
+    paths = sorted(glob.glob(os.path.join(sdir, f"{param}_*", "summary.json")))
+for path in paths:
+    # …/b_64/run/summary.json → b_64 ; …/b_64/summary.json → b_64
+    parent = os.path.basename(os.path.dirname(path))
+    if parent == "run":
+        label_dir = os.path.basename(os.path.dirname(os.path.dirname(path)))
+    else:
+        label_dir = parent
+    val = label_dir.replace(f"{param}_", "", 1)
     run_dir = os.path.dirname(path)
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
@@ -221,6 +231,8 @@ out = os.path.join(sdir, "summary.json")
 with open(out, "w", encoding="utf-8") as f:
     json.dump(merged, f, indent=2)
     f.write("\n")
+if not merged["runs"]:
+    print(f"warning: merge_sweep_summary found 0 runs under {sdir}", file=sys.stderr)
 PY
 }
 

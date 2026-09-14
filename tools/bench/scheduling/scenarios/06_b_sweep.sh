@@ -5,6 +5,7 @@ SCENARIO="06_b_sweep"
 source "$SCHED_BENCH_ROOT/lib/common.sh"
 source "$SCHED_BENCH_ROOT/lib/ini_patch.sh"
 
+stamp_dir="$(run_dir)"
 sdir="$(scenario_dir "$SCENARIO")"
 mkdir -p "$sdir"
 
@@ -38,5 +39,7 @@ for b in "${B_VALUES[@]}"; do
   mv "$sub/03_interleave_np2" "$sub/run" 2>/dev/null || true
 done
 
+export SCHED_RUN_DIR="$stamp_dir"
 merge_sweep_summary "$sdir" b
+[[ -f "$sdir/summary.json" ]] || die "b_sweep produced no summary.json under $sdir"
 log "done $SCENARIO → $sdir/summary.json"
