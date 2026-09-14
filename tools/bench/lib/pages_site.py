@@ -345,6 +345,30 @@ def fmt_dur(sec: Any) -> str:
     return f"{s / 3600:.1f} h"
 
 
+def dur_explain(row: dict) -> str:
+    """Plain-language tooltip: one run → all pass@k; time is not per-k."""
+    n = row.get("n_samples")
+    gen = row.get("generate_s")
+    wall = row.get("elapsed_s")
+    bits = [
+        "Wall time for this whole HumanEval run (generate all samples + score).",
+        "pass@1 and pass@10 are computed from the same samples — not separate timed stages.",
+    ]
+    if n is not None:
+        bits.append(f"This run used n={n} sample(s) per problem.")
+        try:
+            ni = int(n)
+            if ni >= 10:
+                bits.append("n≥10 is why pass@10 is filled and why it took longer than an n=1 run.")
+            elif ni == 1:
+                bits.append("n=1 → only pass@1; run pass@10 with --n 10 (about 10× generate time).")
+        except (TypeError, ValueError):
+            pass
+    if gen is not None and wall is not None and float(wall) > float(gen) + 5:
+        bits.append(f"Generate ≈ {fmt_dur(gen)}; total including eval ≈ {fmt_dur(wall)}.")
+    return " ".join(bits)
+
+
 def qual_pass_ks(row: dict) -> dict[str, Any]:
     """Normalize pass@k map from a quality latest row."""
     pks = dict(row.get("pass_ks") or {})
@@ -400,12 +424,13 @@ def qual_table_html(qual_rows: list, *, fmt_stamp) -> str:
             n_s = r.get("n_samples")
             n_label = esc(str(n_s)) if n_s is not None else "—"
             dur = fmt_dur(r.get("elapsed_s") if r.get("elapsed_s") is not None else r.get("generate_s"))
+            dur_tip = dur_explain(r)
             rows.append(
                 f"<tr><td>{esc(suite_label)}</td>"
                 f'<td title="{esc(full)}">{esc(display_name(full, 40))}</td>'
                 + "".join(cells)
                 + f'<td class="n meta">{n_label}</td>'
-                f'<td class="n meta">{esc(dur)}</td>'
+                f'<td class="n meta">{tip(dur, dur_tip)}</td>'
                 f'<td class="meta">{esc(fmt_stamp(r.get("stamp") or ""))}</td></tr>'
             )
     else:
@@ -425,7 +450,7 @@ def qual_table_html(qual_rows: list, *, fmt_stamp) -> str:
         "<th>Benchmark</th><th>Model</th>"
         + "".join(head_ks)
         + f'<th class="n">{tip("n", "Samples drawn per problem. pass@k needs n≥k.")}</th>'
-        + f'<th class="n">{tip("Duration", "Wall time for generate (+ eval) of this run.")}</th>'
+        + f'<th class="n">{tip("Duration", "Time for the whole run (all n samples + eval). Not a separate timer per pass@k — those scores come from the same run.")}</th>'
         + "<th>Measured</th></tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
@@ -741,7 +766,8 @@ def write_public_pages(
 {thr_table_html(thr_models)}
 <div class="card" id="quality-preview">
 <h2>Code correctness</h2>
-<p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a></p>
+<p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a>
+· Duration = whole run (see n); pass@1/@10 share the same samples when n≥10.</p>
 {qual_table_html(qual_rows, fmt_stamp=fmt_stamp)}
 </div>
 <p class="links-row">
@@ -817,9 +843,9 @@ def write_public_pages(
 {host_one_liner(host)}
 <div class="card">
 <h2>HumanEval</h2>
-<p class="meta"><strong>pass@k</strong> = share of problems solved within k samples.
-Columns appear for every k present in your runs (e.g. pass@10 needs <code>--n 10</code>, pass@100 needs <code>--n 100</code>).
-Duration is wall time for that run. Higher % is better; only the best pass@1 row is highlighted.</p>
+<p class="meta"><strong>pass@k</strong> = share of problems solved within k samples (from <em>one</em> run with <code>n≥k</code>).
+<strong>Duration</strong> is wall time for that whole run — not “time for pass@1” vs “time for pass@10”.
+Hover Duration for details. Higher % is better; best pass@1 is highlighted.</p>
 {qual_table_html(qual_rows, fmt_stamp=fmt_stamp)}
 <p class="more"><a href="quality/latest/compare.md">→ Per-run details</a></p>
 </div>
