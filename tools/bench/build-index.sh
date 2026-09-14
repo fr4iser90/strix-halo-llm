@@ -53,6 +53,37 @@ def fmt_num(x, digits=1):
     return str(x)
 
 
+def tip(label, explanation):
+    """Accessible hover/focus tooltip for dashboard terms."""
+    return (
+        f'<span class="tip" tabindex="0">{esc(label)}'
+        f'<span class="tip-text" role="tooltip">{esc(explanation)}</span></span>'
+    )
+
+
+def fmt_pct(x, digits=1):
+    """Format 0–1 float as percent; pass through strings."""
+    if x is None or x == "" or x == "—":
+        return "—"
+    if isinstance(x, (int, float)):
+        return f"{100.0 * float(x):.{digits}f}%"
+    try:
+        return f"{100.0 * float(x):.{digits}f}%"
+    except (TypeError, ValueError):
+        return str(x)
+
+
+def parse_float(x):
+    if x is None or x == "" or x == "—":
+        return None
+    if isinstance(x, (int, float)):
+        return float(x)
+    try:
+        return float(str(x).replace(",", "").replace("×", "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def rel(*parts):
     return "/".join(parts)
 
@@ -314,11 +345,11 @@ def host_html_card(h):
         row("CPU", f"{h.get('cpu') or '—'} ({h.get('nproc') or '?'} threads)"),
         row("RAM", ram),
         row("Swap", f"{h.get('swap_gib') or '—'} GiB"),
-        row("GTT (UMA)", gtt),
+        row("Shared GPU memory (GTT)", gtt),
         row("Visible VRAM", f"{h.get('vram_total_mib') or '—'} MiB"),
         row("GPU", h.get("gpu") or "—"),
-        row("Backend", h.get("backend_default") or "—"),
-        row("Image", f"{h.get('docker_image') or '—'} ({h.get('docker_image_id_short') or '—'})"),
+        row("Inference backend", h.get("backend_default") or "—"),
+        row("Container image", f"{h.get('docker_image') or '—'} ({h.get('docker_image_id_short') or '—'})"),
         row("llama.cpp", f"{pin.get('ref') or '—'} @ {commit_s}"),
         row("Probed", h.get("collected_at") or "—"),
     ]
@@ -333,8 +364,8 @@ def host_html_card(h):
             rows.insert(-1, row("Power / temp", " · ".join(bits)))
     note = f'<p class="meta">{esc(h.get("notes") or "")}</p>' if h.get("notes") else ""
     return (
-        '<div class="card" id="hardware"><h2>Hardware <span class="meta">'
-        '<a href="host.json">host.json</a></span></h2>'
+        '<div class="card" id="hardware"><h2>Host machine '
+        f'<span class="meta">{tip("Why this matters", "Same model numbers only compare fairly on the same machine, driver, and llama.cpp build.")}</span></h2>'
         f"{note}"
         '<table><tbody>' + "".join(rows) + "</tbody></table></div>"
     )
@@ -597,22 +628,23 @@ def capacity_html_card():
     dual = [r for r in cap_latest.values() if r.get("mode") == "dual"]
     if not solo and not dual:
         return (
-            '<div class="card" id="capacity"><h2>Capacity — KV×ctx</h2>'
+            '<div class="card" id="capacity"><h2>Context &amp; memory grid</h2>'
             '<p class="meta">No capacity runs yet.</p></div>'
         )
     parts = [
         '<div class="card" id="capacity">',
-        '<h2>Capacity — KV×ctx <span class="meta">GTT · Prefill'
-        + (" · Watts" if cap_has_power else "")
-        + "</span></h2>",
-        f'<p class="more"><a href="capacity/latest/compare.md">→ Details</a> · ledger cells: <strong>{cap_cells}</strong></p>',
+        "<h2>Context &amp; memory grid</h2>",
+        "<p class=\"meta\">Rows = context length (tokens). Columns = "
+        f"{tip('KV cache quant', 'Quantization of the attention KV cache. Affects memory and how far context can grow.')}. "
+        "Cells show memory use and prompt-processing cost. Toggle metrics below.</p>",
+        f'<p class=\"more\"><a href="capacity/latest/compare.md">→ Full ledger</a> · measured cells: <strong>{cap_cells}</strong></p>',
         '<div class="metric-tabs" id="cap-metric-tabs">'
         '<button type="button" class="btn secondary active" data-metric="all">All</button>'
-        '<button type="button" class="btn secondary" data-metric="gtt">GTT only</button>'
-        '<button type="button" class="btn secondary" data-metric="prefill_s">Prefill time</button>'
-        '<button type="button" class="btn secondary" data-metric="prefill_tok_s">Prefill tok/s</button>'
+        '<button type="button" class="btn secondary" data-metric="gtt" title="Shared GPU memory (GTT) at this context">Memory</button>'
+        '<button type="button" class="btn secondary" data-metric="prefill_s" title="Seconds to process the prompt">Prompt time</button>'
+        '<button type="button" class="btn secondary" data-metric="prefill_tok_s" title="Tokens/s while reading the prompt">Prompt speed</button>'
         + (
-            '<button type="button" class="btn secondary" data-metric="power">Watts</button>'
+            '<button type="button" class="btn secondary" data-metric="power" title="Average GPU watts during the probe">Power</button>'
             if cap_has_power
             else ""
         )
@@ -624,7 +656,7 @@ def capacity_html_card():
         cs = sorted({int(r["c"]) for r in sub})
         by = {(r["kv"], int(r["c"])): r for r in sub}
         parts.append(f"<h3>{esc(model)}</h3>")
-        parts.append('<div class="scroll"><table class="cap-grid"><thead><tr><th class="n">c \\ kv</th>')
+        parts.append('<div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \\ KV</th>')
         for kv in kvs:
             parts.append(f"<th class=\"n\">{esc(kv)}</th>")
         parts.append("</tr></thead><tbody>")
@@ -656,21 +688,23 @@ def capacity_html_card():
     if dual:
         if cap_has_power:
             parts.append(
-                "<h3>Dual (2× same model)</h3>"
-                '<p class="meta">Peak GTT + MemAvailable after fill.</p>'
+                "<h3>Two instances (same model)</h3>"
+                '<p class="meta">Can two copies of the model share the machine at this context? '
+                "Peak memory and remaining free RAM after both are loaded.</p>"
                 "<table><thead><tr>"
-                "<th>Model</th><th>kv</th><th class=\"n\">c</th><th>ok</th>"
-                "<th class=\"n\">GTT peak</th><th class=\"n\">Mem avail</th>"
-                "<th class=\"n\">W avg</th><th class=\"n\">°C peak</th><th>phase</th>"
+                "<th>Model</th><th>KV</th><th class=\"n\">Context</th><th>Fits</th>"
+                "<th class=\"n\">Memory peak</th><th class=\"n\">RAM free</th>"
+                "<th class=\"n\">W avg</th><th class=\"n\">°C peak</th><th>Phase</th>"
                 "</tr></thead><tbody>"
             )
         else:
             parts.append(
-                "<h3>Dual (2× same model)</h3>"
-                '<p class="meta">Peak GTT + MemAvailable after fill.</p>'
+                "<h3>Two instances (same model)</h3>"
+                '<p class="meta">Can two copies of the model share the machine at this context? '
+                "Peak memory and remaining free RAM after both are loaded.</p>"
                 "<table><thead><tr>"
-                "<th>Model</th><th>kv</th><th class=\"n\">c</th><th>ok</th>"
-                "<th class=\"n\">GTT peak</th><th class=\"n\">Mem avail</th><th>phase</th>"
+                "<th>Model</th><th>KV</th><th class=\"n\">Context</th><th>Fits</th>"
+                "<th class=\"n\">Memory peak</th><th class=\"n\">RAM free</th><th>Phase</th>"
                 "</tr></thead><tbody>"
             )
         for r in sorted(dual, key=lambda x: (x.get("model") or "", x.get("kv") or "", int(x.get("c") or 0))):
@@ -759,15 +793,19 @@ def max_ok_context_html():
         row += "</tr>"
         rows.append(row)
     head = (
-        "<th>Model</th><th>kv</th><th class=\"n\">max c ★</th>"
-        "<th class=\"n\">GTT @ max</th><th class=\"n\">Prefill s</th><th class=\"n\">Prefill tok/s</th>"
+        f"<th>Model</th><th>{tip('KV cache', 'How the attention cache is quantized. Lower bits = less memory, often more context, sometimes slower or less accurate.')}</th>"
+        f"<th class=\"n\">{tip('Max context', 'Largest context length (tokens) that loaded and ran successfully for this model × KV.')}</th>"
+        f"<th class=\"n\">{tip('Memory (GTT)', 'GPU/system shared memory used at that max context (UMA / GTT on AMD).')}</th>"
+        f"<th class=\"n\">{tip('Prompt time', 'Seconds to process a full prompt at that context (prefill). Lower is better.')}</th>"
+        f"<th class=\"n\">{tip('Prompt speed', 'Tokens per second while reading the prompt (prefill). Higher is better.')}</th>"
     )
     if cap_has_power:
-        head += "<th class=\"n\">W avg</th>"
+        head += f"<th class=\"n\">{tip('GPU power', 'Average GPU watts during the capacity probe (when power sampling is available).')}</th>"
     return (
         '<div class="card" id="max-ctx">'
-        '<h2>Max safe context <span class="meta">largest ok c per model × KV</span></h2>'
-        '<p class="meta">Largest context that fit — Prefill time at that point.</p>'
+        "<h2>Longest context that fits</h2>"
+        '<p class="meta">Per model and KV cache setting: largest context that loaded successfully, '
+        "with memory use and prompt-processing cost at that point.</p>"
         "<table><thead><tr>"
         + head
         + "</tr></thead><tbody>"
@@ -806,33 +844,33 @@ def fingerprint_html(h):
 
     if not fps and not cap_cells:
         return (
-            '<div class="card" id="fingerprint"><h2>Fingerprint</h2>'
-            '<p class="meta">No capacity fingerprint yet.</p></div>'
+            '<div class="card" id="fingerprint"><h2>Build fingerprint</h2>'
+            '<p class="meta">No capacity fingerprints yet.</p></div>'
         )
 
     body = [
         '<div class="card" id="fingerprint">',
-        '<h2>Fingerprint <span class="meta">reproducibility</span></h2>',
-        '<p class="meta">Results are comparable only when server/image match.</p>',
+        "<h2>Build fingerprint</h2>",
+        f'<p class="meta">{tip("Comparability", "Speed and context numbers only compare fairly when the container image and llama.cpp build match. Stale cells may come from an older image.")}</p>',
         "<table><tbody>",
         f"<tr><th>Current image</th><td><code>{esc(cur_img_short)}</code> · {esc(h.get('docker_image') or '—')}</td></tr>",
         f"<tr><th>llama.cpp</th><td>{esc(pin.get('ref') or '—')} @ <code>{esc(cur_commit)}</code></td></tr>",
-        f"<tr><th>Ledger cells</th><td>{cap_cells}"
-        + (f" · match {fresh}" if fresh else "")
-        + (f" · stale {stale}" if stale else "")
+        f"<tr><th>Measured cells</th><td>{cap_cells}"
+        + (f" · same build {fresh}" if fresh else "")
+        + (f" · older build {stale}" if stale else "")
         + "</td></tr>",
         "</tbody></table>",
-        "<h3>Seen in ledger</h3>",
-        "<table><thead><tr><th>server_version</th><th>image_id</th><th class=\"n\">cells</th><th>vs host</th></tr></thead><tbody>",
+        "<h3>Seen in results</h3>",
+        "<table><thead><tr><th>Server version</th><th>Image</th><th class=\"n\">Cells</th><th>vs current</th></tr></thead><tbody>",
     ]
     for (ver, img), n in sorted(fps.items(), key=lambda x: -x[1]):
         img_s = img if len(img) <= 20 else img[:19] + "…"
         match = "—"
         if img not in ("?", "") and cur_img_short not in ("—", ""):
             if cur_img_short in img or img[:12] == cur_img_short or (cur_img and cur_img in img):
-                match = '<span class="ok">match</span>'
+                match = '<span class="ok">same build</span>'
             else:
-                match = '<span class="fail">stale?</span>'
+                match = '<span class="fail">older build?</span>'
         body.append(
             f"<tr><td><code>{esc(ver[:48])}</code></td>"
             f"<td><code>{esc(img_s)}</code></td>"
@@ -966,6 +1004,150 @@ lines += ["", "</details>", ""]
 with open(index_md, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))
 
+
+def short_name(name, n=36):
+    s = str(name or "")
+    return s if len(s) <= n else s[: n - 1] + "…"
+
+
+def verdict_html():
+    """At-a-glance strip for LLM practitioners (not operators)."""
+    cards = []
+
+    # Code quality (HumanEval)
+    best_q = None
+    for r in qual_rows or []:
+        p1 = parse_float(r.get("pass_at_1"))
+        if p1 is None:
+            continue
+        if best_q is None or p1 > best_q[0]:
+            best_q = (p1, r.get("model") or "—", r.get("suite") or "HumanEval")
+    if best_q:
+        cards.append(
+            '<div class="verdict-card">'
+            f'<div class="verdict-label">{tip("Code quality", "HumanEval: share of Python coding problems solved correctly on the first try. Measures code correctness, not chat style or speed.")}</div>'
+            f'<div class="verdict-value">{fmt_pct(best_q[0])}</div>'
+            f'<div class="verdict-sub">{esc(short_name(best_q[1]))}</div>'
+            "</div>"
+        )
+    else:
+        cards.append(
+            '<div class="verdict-card muted">'
+            '<div class="verdict-label">Code quality</div>'
+            '<div class="verdict-value">—</div>'
+            '<div class="verdict-sub">No HumanEval yet</div>'
+            "</div>"
+        )
+
+    # Generation speed (TG)
+    best_tg = None
+    for m in thr_models or []:
+        tg = parse_float(m.get("tg"))
+        if tg is None:
+            continue
+        if best_tg is None or tg > best_tg[0]:
+            best_tg = (tg, m.get("model") or "—")
+    if best_tg:
+        cards.append(
+            '<div class="verdict-card">'
+            f'<div class="verdict-label">{tip("Generation speed", "Tokens per second while writing the reply (TG / decode), model alone. Higher = snappier chat.")}</div>'
+            f'<div class="verdict-value">{fmt_num(best_tg[0])} <span class="unit">tok/s</span></div>'
+            f'<div class="verdict-sub">{esc(short_name(best_tg[1]))}</div>'
+            "</div>"
+        )
+    else:
+        cards.append(
+            '<div class="verdict-card muted">'
+            '<div class="verdict-label">Generation speed</div>'
+            '<div class="verdict-value">—</div>'
+            '<div class="verdict-sub">No throughput yet</div>'
+            "</div>"
+        )
+
+    # Prompt speed (PP)
+    best_pp = None
+    for m in thr_models or []:
+        pp = parse_float(m.get("pp"))
+        if pp is None:
+            continue
+        if best_pp is None or pp > best_pp[0]:
+            best_pp = (pp, m.get("model") or "—")
+    if best_pp:
+        cards.append(
+            '<div class="verdict-card">'
+            f'<div class="verdict-label">{tip("Prompt speed", "Tokens per second while reading the prompt (PP / prefill), model alone. Higher = faster time-to-first-token on long prompts.")}</div>'
+            f'<div class="verdict-value">{fmt_num(best_pp[0])} <span class="unit">tok/s</span></div>'
+            f'<div class="verdict-sub">{esc(short_name(best_pp[1]))}</div>'
+            "</div>"
+        )
+    else:
+        cards.append(
+            '<div class="verdict-card muted">'
+            '<div class="verdict-label">Prompt speed</div>'
+            '<div class="verdict-value">—</div>'
+            '<div class="verdict-sub">No throughput yet</div>'
+            "</div>"
+        )
+
+    # Longest context
+    max_c = None
+    for r in (cap_latest or {}).values():
+        if r.get("mode") != "solo" or r.get("skipped") or not r.get("ok"):
+            continue
+        c = int(r.get("c") or 0)
+        if max_c is None or c > max_c[0]:
+            max_c = (c, r.get("model") or "—", r.get("kv") or "—")
+    if max_c:
+        cards.append(
+            '<div class="verdict-card">'
+            f'<div class="verdict-label">{tip("Longest context", "Largest context length (tokens) that loaded and ran successfully in capacity tests.")}</div>'
+            f'<div class="verdict-value">{esc(f"{max_c[0]:,}")}</div>'
+            f'<div class="verdict-sub">{esc(short_name(max_c[1]))} · KV {esc(max_c[2])}</div>'
+            "</div>"
+        )
+    else:
+        cards.append(
+            '<div class="verdict-card muted">'
+            '<div class="verdict-label">Longest context</div>'
+            '<div class="verdict-value">—</div>'
+            '<div class="verdict-sub">No capacity yet</div>'
+            "</div>"
+        )
+
+    # Responsiveness under load (lowest TTFT)
+    best_ttft = None
+    for r in sch_recs or []:
+        ttft = parse_float(r.get("prefill_ttft"))
+        if ttft is None:
+            continue
+        if best_ttft is None or ttft < best_ttft[0]:
+            best_ttft = (ttft, r.get("model") or "—")
+    if best_ttft:
+        cards.append(
+            '<div class="verdict-card">'
+            f'<div class="verdict-label">{tip("First token under load", "Time to first token (TTFT) with concurrent users. Lower = feels more responsive when the server is busy.")}</div>'
+            f'<div class="verdict-value">{fmt_num(best_ttft[0], 0)} <span class="unit">ms</span></div>'
+            f'<div class="verdict-sub">{esc(short_name(best_ttft[1]))}</div>'
+            "</div>"
+        )
+    else:
+        cards.append(
+            '<div class="verdict-card muted">'
+            '<div class="verdict-label">First token under load</div>'
+            '<div class="verdict-value">—</div>'
+            '<div class="verdict-sub">No scheduling yet</div>'
+            "</div>"
+        )
+
+    return (
+        '<section class="verdict" id="verdict" aria-label="At a glance">'
+        "<h2>At a glance</h2>"
+        '<p class="meta">Best measured numbers on this host — hover labels for what each means.</p>'
+        f'<div class="verdict-grid">{"".join(cards)}</div>'
+        "</section>"
+    )
+
+
 # --- HTML ---
 sch_table = ""
 if sch_recs:
@@ -982,22 +1164,34 @@ if sch_recs:
         mtp_cls = "best" if mtp not in ("—", "off", "") else ""
         sch_table += (
             f"<tr><td>{esc(r['model'])}</td>"
-            f'<td class="n best">{esc(r.get("best_np", "—"))}</td>'
-            f'<td class="n best">{esc(r.get("best_ub", "—"))}</td>'
-            f'<td class="n {b_cls}" title="default until batch sweep finishes">{esc(b_disp)}</td>'
-            f'<td class="n best">{esc(r.get("best_c", "—"))}</td>'
-            f'<td class="n {mtp_cls}">{esc(mtp)}</td>'
-            f'<td>{esc(cb)}</td>'
+            f'<td class="n best" title="Parallel request slots">{esc(r.get("best_np", "—"))}</td>'
+            f'<td class="n best" title="Micro-batch / prompt chunk size">{esc(r.get("best_ub", "—"))}</td>'
+            f'<td class="n {b_cls}" title="Max batch size († = default until sweep finishes)">{esc(b_disp)}</td>'
+            f'<td class="n best" title="Context length used in the winning sweep">{esc(r.get("best_c", "—"))}</td>'
+            f'<td class="n {mtp_cls}" title="Speculative decoding draft depth, or off">{esc(mtp)}</td>'
+            f"<td>{esc(cb)}</td>"
             f'<td class="n">{fmt_num(r.get("prefill_tps"))}</td>'
             f'<td class="n">{fmt_num(r.get("prefill_ttft"))}</td>'
             f'<td class="n">{fmt_num(r.get("decode_tps"))}</td>'
             f'<td class="n">{fmt_num(r.get("decode_ms"))}</td>'
             f'<td class="n">{fmt_num(r.get("tg_idle"))}</td>'
-            f'<td class="n {gcls}">{gain}</td></tr>'
+            f'<td class="n {gcls}">{esc(gain)}</td></tr>'
         )
 else:
-    sch_table = '<tr><td colspan="13" class="meta">No scheduling data yet.</td></tr>'
+    sch_table = (
+        '<tr><td colspan="13" class="meta">No scheduling sweeps yet.</td></tr>'
+    )
 
+thr_table = ""
+if thr_models:
+    for m in thr_models:
+        thr_table += (
+            f"<tr><td>{esc(m['model'])}</td>"
+            f'<td class="n">{esc(m.get("pp") or "—")}</td>'
+            f'<td class="n">{esc(m.get("tg") or "—")}</td></tr>'
+        )
+else:
+    thr_table = '<tr><td colspan="3" class="meta">No throughput runs yet.</td></tr>'
 apply_plan_path = os.path.join(sch, "latest", "apply-plan.json")
 apply_table = ""
 global_cb = "1"
@@ -1015,17 +1209,6 @@ if os.path.isfile(apply_plan_path):
         )
     if apply_data.get("global_cont_batching") is not None:
         global_cb = "1" if apply_data["global_cont_batching"] else "0"
-
-thr_table = ""
-if thr_models:
-    for m in thr_models:
-        thr_table += (
-            f"<tr><td>{esc(m['model'])}</td>"
-            f'<td class="n pos">{esc(m["pp"])}</td>'
-            f'<td class="n">{esc(m["tg"])}</td></tr>'
-        )
-else:
-    thr_table = '<tr><td colspan="3" class="meta">No throughput data yet.</td></tr>'
 
 status_table = ""
 for r in status_rows:
@@ -1056,33 +1239,68 @@ for r in sch_rows:
         f'<td><a href="{esc(r["dir"])}/">{esc(r["stamp"])}</a></td></tr>'
     )
 
+
 page = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Bench Dashboard</title>
+<title>LLM Bench — Results</title>
 <style>
 :root {{ color-scheme: dark; }}
-body {{ font: 15px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 1100px;
-  background: #12141a; color: #e8eaed; }}
-h1 {{ font-size: 1.4rem; margin-bottom: .2rem; }}
-h2 {{ font-size: 1.05rem; margin: 2rem 0 .6rem; color: #c4c7cc; }}
+body {{ font: 15px/1.55 "Segoe UI", system-ui, sans-serif; margin: 0 auto; padding: 1.75rem 1.5rem 3rem;
+  max-width: 1120px; background: #0f1115; color: #e8eaed; }}
+h1 {{ font-size: 1.55rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 .35rem; }}
+h2 {{ font-size: 1.05rem; margin: 0 0 .55rem; color: #e8eaed; font-weight: 600; }}
+h3 {{ font-size: .95rem; margin: 1.25rem 0 .4rem; color: #c4c7cc; }}
 .meta {{ color: #9aa0a6; font-size: .9rem; }}
+.lede {{ color: #b8bdc5; font-size: .95rem; max-width: 42rem; margin: 0 0 1.25rem; }}
 a {{ color: #8ab4f8; }}
 .more {{ font-size: .85rem; margin: .25rem 0 1rem; }}
+nav.toc {{ display: flex; flex-wrap: wrap; gap: .35rem .85rem; margin: 0 0 1.5rem;
+  font-size: .85rem; color: #9aa0a6; }}
+nav.toc a {{ color: #9aa0a6; text-decoration: none; border-bottom: 1px solid transparent; }}
+nav.toc a:hover {{ color: #e8eaed; border-bottom-color: #5a6270; }}
 table {{ border-collapse: collapse; width: 100%; margin: .5rem 0 1rem; }}
 th, td {{ padding: .45rem .65rem; border-bottom: 1px solid #2a2e37; }}
-th {{ text-align: left; color: #9aa0a6; font-weight: 600; }}
+th {{ text-align: left; color: #9aa0a6; font-weight: 600; font-size: .82rem; }}
 td.n, th.n {{ text-align: right; font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, monospace; }}
+  font-family: ui-monospace, "Cascadia Mono", monospace; }}
 .best {{ color: #7ddea5; font-weight: 600; }}
 .pos {{ color: #7ddea5; }}
 tr.done td {{ opacity: .85; }}
-.card {{ background: #1a1d24; border-radius: 8px; padding: 1rem 1.25rem; margin: 1rem 0; }}
+.card {{ background: #171a21; border: 1px solid #252a35; border-radius: 10px;
+  padding: 1.1rem 1.3rem; margin: 1.15rem 0; }}
 .card h2 {{ margin-top: 0; }}
-details {{ margin-top: 2.5rem; }}
-summary {{ cursor: pointer; color: #9aa0a6; font-weight: 600; }}
-.legend {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+.verdict {{ margin: 0 0 1.5rem; }}
+.verdict > h2 {{ font-size: 1.05rem; color: #c4c7cc; }}
+.verdict-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: .75rem; margin-top: .85rem; }}
+.verdict-card {{ background: #171a21; border: 1px solid #252a35; border-radius: 10px;
+  padding: .9rem 1rem; min-height: 5.5rem; }}
+.verdict-card.muted {{ opacity: .72; }}
+.verdict-label {{ font-size: .78rem; color: #9aa0a6; margin-bottom: .35rem; }}
+.verdict-value {{ font-size: 1.45rem; font-weight: 650; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; }}
+.verdict-value .unit {{ font-size: .75rem; font-weight: 500; color: #9aa0a6; }}
+.verdict-sub {{ font-size: .78rem; color: #9aa0a6; margin-top: .35rem; word-break: break-word; }}
+.tip {{ position: relative; border-bottom: 1px dotted #6b7280; cursor: help; }}
+.tip .tip-text {{
+  visibility: hidden; opacity: 0; position: absolute; z-index: 40;
+  left: 0; bottom: calc(100% + 8px); width: min(280px, 70vw);
+  padding: .55rem .7rem; border-radius: 6px; background: #2a3140; color: #e8eaed;
+  font-size: .8rem; font-weight: 400; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  transition: opacity .12s ease, visibility .12s;
+  pointer-events: none;
+}}
+.tip:hover .tip-text, .tip:focus .tip-text, .tip:focus-within .tip-text {{
+  visibility: visible; opacity: 1;
+}}
+details {{ margin-top: 1.75rem; }}
+details.panel {{ background: #171a21; border: 1px solid #252a35; border-radius: 10px;
+  padding: .85rem 1.15rem 1rem; margin: 1.15rem 0; }}
+summary {{ cursor: pointer; color: #c4c7cc; font-weight: 600; }}
+.legend {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: .5rem; margin: .75rem 0; font-size: .85rem; }}
-.legend span {{ background: #12141a; padding: .4rem .6rem; border-radius: 4px; display: block; }}
+.legend span {{ background: #12141a; padding: .45rem .65rem; border-radius: 6px; display: block;
+  border: 1px solid #252a35; }}
 .pending {{ color: #f0c674; }}
 .ok {{ color: #7ddea5; }}
 .fail {{ color: #f28b82; }}
@@ -1096,12 +1314,11 @@ summary {{ cursor: pointer; color: #9aa0a6; font-weight: 600; }}
 .btn.secondary:hover {{ background: #354152; }}
 .cmd {{ background: #12141a; padding: .75rem 1rem; border-radius: 6px; font-family: ui-monospace, monospace;
   font-size: .85rem; margin: .5rem 0; overflow-x: auto; }}
-h3 {{ font-size: .95rem; margin: 1.25rem 0 .4rem; color: #c4c7cc; }}
 .charts {{ display: grid; grid-template-columns: 1fr; gap: 1.25rem; }}
 @media (min-width: 900px) {{
   .charts.two {{ grid-template-columns: 1fr 1fr; }}
 }}
-.chart-box {{ background: #12141a; border-radius: 6px; padding: .75rem 1rem 1rem; }}
+.chart-box {{ background: #12141a; border-radius: 8px; padding: .75rem 1rem 1rem; border: 1px solid #252a35; }}
 .chart-box h3 {{ margin-top: 0; }}
 .chart-wrap {{ position: relative; height: 280px; }}
 .metric-tabs {{ margin: .5rem 0 1rem; }}
@@ -1110,43 +1327,43 @@ h3 {{ font-size: .95rem; margin: 1.25rem 0 .4rem; color: #c4c7cc; }}
 select.model-pick {{ background: #12141a; color: #e8eaed; border: 1px solid #2a2e37;
   border-radius: 4px; padding: .35rem .5rem; font: inherit; margin: .25rem 0 .75rem; }}
 #cap-fallback {{ margin-top: .75rem; }}
+header.page {{ margin-bottom: .5rem; }}
+details.panel .card {{ margin: .75rem 0; border: none; background: #12141a; }}
 </style>
 <script src="chart.umd.min.js"></script>
 </head><body>
 
-<h1>Bench Dashboard</h1>
-<p class="meta">Measured benches · Prefill/TG tok/s = under load / idle · Capacity = GTT · prefill time · prefill tok/s by KV</p>
+<header class="page">
+<h1>LLM bench results</h1>
+<p class="lede">Measured on this host: how models trade off speed, longest usable context, concurrent load, and code correctness. Hover dotted terms for definitions.</p>
+</header>
 {{LOCAL_NAV}}
 
-{host_html_card(host)}
-
-{fingerprint_html(host)}
-
-{matrix_phase_html()}
+{verdict_html()}
 
 <div class="card" id="charts">
-<h2>Charts</h2>
-<p class="meta">Throughput / scheduling overview. Capacity chart: one model · X = context · Y = Prefill time (default) · lines = KV quants.</p>
+<h2>Speed overview</h2>
+<p class="meta">Left/right: model alone on the server. Below: one model, context on X, prompt cost on Y, one line per KV cache setting.</p>
 <div class="charts two">
   <div class="chart-box">
-    <h3>Throughput — PP vs TG (tok/s)</h3>
+    <h3>{tip("Prompt vs generation", "Prompt = reading the input (PP). Generation = writing the reply (TG). Both in tokens/second; higher is better.")}</h3>
     <div class="chart-wrap"><canvas id="chart-thr"></canvas></div>
   </div>
   <div class="chart-box">
-    <h3>Scheduling — Prefill tok/s &amp; Decode ms</h3>
+    <h3>{tip("Under concurrent load", "Prompt tokens/s (higher better) and decode latency in ms (lower better) with the winning server settings.")}</h3>
     <div class="chart-wrap"><canvas id="chart-sched"></canvas></div>
   </div>
 </div>
 <div class="chart-box" style="margin-top:1.25rem">
-  <h3>Capacity vs context — Prefill time by KV quant</h3>
-  <p class="meta">Pick a model. Lower line = faster prefill. Steeper = blows up with context size.</p>
+  <h3>Prompt cost vs context length</h3>
+  <p class="meta">Lower line = faster prompt processing. A steep rise means long contexts get expensive quickly.</p>
   <label class="meta" for="cap-model">Model </label>
   <select id="cap-model" class="model-pick"></select>
-  <label class="meta" for="cap-y">Y </label>
+  <label class="meta" for="cap-y">Y axis </label>
   <select id="cap-y" class="model-pick">
-    <option value="prefill_s" selected>Prefill time (s)</option>
-    <option value="prefill_tok_s">Prefill tok/s</option>
-    <option value="gtt_gib">GTT GiB</option>
+    <option value="prefill_s" selected>Prompt time (s)</option>
+    <option value="prefill_tok_s">Prompt speed (tok/s)</option>
+    <option value="gtt_gib">Memory (GiB)</option>
     {('<option value="power_w">GPU watts (avg)</option>' if cap_has_power else '')}
   </select>
   <div class="chart-wrap" style="height:320px"><canvas id="chart-cap"></canvas></div>
@@ -1156,36 +1373,49 @@ select.model-pick {{ background: #12141a; color: #e8eaed; border: 1px solid #2a2
 
 {max_ok_context_html()}
 
-{capacity_html_card()}
-
-<div class="card">
-<h2>Scheduling — np / ub / b / MTP <span class="meta">sweep winners · under load</span></h2>
-<p class="more"><a href="scheduling/latest/compare.html">→ Details &amp; sweeps per model</a></p>
+<div class="card" id="scheduling">
+<h2>Best server settings under load</h2>
+<p class="meta">Winning knobs from scheduling sweeps with concurrent users. Green values are the recommended pick for this host.</p>
+<p class="more"><a href="scheduling/latest/compare.html">→ Sweep details per model</a></p>
 <div class="legend">
-  <span><strong>np ★</strong> parallel slots</span>
-  <span><strong>ub ★</strong> micro-batch / PP chunk</span>
-  <span><strong>b ★</strong> max batch († = default)</span>
-  <span><strong>MTP ★</strong> draft depth (or off)</span>
-  <span><strong>TTFT</strong> time to first token under load (ms)</span>
-  <span><strong>Decode tok/s</strong> generation under load</span>
-  <span><strong>Prefill tok/s</strong> prompt throughput under load</span>
-  <span><strong>TG tok/s</strong> generation solo</span>
-  <span><strong>cont-batch</strong> continuous batching</span>
+  <span><strong>Slots</strong> — parallel requests the server keeps active</span>
+  <span><strong>Chunk</strong> — prompt micro-batch size</span>
+  <span><strong>Batch</strong> — max batch († = default until sweep finishes)</span>
+  <span><strong>Context</strong> — context used in the winning sweep</span>
+  <span><strong>Draft</strong> — speculative decoding depth, or off</span>
+  <span><strong>TTFT</strong> — time to first token under load (ms, lower better)</span>
+  <span><strong>Decode tok/s</strong> — generation under load (higher better)</span>
+  <span><strong>Decode ms</strong> — per-token latency under load (lower better)</span>
+  <span><strong>Prompt tok/s</strong> — prompt throughput under load</span>
+  <span><strong>TG tok/s</strong> — generation alone (idle)</span>
+  <span><strong>Cont. batch</strong> — continuous batching on/off</span>
+  <span><strong>Interleave</strong> — gain from overlapping work when large</span>
 </div>
 <table><thead><tr>
-<th>Model</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">c ★</th>
-<th class="n">MTP ★</th>
-<th>cont-batch</th><th class="n">Prefill tok/s</th><th class="n">TTFT ms</th>
-<th class="n">Decode tok/s</th><th class="n">Decode ms</th>
-<th class="n">TG tok/s</th><th class="n">Interleave</th>
+<th>Model</th>
+<th class="n">{tip("Slots", "Parallel request slots (np).")}</th>
+<th class="n">{tip("Chunk", "Micro-batch / prompt chunk (ub).")}</th>
+<th class="n">{tip("Batch", "Max batch size (b). † = default until sweep finishes.")}</th>
+<th class="n">{tip("Context", "Context length in the winning sweep (c).")}</th>
+<th class="n">{tip("Draft", "Speculative decoding draft depth (MTP), or off.")}</th>
+<th>{tip("Cont. batch", "Continuous batching: admit new requests while others decode.")}</th>
+<th class="n">{tip("Prompt tok/s", "Prompt throughput under load.")}</th>
+<th class="n">{tip("TTFT", "Time to first token under load (ms).")}</th>
+<th class="n">{tip("Decode tok/s", "Generation tokens/s under load.")}</th>
+<th class="n">{tip("Decode ms", "Per-token decode latency under load.")}</th>
+<th class="n">{tip("TG tok/s", "Generation alone (idle).")}</th>
+<th class="n">{tip("Interleave", "Gain from overlapping request work when large.")}</th>
 </tr></thead><tbody>{sch_table}</tbody></table>
 </div>
 
-<div class="card">
-<h2>Throughput — which model is fastest?</h2>
-<p class="more"><a href="throughput/latest/compare.html">→ Details</a> · PP/TG tok/s · <strong>higher = better</strong></p>
+<div class="card" id="throughput">
+<h2>Single-user throughput</h2>
+<p class="meta">One request at a time. Higher tokens/s is better for both columns.</p>
+<p class="more"><a href="throughput/latest/compare.html">→ Details</a></p>
 <table><thead><tr>
-<th>Model</th><th class="n">PP (512 tok)</th><th class="n">TG (128 tok)</th>
+<th>Model</th>
+<th class="n">{tip("Prompt (PP)", "Tokens/s while reading a ~512-token prompt.")}</th>
+<th class="n">{tip("Generation (TG)", "Tokens/s while writing ~128 tokens.")}</th>
 </tr></thead><tbody>{thr_table}</tbody></table>
 </div>
 """
@@ -1195,55 +1425,76 @@ qual_table = ""
 if qual_rows:
     for r in qual_rows:
         p1, p10 = r.get("pass_at_1"), r.get("pass_at_10")
+        suite = r.get("suite") or "—"
+        suite_label = "HumanEval" if "humaneval" in str(suite).lower() else suite
+        p1s = fmt_pct(p1) if parse_float(p1) is not None else esc(p1 or "—")
+        p10s = fmt_pct(p10) if parse_float(p10) is not None else esc(p10 or "—")
         qual_table += (
-            f"<tr><td>{esc(r.get('suite','—'))}</td>"
-            f"<td><code>{esc(r.get('model','—'))}</code></td>"
-            f'<td class="n">{fmt_num(p1, 3) if isinstance(p1, float) else esc(p1 or "—")}</td>'
-            f'<td class="n">{fmt_num(p10, 3) if isinstance(p10, float) else esc(p10 or "—")}</td>'
-            f"<td><code>{esc(r.get('stamp','—'))}</code></td></tr>"
+            f"<tr><td>{esc(suite_label)}</td>"
+            f"<td>{esc(r.get('model','—'))}</td>"
+            f'<td class="n best">{p1s}</td>'
+            f'<td class="n">{p10s}</td>'
+            f"<td class=\"meta\">{esc(fmt_stamp(r.get('stamp') or ''))}</td></tr>"
         )
 else:
     qual_table = (
-        '<tr><td colspan="5" class="meta">No quality data yet.</td></tr>'
+        '<tr><td colspan="5" class="meta">No code-quality runs yet.</td></tr>'
     )
 
 page += f"""
-<div class="card">
-<h2>Quality — HumanEval &amp; plugins</h2>
-<p class="more"><a href="quality/latest/compare.md">→ Details</a></p>
+<div class="card" id="quality">
+<h2>Code correctness (HumanEval)</h2>
+<p class="meta">Python coding problems from HumanEval. <strong>pass@1</strong> = share solved on the first sample.
+This measures code correctness only — not chat quality, reasoning style, or speed.
+<strong>pass@10</strong> needs multiple samples per problem (n≥10); otherwise it stays blank.</p>
+<p class="more"><a href="quality/latest/compare.md">→ Per-run details</a></p>
 <table><thead><tr>
-<th>Suite</th><th>Model</th><th class="n">pass@1</th><th class="n">pass@10</th><th>Stamp</th>
+<th>Benchmark</th><th>Model</th>
+<th class="n">{tip("pass@1", "Fraction of problems solved with a single attempt (shown as %).")}</th>
+<th class="n">{tip("pass@10", "Fraction solved if up to 10 attempts are allowed. Empty when only one sample was drawn.")}</th>
+<th>Measured</th>
 </tr></thead><tbody>{qual_table}</tbody></table>
 </div>
+
+{capacity_html_card()}
+
+<details class="panel" id="details-host">
+<summary>Host &amp; build details</summary>
+{host_html_card(host)}
+{fingerprint_html(host)}
+</details>
 """
 
+# Matrix / operator progress stays local-only
+matrix_card = ""
 if status_table:
-    page += f"""
+    matrix_card = f"""
 <div class="card">
 <h2>Matrix progress</h2>
+<p class="meta">Operator view — not needed to interpret published results.</p>
 <table><thead><tr>
-<th>Model</th><th>Status</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th>
-<th class="n">MTP ★</th><th class="n">TTFT ms</th><th class="n">Decode tok/s</th><th class="n">Decode ms</th>
+<th>Model</th><th>Status</th><th class="n">Slots</th><th class="n">Chunk</th><th class="n">Batch</th>
+<th class="n">Draft</th><th class="n">TTFT ms</th><th class="n">Decode tok/s</th><th class="n">Decode ms</th>
 </tr></thead><tbody>{status_table}</tbody></table>
 </div>
 """
 
 local_tools = f"""
+{matrix_card}{matrix_phase_html()}
 <div class="card" id="local-tools">
-<h2>Local only — recommendations / apply</h2>
-<p class="meta">Not published to GitHub Pages. Planner + INI apply stay on the bench host.</p>
-<p class="more"><a href="planner.html"><strong>→ Recommendation planner</strong></a>
-  — host RAM/GTT · capacity max c · download plan.json</p>
-<p class="meta"><code>models-*.ini</code> · cont-batch advisory</p>
+<h2>Local tools — planner &amp; apply</h2>
+<p class="meta">Only on the bench host (not on the public page). Planner uses host RAM / max context; apply writes recommended server settings.</p>
+<p class="more"><a href="planner.html"><strong>→ Recommendation planner</strong></a></p>
 <div class="cmd" id="apply-cmd">./bench apply-ini --dry-run</div>
 <button type="button" class="btn" onclick="navigator.clipboard.writeText('./bench apply-ini --dry-run')">Copy dry-run</button>
 <button type="button" class="btn secondary" onclick="navigator.clipboard.writeText('./bench apply-ini')">Copy apply</button>
-<p class="more"><a href="scheduling/latest/apply-plan.json">→ apply-plan.json</a> · cont-batching global: <strong>{'on' if global_cb == '1' else 'off'}</strong></p>
+<p class="more"><a href="scheduling/latest/apply-plan.json">→ apply-plan.json</a> · continuous batching: <strong>{'on' if global_cb == '1' else 'off'}</strong></p>
 <table><thead><tr>
 <th>Model</th><th class="n">np</th><th class="n">ub</th><th class="n">b</th><th class="n">c</th><th>cont-batch</th>
-</tr></thead><tbody>{apply_table or '<tr><td colspan="6" class="meta">No plan yet — run <code>./bench apply-ini --dry-run</code> first</td></tr>'}</tbody></table>
+</tr></thead><tbody>{apply_table or '<tr><td colspan="6" class="meta">No plan yet — run dry-run first</td></tr>'}</tbody></table>
 </div>
 """
+
 
 # Chart.js payloads (Pages-safe measured data only)
 def _short(name, n=28):
@@ -1315,7 +1566,7 @@ chart_json = json.dumps(
 )
 
 footer = f"""
-<details>
+<details class="panel">
 <summary>Run history ({len(thr_rows)} throughput · {len(sch_rows)} scheduling)</summary>
 <h2>Throughput runs</h2>
 <table><thead><tr><th>When</th><th>Stamp</th><th>Suite</th><th>Backends</th></tr></thead>
@@ -1349,15 +1600,15 @@ footer = f"""
         data: {{
           labels: thr.labels,
           datasets: [
-            {{ label: "PP tok/s", data: thr.pp, backgroundColor: "#5b8def" }},
-            {{ label: "TG tok/s", data: thr.tg, backgroundColor: "#7ddea5" }},
+            {{ label: "Prompt (tok/s)", data: thr.pp, backgroundColor: "#5b8def" }},
+            {{ label: "Generation (tok/s)", data: thr.tg, backgroundColor: "#7ddea5" }},
           ],
         }},
         options: {{
           ...common,
           scales: {{
             x: {{ ticks: tick, grid }},
-            y: {{ ticks: tick, grid, title: {{ display: true, text: "tok/s", color: "#9aa0a6" }} }},
+            y: {{ ticks: tick, grid, title: {{ display: true, text: "tokens / s", color: "#9aa0a6" }} }},
           }},
         }},
       }});
@@ -1370,8 +1621,8 @@ footer = f"""
         data: {{
           labels: sch.labels,
           datasets: [
-            {{ label: "Prefill tok/s", data: sch.prefill, backgroundColor: "#5b8def", yAxisID: "y" }},
-            {{ label: "Decode ms", data: sch.decode, backgroundColor: "#f0c674", yAxisID: "y1" }},
+            {{ label: "Prompt under load (tok/s)", data: sch.prefill, backgroundColor: "#5b8def", yAxisID: "y" }},
+            {{ label: "Decode latency (ms)", data: sch.decode, backgroundColor: "#f0c674", yAxisID: "y1" }},
           ],
         }},
         options: {{
@@ -1395,10 +1646,10 @@ footer = f"""
   let capChart = null;
   const palette = ["#5b8def", "#7ddea5", "#f0c674", "#f28b82", "#c58af9", "#78d4e8"];
   const yLabels = {{
-    prefill_s: "Prefill time (s)",
-    prefill_tok_s: "Prefill tok/s",
-    gtt_gib: "GTT GiB",
-    power_w: "Watts",
+    prefill_s: "Prompt time (s)",
+    prefill_tok_s: "Prompt speed (tok/s)",
+    gtt_gib: "Memory (GiB)",
+    power_w: "GPU watts",
   }};
 
   function fmtC(c) {{
@@ -1503,15 +1754,15 @@ footer = f"""
 </body></html>"""
 
 # Local full dashboard (benches + capacity + local apply/planner)
-LOCAL_NAV = '<p class="more"><a href="#fingerprint">Fingerprint</a> · <a href="#charts">Charts</a> · <a href="#max-ctx">Max context</a> · <a href="#capacity">Capacity</a> · <a href="#local-tools">Local apply / planner</a></p>'
+LOCAL_NAV = '<nav class="toc" aria-label="On this page"><a href="#verdict">At a glance</a><a href="#charts">Speed</a><a href="#max-ctx">Context</a><a href="#scheduling">Under load</a><a href="#throughput">Throughput</a><a href="#quality">Code quality</a><a href="#capacity">Memory grid</a><a href="#details-host">Host</a><a href="#local-tools">Local tools</a></nav>'
 page_local = page.replace("{LOCAL_NAV}", LOCAL_NAV) + local_tools + footer
 
 # GitHub Pages: measured benches only (no recommendations / apply / planner)
-LOCAL_NAV = '<p class="more"><a href="#fingerprint">Fingerprint</a> · <a href="#charts">Charts</a> · <a href="#max-ctx">Max context</a> · <a href="#capacity">Capacity</a></p>'
+LOCAL_NAV = '<nav class="toc" aria-label="On this page"><a href="#verdict">At a glance</a><a href="#charts">Speed</a><a href="#max-ctx">Context</a><a href="#scheduling">Under load</a><a href="#throughput">Throughput</a><a href="#quality">Code quality</a><a href="#capacity">Memory grid</a><a href="#details-host">Host</a></nav>'
 page_pages = page.replace("{LOCAL_NAV}", LOCAL_NAV) + footer
 page_pages = page_pages.replace(
-    "<h1>Bench Dashboard</h1>",
-    "<h1>Bench Dashboard</h1>\n<p class=\"meta\">Public benchmark results.</p>",
+    "<p class=\"lede\">Measured on this host:",
+    "<p class=\"lede\">Public results measured on this host:",
     1,
 )
 
