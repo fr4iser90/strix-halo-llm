@@ -239,8 +239,7 @@ def host_md_block(h):
         return [
             "## Hardware",
             "",
-            "*No `host.json` yet — on the bench host run: `./tools/bench/probe-host.sh` "
-            "or `./bench publish`.*",
+            "*No `host.json` yet.*",
             "",
         ]
     pin = h.get("llama_pin") or {}
@@ -262,13 +261,17 @@ def host_md_block(h):
         ("Backend", h.get("backend_default") or "—"),
         ("Image", f"{h.get('docker_image') or '—'} (`{h.get('docker_image_id_short') or '—'}`)"),
         ("llama.cpp", f"{pin.get('ref') or '—'} @ `{commit_s}`"),
-        ("Sidecar", (
-            f"{'ok' if (h.get('sidecar') or {}).get('power_ok') else 'down'} · "
-            f"{(h.get('sidecar') or {}).get('watts') if (h.get('sidecar') or {}).get('power_ok') else '—'} W · "
-            f"`{(h.get('sidecar') or {}).get('power_url') or '—'}`"
-        )),
         ("Probed", h.get("collected_at") or "—"),
     ]
+    sc = h.get("sidecar") or {}
+    if sc.get("power_ok") or sc.get("thermal_ok"):
+        bits = []
+        if sc.get("power_ok") and sc.get("watts") is not None:
+            bits.append(f"{sc.get('watts')} W")
+        if sc.get("thermal_ok") and sc.get("temperature_c") is not None:
+            bits.append(f"{sc.get('temperature_c')} °C")
+        if bits:
+            rows.insert(-1, ("Power / temp", " · ".join(bits)))
     lines_h = [
         "## Hardware",
         "",
@@ -291,8 +294,7 @@ def host_html_card(h):
     if not h:
         return (
             '<div class="card"><h2>Hardware</h2>'
-            '<p class="meta">No <code>host.json</code> yet — '
-            'run <code>./bench publish</code> on the bench host.</p></div>'
+            '<p class="meta">No <code>host.json</code> yet.</p></div>'
         )
     pin = h.get("llama_pin") or {}
     commit = pin.get("commit") or "—"
@@ -318,14 +320,17 @@ def host_html_card(h):
         row("Backend", h.get("backend_default") or "—"),
         row("Image", f"{h.get('docker_image') or '—'} ({h.get('docker_image_id_short') or '—'})"),
         row("llama.cpp", f"{pin.get('ref') or '—'} @ {commit_s}"),
-        row("Sidecar", (
-            f"{'ok' if (h.get('sidecar') or {}).get('power_ok') else 'down'} · "
-            f"{(h.get('sidecar') or {}).get('watts') if (h.get('sidecar') or {}).get('power_ok') else '—'} W · "
-            f"{(h.get('sidecar') or {}).get('temperature_c') if (h.get('sidecar') or {}).get('thermal_ok') else '—'} °C · "
-            f"{(h.get('sidecar') or {}).get('power_url') or '—'}"
-        )),
         row("Probed", h.get("collected_at") or "—"),
     ]
+    sc = h.get("sidecar") or {}
+    if sc.get("power_ok") or sc.get("thermal_ok"):
+        bits = []
+        if sc.get("power_ok") and sc.get("watts") is not None:
+            bits.append(f"{sc.get('watts')} W")
+        if sc.get("thermal_ok") and sc.get("temperature_c") is not None:
+            bits.append(f"{sc.get('temperature_c')} °C")
+        if bits:
+            rows.insert(-1, row("Power / temp", " · ".join(bits)))
     note = f'<p class="meta">{esc(h.get("notes") or "")}</p>' if h.get("notes") else ""
     return (
         '<div class="card" id="hardware"><h2>Hardware <span class="meta">'
@@ -368,21 +373,20 @@ if sch_recs:
         )
     lines += [
         "",
-        "† `b` (n_batch): sweep **06_b_sweep** still pending — currently bench default **64**.",
+        "† `b` default until the batch sweep finishes.",
         "",
         "## Apply settings",
         "",
         "```bash",
-        "./bench apply-ini --dry-run --lab   # Plan",
-        "./bench apply-ini --lab             # models-lab.ini (INI keys only)",
-        "docker compose --profile lab up -d llama-lab",
+        "./bench apply-ini --dry-run --lab",
+        "./bench apply-ini --lab",
         "```",
         "",
         f"Plan: [`scheduling/latest/apply-plan.json`]({rel('scheduling/latest/apply-plan.json')})",
         "",
     ]
 else:
-    lines.append("*No scheduling recommendations yet — `./bench sched --auto`*")
+    lines.append("*No scheduling recommendations yet.*")
 
 lines += [
     "",
@@ -396,7 +400,7 @@ if thr_models:
     for m in thr_models:
         lines.append(f"| {m['model']} | {m['pp']} | {m['tg']} |")
 else:
-    lines.append("*No throughput bench yet — `./bench throughput --lab --vulkan`*")
+    lines.append("*No throughput bench yet.*")
 
 # Quality (HumanEval etc.)
 qual_root = os.path.join(out_root, "quality")
@@ -414,7 +418,7 @@ if os.path.isfile(qual_sum):
 lines += ["", "## Quality — task correctness", ""]
 if qual_rows:
     lines += [
-        f"[Details →]({rel('quality/latest/compare.md')}) · plugins: `./bench quality list`",
+        f"[Details →]({rel('quality/latest/compare.md')})",
         "",
         "| Suite | Model | pass@1 | pass@10 | Stamp |",
         "| --- | --- | ---: | ---: | --- |",
@@ -429,11 +433,7 @@ if qual_rows:
             f"`{r.get('stamp','—')}` |"
         )
 else:
-    lines.append(
-        "*No quality runs yet — "
-        "`./bench quality humaneval --setup` then "
-        "`./bench quality humaneval --model … --limit 10`*"
-    )
+    lines.append("*No quality runs yet.*")
 
 # Capacity (KV×ctx / dual) — full tables from ledger
 cap_root = os.path.join(out_root, "capacity")
@@ -454,6 +454,16 @@ if os.path.isfile(cap_ledger):
             if key:
                 cap_latest[key] = row
 cap_cells = len(cap_latest)
+
+
+def _row_has_power(r):
+    peak = (r or {}).get("metrics_peak") or {}
+    return peak.get("power_w_avg") is not None or peak.get("power_w_peak") is not None
+
+
+cap_has_power = any(
+    (not r.get("skipped")) and _row_has_power(r) for r in cap_latest.values()
+)
 
 
 def cap_metrics(r):
@@ -533,7 +543,7 @@ def capacity_md_tables():
         out += [
             f"### {model} (solo)",
             "",
-            "Cell = **GTT MiB · prefill s · prefill tok/s** (TTFT ≈ prefill of ~0.9×c tokens)",
+            "Cell = **GTT MiB · prefill s · prefill tok/s**",
             "",
             "| c \\ kv | " + " | ".join(kvs) + " |",
             "| ---: | " + " | ".join(["---"] * len(kvs)) + " |",
@@ -544,12 +554,20 @@ def capacity_md_tables():
         out.append("")
     dual = [r for r in cap_latest.values() if r.get("mode") == "dual"]
     if dual:
-        out += [
-            "### Dual (2× same model)",
-            "",
-            "| model | kv | c | ok | GTT peak | Mem avail | W avg | °C peak | phase |",
-            "| --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |",
-        ]
+        if cap_has_power:
+            out += [
+                "### Dual (2× same model)",
+                "",
+                "| model | kv | c | ok | GTT peak | Mem avail | W avg | °C peak | phase |",
+                "| --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |",
+            ]
+        else:
+            out += [
+                "### Dual (2× same model)",
+                "",
+                "| model | kv | c | ok | GTT peak | Mem avail | phase |",
+                "| --- | --- | ---: | --- | ---: | ---: | --- |",
+            ]
         for r in sorted(dual, key=lambda x: (x.get("model") or "", x.get("kv") or "", int(x.get("c") or 0))):
             peak = r.get("metrics_peak") or {}
             mem_a = r.get("mem_after") or {}
@@ -558,13 +576,18 @@ def capacity_md_tables():
             ok = "✓" if r.get("ok") else "FAIL"
             gtt_s = f"{int(gtt)} MiB" if gtt is not None else "—"
             mem_s = f"{int(mem)} MiB" if mem is not None else "—"
-            w = peak.get("power_w_avg") if peak.get("power_w_avg") is not None else peak.get("power_w_peak")
-            w_s = f"{w} W" if w is not None else "—"
-            t = peak.get("temp_c_peak")
-            t_s = f"{t}" if t is not None else "—"
-            out.append(
-                f"| {r.get('model')} | {r.get('kv')} | {r.get('c')} | {ok} | {gtt_s} | {mem_s} | {w_s} | {t_s} | {r.get('phase') or '—'} |"
-            )
+            if cap_has_power:
+                w = peak.get("power_w_avg") if peak.get("power_w_avg") is not None else peak.get("power_w_peak")
+                w_s = f"{w} W" if w is not None else "—"
+                t = peak.get("temp_c_peak")
+                t_s = f"{t}" if t is not None else "—"
+                out.append(
+                    f"| {r.get('model')} | {r.get('kv')} | {r.get('c')} | {ok} | {gtt_s} | {mem_s} | {w_s} | {t_s} | {r.get('phase') or '—'} |"
+                )
+            else:
+                out.append(
+                    f"| {r.get('model')} | {r.get('kv')} | {r.get('c')} | {ok} | {gtt_s} | {mem_s} | {r.get('phase') or '—'} |"
+                )
         out.append("")
     return out
 
@@ -575,22 +598,25 @@ def capacity_html_card():
     if not solo and not dual:
         return (
             '<div class="card" id="capacity"><h2>Capacity — KV×ctx</h2>'
-            '<p class="meta">No capacity runs yet — <code>./bench capacity kv-ctx</code> / matrix</p></div>'
+            '<p class="meta">No capacity runs yet.</p></div>'
         )
     parts = [
         '<div class="card" id="capacity">',
-        '<h2>Capacity — KV×ctx <span class="meta">GTT · prefill · watts (sidecar)</span></h2>',
+        '<h2>Capacity — KV×ctx <span class="meta">GTT · Prefill'
+        + (" · Watts" if cap_has_power else "")
+        + "</span></h2>",
         f'<p class="more"><a href="capacity/latest/compare.md">→ Details</a> · ledger cells: <strong>{cap_cells}</strong></p>',
-        '<p class="meta"><strong>Prefill s</strong> ≈ TTFT for ~0.9×c prompt tokens · '
-        '<strong>Prefill tok/s</strong> = fill_tokens / prefill_s · '
-        '<strong>W</strong> = avg GPU draw via sidecar (enable with <code>GPU_POWER=true</code> in <code>.env</code>).</p>',
         '<div class="metric-tabs" id="cap-metric-tabs">'
         '<button type="button" class="btn secondary active" data-metric="all">All</button>'
         '<button type="button" class="btn secondary" data-metric="gtt">GTT only</button>'
         '<button type="button" class="btn secondary" data-metric="prefill_s">Prefill time</button>'
         '<button type="button" class="btn secondary" data-metric="prefill_tok_s">Prefill tok/s</button>'
-        '<button type="button" class="btn secondary" data-metric="power">Watts</button>'
-        '</div>',
+        + (
+            '<button type="button" class="btn secondary" data-metric="power">Watts</button>'
+            if cap_has_power
+            else ""
+        )
+        + "</div>",
     ]
     for model in sorted({r["model"] for r in solo}):
         sub = [r for r in solo if r["model"] == model]
@@ -628,15 +654,25 @@ def capacity_html_card():
             parts.append("</tr>")
         parts.append("</tbody></table></div>")
     if dual:
-        parts.append(
-            "<h3>Dual (2× same model)</h3>"
-            '<p class="meta">Peak GTT + MemAvailable + watts after fill — UMA coexistence pressure.</p>'
-            "<table><thead><tr>"
-            "<th>Model</th><th>kv</th><th class=\"n\">c</th><th>ok</th>"
-            "<th class=\"n\">GTT peak</th><th class=\"n\">Mem avail</th>"
-            "<th class=\"n\">W avg</th><th class=\"n\">°C peak</th><th>phase</th>"
-            "</tr></thead><tbody>"
-        )
+        if cap_has_power:
+            parts.append(
+                "<h3>Dual (2× same model)</h3>"
+                '<p class="meta">Peak GTT + MemAvailable after fill.</p>'
+                "<table><thead><tr>"
+                "<th>Model</th><th>kv</th><th class=\"n\">c</th><th>ok</th>"
+                "<th class=\"n\">GTT peak</th><th class=\"n\">Mem avail</th>"
+                "<th class=\"n\">W avg</th><th class=\"n\">°C peak</th><th>phase</th>"
+                "</tr></thead><tbody>"
+            )
+        else:
+            parts.append(
+                "<h3>Dual (2× same model)</h3>"
+                '<p class="meta">Peak GTT + MemAvailable after fill.</p>'
+                "<table><thead><tr>"
+                "<th>Model</th><th>kv</th><th class=\"n\">c</th><th>ok</th>"
+                "<th class=\"n\">GTT peak</th><th class=\"n\">Mem avail</th><th>phase</th>"
+                "</tr></thead><tbody>"
+            )
         for r in sorted(dual, key=lambda x: (x.get("model") or "", x.get("kv") or "", int(x.get("c") or 0))):
             peak = r.get("metrics_peak") or {}
             mem_a = r.get("mem_after") or {}
@@ -646,18 +682,27 @@ def capacity_html_card():
             ocls = "ok" if r.get("ok") else "fail"
             gtt_s = f"{int(gtt)} MiB" if gtt is not None else "—"
             mem_s = f"{int(mem)} MiB" if mem is not None else "—"
-            w = peak.get("power_w_avg") if peak.get("power_w_avg") is not None else peak.get("power_w_peak")
-            w_s = f"{w} W" if w is not None else "—"
-            t = peak.get("temp_c_peak")
-            t_s = f"{t} °C" if t is not None else "—"
-            parts.append(
-                f"<tr><td>{esc(r.get('model'))}</td><td>{esc(r.get('kv'))}</td>"
-                f'<td class="n">{esc(r.get("c"))}</td>'
-                f'<td class="{ocls}">{ok}</td>'
-                f'<td class="n">{esc(gtt_s)}</td><td class="n">{esc(mem_s)}</td>'
-                f'<td class="n">{esc(w_s)}</td><td class="n">{esc(t_s)}</td>'
-                f"<td>{esc(r.get('phase') or '—')}</td></tr>"
-            )
+            if cap_has_power:
+                w = peak.get("power_w_avg") if peak.get("power_w_avg") is not None else peak.get("power_w_peak")
+                w_s = f"{w} W" if w is not None else "—"
+                t = peak.get("temp_c_peak")
+                t_s = f"{t} °C" if t is not None else "—"
+                parts.append(
+                    f"<tr><td>{esc(r.get('model'))}</td><td>{esc(r.get('kv'))}</td>"
+                    f'<td class="n">{esc(r.get("c"))}</td>'
+                    f'<td class="{ocls}">{ok}</td>'
+                    f'<td class="n">{esc(gtt_s)}</td><td class="n">{esc(mem_s)}</td>'
+                    f'<td class="n">{esc(w_s)}</td><td class="n">{esc(t_s)}</td>'
+                    f"<td>{esc(r.get('phase') or '—')}</td></tr>"
+                )
+            else:
+                parts.append(
+                    f"<tr><td>{esc(r.get('model'))}</td><td>{esc(r.get('kv'))}</td>"
+                    f'<td class="n">{esc(r.get("c"))}</td>'
+                    f'<td class="{ocls}">{ok}</td>'
+                    f'<td class="n">{esc(gtt_s)}</td><td class="n">{esc(mem_s)}</td>'
+                    f"<td>{esc(r.get('phase') or '—')}</td></tr>"
+                )
         parts.append("</tbody></table>")
     parts.append("""
 <script>
@@ -702,23 +747,30 @@ def max_ok_context_html():
         ps = f"{m['prefill_s']} s" if m.get("prefill_s") is not None else "—"
         w = m.get("power_w_avg") if m.get("power_w_avg") is not None else m.get("power_w_peak")
         ws = f"{w} W" if w is not None else "—"
-        rows.append(
+        row = (
             f"<tr><td>{esc(model)}</td><td>{esc(kv)}</td>"
             f'<td class="n best">{esc(r.get("c"))}</td>'
             f'<td class="n">{esc(gtt)}</td>'
             f'<td class="n">{esc(ps)}</td>'
             f'<td class="n">{esc(pps)}</td>'
-            f'<td class="n">{esc(ws)}</td></tr>'
         )
+        if cap_has_power:
+            row += f'<td class="n">{esc(ws)}</td>'
+        row += "</tr>"
+        rows.append(row)
+    head = (
+        "<th>Model</th><th>kv</th><th class=\"n\">max c ★</th>"
+        "<th class=\"n\">GTT @ max</th><th class=\"n\">Prefill s</th><th class=\"n\">Prefill tok/s</th>"
+    )
+    if cap_has_power:
+        head += "<th class=\"n\">W avg</th>"
     return (
         '<div class="card" id="max-ctx">'
         '<h2>Max safe context <span class="meta">largest ok c per model × KV</span></h2>'
-        '<p class="meta">Scan this first on Strix Halo — will 64k / 128k / 256k fit at this KV?</p>'
+        '<p class="meta">Largest context that fit — Prefill time at that point.</p>'
         "<table><thead><tr>"
-        "<th>Model</th><th>kv</th><th class=\"n\">max c ★</th>"
-        "<th class=\"n\">GTT @ max</th><th class=\"n\">Prefill s</th><th class=\"n\">Prefill tok/s</th>"
-        "<th class=\"n\">W avg</th>"
-        "</tr></thead><tbody>"
+        + head
+        + "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table></div>"
     )
@@ -755,18 +807,20 @@ def fingerprint_html(h):
     if not fps and not cap_cells:
         return (
             '<div class="card" id="fingerprint"><h2>Fingerprint</h2>'
-            '<p class="meta">No capacity ledger yet — fingerprints appear after kv-ctx runs.</p></div>'
+            '<p class="meta">No capacity fingerprint yet.</p></div>'
         )
 
     body = [
         '<div class="card" id="fingerprint">',
         '<h2>Fingerprint <span class="meta">reproducibility</span></h2>',
-        '<p class="meta">Capacity cells are only comparable if server/image match. '
-        'Stale cells re-run on next <code>./bench capacity kv-ctx</code>.</p>',
+        '<p class="meta">Results are comparable only when server/image match.</p>',
         "<table><tbody>",
         f"<tr><th>Current image</th><td><code>{esc(cur_img_short)}</code> · {esc(h.get('docker_image') or '—')}</td></tr>",
         f"<tr><th>llama.cpp</th><td>{esc(pin.get('ref') or '—')} @ <code>{esc(cur_commit)}</code></td></tr>",
-        f"<tr><th>Ledger cells</th><td>{cap_cells} · approx fresh≈{fresh} · stale/mismatch≈{stale} · no-fp≈{unknown}</td></tr>",
+        f"<tr><th>Ledger cells</th><td>{cap_cells}"
+        + (f" · match {fresh}" if fresh else "")
+        + (f" · stale {stale}" if stale else "")
+        + "</td></tr>",
         "</tbody></table>",
         "<h3>Seen in ledger</h3>",
         "<table><thead><tr><th>server_version</th><th>image_id</th><th class=\"n\">cells</th><th>vs host</th></tr></thead><tbody>",
@@ -819,7 +873,10 @@ if cap_cells:
         "",
     ]
     # Max-ok summary for MD
-    lines += ["### Max safe context", "", "| Model | kv | max c | GTT | Prefill tok/s | W avg |", "| --- | --- | ---: | ---: | ---: | ---: |"]
+    if cap_has_power:
+        lines += ["### Max safe context", "", "| Model | kv | max c | GTT | Prefill tok/s | W avg |", "| --- | --- | ---: | ---: | ---: | ---: |"]
+    else:
+        lines += ["### Max safe context", "", "| Model | kv | max c | GTT | Prefill tok/s |", "| --- | --- | ---: | ---: | ---: |"]
     solo_ok = [r for r in cap_latest.values() if r.get("mode") == "solo" and not r.get("skipped") and r.get("ok")]
     best = {}
     for r in solo_ok:
@@ -829,17 +886,19 @@ if cap_cells:
             best[key] = r
     for (model, kv), r in sorted(best.items()):
         m = cap_metrics(r) or {}
-        w = m.get("power_w_avg") if m.get("power_w_avg") is not None else m.get("power_w_peak")
-        lines.append(
-            f"| {model} | {kv} | **{r.get('c')}** | {m.get('gtt_mb') or '—'} MiB | {m.get('prefill_tok_s') or '—'} | {w if w is not None else '—'} |"
-        )
+        if cap_has_power:
+            w = m.get("power_w_avg") if m.get("power_w_avg") is not None else m.get("power_w_peak")
+            lines.append(
+                f"| {model} | {kv} | **{r.get('c')}** | {m.get('gtt_mb') or '—'} MiB | {m.get('prefill_tok_s') or '—'} | {w if w is not None else '—'} |"
+            )
+        else:
+            lines.append(
+                f"| {model} | {kv} | **{r.get('c')}** | {m.get('gtt_mb') or '—'} MiB | {m.get('prefill_tok_s') or '—'} |"
+            )
     lines.append("")
     lines += capacity_md_tables()
 else:
-    lines.append(
-        "*No capacity runs yet — "
-        "`./bench capacity kv-ctx` / `dual` or `./bench matrix --profile full`*"
-    )
+    lines.append("*No capacity runs yet.*")
 
 # Matrix orchestrator progress
 mx_prog = os.path.join(out_root, "matrix", "progress.json")
@@ -851,18 +910,11 @@ if os.path.isfile(mx_prog):
         lines += [
             f"Phase: **{mx.get('phase','—')}** · {mx.get('detail','')} · updated `{mx.get('updated','—')}`",
             "",
-            "```bash",
-            "./bench matrix status",
-            "./bench matrix --profile full",
-            "```",
         ]
     except (OSError, json.JSONDecodeError):
         lines.append("*progress.json unreadable*")
 else:
-    lines.append(
-        "*No matrix run yet — profiles: `default` (recommended) / `full` (multi-day). "
-        "`./bench matrix --profile full --dry-run`*"
-    )
+    lines.append("*No matrix run yet.*")
 
 if status_rows:
     lines += [
@@ -910,7 +962,7 @@ for r in sch_rows:
 if not sch_rows:
     lines.append("| — | — | — | — |")
 
-lines += ["", "</details>", "", "Neu bauen: `./bench index`", ""]
+lines += ["", "</details>", ""]
 with open(index_md, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))
 
@@ -932,7 +984,7 @@ if sch_recs:
             f"<tr><td>{esc(r['model'])}</td>"
             f'<td class="n best">{esc(r.get("best_np", "—"))}</td>'
             f'<td class="n best">{esc(r.get("best_ub", "—"))}</td>'
-            f'<td class="n {b_cls}" title="n_batch — Sweep 06 noch offen">{esc(b_disp)}</td>'
+            f'<td class="n {b_cls}" title="default until batch sweep finishes">{esc(b_disp)}</td>'
             f'<td class="n best">{esc(r.get("best_c", "—"))}</td>'
             f'<td class="n {mtp_cls}">{esc(mtp)}</td>'
             f'<td>{esc(cb)}</td>'
@@ -944,7 +996,7 @@ if sch_recs:
             f'<td class="n {gcls}">{gain}</td></tr>'
         )
 else:
-    sch_table = '<tr><td colspan="13" class="meta">No data yet — <code>./bench sched --auto</code></td></tr>'
+    sch_table = '<tr><td colspan="13" class="meta">No scheduling data yet.</td></tr>'
 
 apply_plan_path = os.path.join(sch, "latest", "apply-plan.json")
 apply_table = ""
@@ -973,7 +1025,7 @@ if thr_models:
             f'<td class="n">{esc(m["tg"])}</td></tr>'
         )
 else:
-    thr_table = '<tr><td colspan="3" class="meta">No data yet</td></tr>'
+    thr_table = '<tr><td colspan="3" class="meta">No throughput data yet.</td></tr>'
 
 status_table = ""
 for r in status_rows:
@@ -1057,8 +1109,9 @@ h3 {{ font-size: .95rem; margin: 1.25rem 0 .4rem; color: #c4c7cc; }}
 .metric-tabs .btn.active {{ background: #3d5a3d; }}
 select.model-pick {{ background: #12141a; color: #e8eaed; border: 1px solid #2a2e37;
   border-radius: 4px; padding: .35rem .5rem; font: inherit; margin: .25rem 0 .75rem; }}
+#cap-fallback {{ margin-top: .75rem; }}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="chart.umd.min.js"></script>
 </head><body>
 
 <h1>Bench Dashboard</h1>
@@ -1073,7 +1126,7 @@ select.model-pick {{ background: #12141a; color: #e8eaed; border: 1px solid #2a2
 
 <div class="card" id="charts">
 <h2>Charts</h2>
-<p class="meta">Overview (Chart.js). Capacity lines = solo + dual GTT / Prefill vs context — pick metric + model.</p>
+<p class="meta">Throughput / scheduling overview. Capacity chart: one model · X = context · Y = Prefill time (default) · lines = KV quants.</p>
 <div class="charts two">
   <div class="chart-box">
     <h3>Throughput — PP vs TG (tok/s)</h3>
@@ -1085,17 +1138,19 @@ select.model-pick {{ background: #12141a; color: #e8eaed; border: 1px solid #2a2
   </div>
 </div>
 <div class="chart-box" style="margin-top:1.25rem">
-  <h3>Capacity vs context (per KV quant)</h3>
+  <h3>Capacity vs context — Prefill time by KV quant</h3>
+  <p class="meta">Pick a model. Lower line = faster prefill. Steeper = blows up with context size.</p>
   <label class="meta" for="cap-model">Model </label>
   <select id="cap-model" class="model-pick"></select>
   <label class="meta" for="cap-y">Y </label>
   <select id="cap-y" class="model-pick">
-    <option value="gtt_gib">GTT GiB</option>
+    <option value="prefill_s" selected>Prefill time (s)</option>
     <option value="prefill_tok_s">Prefill tok/s</option>
-    <option value="prefill_s">Prefill time (s)</option>
-    <option value="power_w">GPU watts (avg)</option>
+    <option value="gtt_gib">GTT GiB</option>
+    {('<option value="power_w">GPU watts (avg)</option>' if cap_has_power else '')}
   </select>
   <div class="chart-wrap" style="height:320px"><canvas id="chart-cap"></canvas></div>
+  <div id="cap-fallback" class="meta" hidden></div>
 </div>
 </div>
 
@@ -1107,15 +1162,15 @@ select.model-pick {{ background: #12141a; color: #e8eaed; border: 1px solid #2a2
 <h2>Scheduling — np / ub / b / MTP <span class="meta">sweep winners · under load</span></h2>
 <p class="more"><a href="scheduling/latest/compare.html">→ Details &amp; sweeps per model</a></p>
 <div class="legend">
-  <span><strong>np ★</strong> parallel slots (--parallel)</span>
-  <span><strong>ub ★</strong> Micro-Batch / PP-Chunk (n_ubatch)</span>
-  <span><strong>b ★</strong> Max-Batch (n_batch) — † = default 64, sweep still pending</span>
-  <span><strong>MTP ★</strong> draft-mtp n-max (or off)</span>
-  <span><strong>TTFT</strong> prefill time-to-first-token under load (ms)</span>
-  <span><strong>Decode tok/s</strong> generation under load (slot A)</span>
-  <span><strong>Prefill tok/s</strong> prompt throughput under load (interleave)</span>
-  <span><strong>TG tok/s</strong> Generation solo (Throughput-Bench)</span>
-  <span><strong>cont-batch</strong> continuous batching on/off</span>
+  <span><strong>np ★</strong> parallel slots</span>
+  <span><strong>ub ★</strong> micro-batch / PP chunk</span>
+  <span><strong>b ★</strong> max batch († = default)</span>
+  <span><strong>MTP ★</strong> draft depth (or off)</span>
+  <span><strong>TTFT</strong> time to first token under load (ms)</span>
+  <span><strong>Decode tok/s</strong> generation under load</span>
+  <span><strong>Prefill tok/s</strong> prompt throughput under load</span>
+  <span><strong>TG tok/s</strong> generation solo</span>
+  <span><strong>cont-batch</strong> continuous batching</span>
 </div>
 <table><thead><tr>
 <th>Model</th><th class="n">np ★</th><th class="n">ub ★</th><th class="n">b ★</th><th class="n">c ★</th>
@@ -1149,14 +1204,13 @@ if qual_rows:
         )
 else:
     qual_table = (
-        '<tr><td colspan="5" class="meta">No data yet — '
-        '<code>./bench quality humaneval --model …</code></td></tr>'
+        '<tr><td colspan="5" class="meta">No quality data yet.</td></tr>'
     )
 
 page += f"""
 <div class="card">
 <h2>Quality — HumanEval &amp; plugins</h2>
-<p class="more"><a href="quality/latest/compare.md">→ Details</a> · <code>./bench quality list</code></p>
+<p class="more"><a href="quality/latest/compare.md">→ Details</a></p>
 <table><thead><tr>
 <th>Suite</th><th>Model</th><th class="n">pass@1</th><th class="n">pass@10</th><th>Stamp</th>
 </tr></thead><tbody>{qual_table}</tbody></table>
@@ -1275,8 +1329,10 @@ footer = f"""
 <script>
 (function () {{
   const raw = document.getElementById("bench-chart-data");
-  if (!raw || typeof Chart === "undefined") return;
-  const DATA = JSON.parse(raw.textContent);
+  if (!raw) return;
+  let DATA;
+  try {{ DATA = JSON.parse(raw.textContent); }} catch (e) {{ return; }}
+  const hasChart = typeof Chart !== "undefined";
   const tick = {{ color: "#9aa0a6" }};
   const grid = {{ color: "#2a2e37" }};
   const common = {{
@@ -1285,47 +1341,49 @@ footer = f"""
     plugins: {{ legend: {{ labels: {{ color: "#c4c7cc" }} }} }},
   }};
 
-  const thr = DATA.throughput || {{}};
-  if ((thr.labels || []).length) {{
-    new Chart(document.getElementById("chart-thr"), {{
-      type: "bar",
-      data: {{
-        labels: thr.labels,
-        datasets: [
-          {{ label: "PP tok/s", data: thr.pp, backgroundColor: "#5b8def" }},
-          {{ label: "TG tok/s", data: thr.tg, backgroundColor: "#7ddea5" }},
-        ],
-      }},
-      options: {{
-        ...common,
-        scales: {{
-          x: {{ ticks: tick, grid }},
-          y: {{ ticks: tick, grid, title: {{ display: true, text: "tok/s", color: "#9aa0a6" }} }},
+  if (hasChart) {{
+    const thr = DATA.throughput || {{}};
+    if ((thr.labels || []).length) {{
+      new Chart(document.getElementById("chart-thr"), {{
+        type: "bar",
+        data: {{
+          labels: thr.labels,
+          datasets: [
+            {{ label: "PP tok/s", data: thr.pp, backgroundColor: "#5b8def" }},
+            {{ label: "TG tok/s", data: thr.tg, backgroundColor: "#7ddea5" }},
+          ],
         }},
-      }},
-    }});
-  }}
+        options: {{
+          ...common,
+          scales: {{
+            x: {{ ticks: tick, grid }},
+            y: {{ ticks: tick, grid, title: {{ display: true, text: "tok/s", color: "#9aa0a6" }} }},
+          }},
+        }},
+      }});
+    }}
 
-  const sch = DATA.scheduling || {{}};
-  if ((sch.labels || []).length) {{
-    new Chart(document.getElementById("chart-sched"), {{
-      type: "bar",
-      data: {{
-        labels: sch.labels,
-        datasets: [
-          {{ label: "Prefill tok/s", data: sch.prefill, backgroundColor: "#5b8def", yAxisID: "y" }},
-          {{ label: "Decode ms", data: sch.decode, backgroundColor: "#f0c674", yAxisID: "y1" }},
-        ],
-      }},
-      options: {{
-        ...common,
-        scales: {{
-          x: {{ ticks: tick, grid }},
-          y: {{ position: "left", ticks: tick, grid, title: {{ display: true, text: "tok/s", color: "#9aa0a6" }} }},
-          y1: {{ position: "right", ticks: tick, grid: {{ drawOnChartArea: false }}, title: {{ display: true, text: "ms", color: "#9aa0a6" }} }},
+    const sch = DATA.scheduling || {{}};
+    if ((sch.labels || []).length) {{
+      new Chart(document.getElementById("chart-sched"), {{
+        type: "bar",
+        data: {{
+          labels: sch.labels,
+          datasets: [
+            {{ label: "Prefill tok/s", data: sch.prefill, backgroundColor: "#5b8def", yAxisID: "y" }},
+            {{ label: "Decode ms", data: sch.decode, backgroundColor: "#f0c674", yAxisID: "y1" }},
+          ],
         }},
-      }},
-    }});
+        options: {{
+          ...common,
+          scales: {{
+            x: {{ ticks: tick, grid }},
+            y: {{ position: "left", ticks: tick, grid, title: {{ display: true, text: "tok/s", color: "#9aa0a6" }} }},
+            y1: {{ position: "right", ticks: tick, grid: {{ drawOnChartArea: false }}, title: {{ display: true, text: "ms", color: "#9aa0a6" }} }},
+          }},
+        }},
+      }});
+    }}
   }}
 
   const cap = DATA.capacity || {{}};
@@ -1333,14 +1391,58 @@ footer = f"""
   const sel = document.getElementById("cap-model");
   const ySel = document.getElementById("cap-y");
   const canvas = document.getElementById("chart-cap");
+  const fallback = document.getElementById("cap-fallback");
   let capChart = null;
   const palette = ["#5b8def", "#7ddea5", "#f0c674", "#f28b82", "#c58af9", "#78d4e8"];
-  const yLabels = {{ gtt_gib: "GTT GiB", prefill_tok_s: "Prefill tok/s", prefill_s: "Prefill s", power_w: "Watts" }};
+  const yLabels = {{
+    prefill_s: "Prefill time (s)",
+    prefill_tok_s: "Prefill tok/s",
+    gtt_gib: "GTT GiB",
+    power_w: "Watts",
+  }};
 
-  function renderCap(model) {{
-    const yKey = (ySel && ySel.value) || "gtt_gib";
+  function fmtC(c) {{
+    if (c >= 1024) return (c / 1024) + "k";
+    return String(c);
+  }}
+
+  function renderCapFallback(model) {{
+    if (!fallback) return;
+    const yKey = (ySel && ySel.value) || "prefill_s";
     const series = cap[model] || {{}};
     const kvs = Object.keys(series).sort();
+    const cs = Array.from(new Set(kvs.flatMap((kv) => (series[kv] || []).map((p) => p.c)))).sort((a, b) => a - b);
+    if (!kvs.length || !cs.length) {{
+      fallback.hidden = false;
+      fallback.textContent = "No capacity series for this model.";
+      return;
+    }}
+    let html = "<table><thead><tr><th class=\\"n\\">c \\\\ kv</th>";
+    kvs.forEach((kv) => {{ html += "<th class=\\"n\\">" + kv + "</th>"; }});
+    html += "</tr></thead><tbody>";
+    cs.forEach((c) => {{
+      html += '<tr><td class="n">' + fmtC(c) + "</td>";
+      kvs.forEach((kv) => {{
+        const pt = (series[kv] || []).find((p) => p.c === c);
+        const v = pt ? pt[yKey] : null;
+        html += '<td class="n">' + (v == null ? "—" : v) + "</td>";
+      }});
+      html += "</tr>";
+    }});
+    html += "</tbody></table>";
+    fallback.hidden = false;
+    fallback.innerHTML = "<p class=\\"meta\\">Table view (" + (yLabels[yKey] || yKey) + ")</p>" + html;
+  }}
+
+  function renderCap(model) {{
+    const yKey = (ySel && ySel.value) || "prefill_s";
+    const series = cap[model] || {{}};
+    const kvs = Object.keys(series).sort();
+    if (!hasChart || !canvas) {{
+      renderCapFallback(model);
+      return;
+    }}
+    if (fallback) {{ fallback.hidden = true; fallback.innerHTML = ""; }}
     const datasets = kvs.map((kv, i) => ({{
       label: kv,
       data: (series[kv] || [])
@@ -1350,17 +1452,22 @@ footer = f"""
       backgroundColor: palette[i % palette.length],
       tension: 0.15,
       showLine: true,
+      pointRadius: 4,
     }}));
     if (capChart) capChart.destroy();
     capChart = new Chart(canvas, {{
-      type: "scatter",
+      type: "line",
       data: {{ datasets }},
       options: {{
         ...common,
+        parsing: false,
         scales: {{
           x: {{
             type: "linear",
-            ticks: tick,
+            ticks: {{
+              ...tick,
+              callback: (v) => fmtC(v),
+            }},
             grid,
             title: {{ display: true, text: "context tokens", color: "#9aa0a6" }},
           }},
@@ -1386,11 +1493,13 @@ footer = f"""
     renderCap(models[0]);
   }} else if (sel) {{
     sel.outerHTML = '<p class="meta">No capacity series yet.</p>';
+  }} else if (!hasChart && fallback) {{
+    fallback.hidden = false;
+    fallback.textContent = "Chart library missing — charts unavailable.";
   }}
 }})();
 </script>
 
-<p class="meta">Rebuild: <code>./bench index</code></p>
 </body></html>"""
 
 # Local full dashboard (benches + capacity + local apply/planner)
@@ -1402,7 +1511,7 @@ LOCAL_NAV = '<p class="more"><a href="#fingerprint">Fingerprint</a> · <a href="
 page_pages = page.replace("{LOCAL_NAV}", LOCAL_NAV) + footer
 page_pages = page_pages.replace(
     "<h1>Bench Dashboard</h1>",
-    "<h1>Bench Dashboard</h1>\n<p class=\"meta\">Public benchmark results only — recommendations stay local.</p>",
+    "<h1>Bench Dashboard</h1>\n<p class=\"meta\">Public benchmark results.</p>",
     1,
 )
 
@@ -1418,7 +1527,7 @@ if cap_cells:
     os.makedirs(os.path.dirname(cap_md_out), exist_ok=True)
     with open(cap_md_out, "w", encoding="utf-8") as f:
         f.write("# Capacity ledger (latest per cell)\n\n")
-        f.write(f"Cells: {cap_cells}\n\nCell = GTT MiB · prefill s · prefill tok/s (TTFT ≈ prefill)\n\n")
+        f.write(f"Cells: {cap_cells}\n\nCell = GTT MiB · prefill s · prefill tok/s\n\n")
         f.write("\n".join(capacity_md_tables()) + "\n")
 
 print(f"Wrote {index_md}")
@@ -1427,7 +1536,17 @@ print(f"Wrote {pages_html} (GitHub Pages: benches only)")
 print(f"  scheduling models: {len(sch_recs)}")
 print(f"  throughput models: {len(thr_models)}")
 print(f"  capacity cells: {cap_cells}")
+print(f"  capacity chart models: {len(cap_chart)}")
 PY
+
+# Ship Chart.js next to dashboards (offline; no CDN)
+CHART_JS_SRC="$SCRIPT_DIR/assets/chart.umd.min.js"
+if [[ -f "$CHART_JS_SRC" ]]; then
+  cp -f "$CHART_JS_SRC" "$OUT/chart.umd.min.js"
+  echo "Wrote $OUT/chart.umd.min.js"
+else
+  echo "warn: missing $CHART_JS_SRC — capacity charts need it beside index.html" >&2
+fi
 
 # Interactive dual/solo recommendation planner (local only — not published)
 bash "$SCRIPT_DIR/build-planner.sh"

@@ -44,6 +44,7 @@ else
   copy_if "$SRC/index.html" "$DST/index.html"
 fi
 copy_if "$SRC/index.md" "$DST/index.md"
+copy_if "$SRC/chart.umd.min.js" "$DST/chart.umd.min.js"
 
 copy_if "$SRC/throughput/latest/compare.html" "$DST/throughput/latest/compare.html"
 copy_if "$SRC/throughput/latest/compare.md" "$DST/throughput/latest/compare.md"

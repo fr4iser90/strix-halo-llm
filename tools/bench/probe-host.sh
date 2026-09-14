@@ -213,8 +213,7 @@ host = {
     },
     "notes": (
         "AMD Strix Halo / unified memory: GTT is the GPU-usable UMA pool "
-        "(not discrete VRAM). Compare benches only across similar GTT/RAM. "
-        "Watts via host sidecar (Docker :9105) during metrics sampling."
+        "(not discrete VRAM). Compare benches only across similar GTT/RAM."
     ),
 }
 
