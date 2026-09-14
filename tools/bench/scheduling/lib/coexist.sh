@@ -49,9 +49,18 @@ coexist_metrics_peak() {
   bench_python - "$csv" <<'PY'
 import csv, json, sys
 path = sys.argv[1]
-peak = {"gtt_used_mb": None, "vram_used_mb": None, "mem_avail_mb_min": None}
+peak = {
+    "gtt_used_mb": None,
+    "vram_used_mb": None,
+    "mem_avail_mb_min": None,
+    "power_w_peak": None,
+    "power_w_avg": None,
+    "power_source": None,
+    "temp_c_peak": None,
+}
 if not path:
     print(json.dumps(peak)); raise SystemExit(0)
+powers = []
 try:
     with open(path, encoding="utf-8") as f:
         r = csv.DictReader(f)
@@ -64,6 +73,14 @@ try:
                     return int(float(v))
                 except ValueError:
                     return None
+            def fnum(k):
+                v = (row.get(k) or "").strip()
+                if not v:
+                    return None
+                try:
+                    return float(v)
+                except ValueError:
+                    return None
             g = num("gtt_used_mb")
             v = num("vram_used_mb")
             m = num("mem_avail_mb")
@@ -73,8 +90,21 @@ try:
                 peak["vram_used_mb"] = v
             if m is not None and (peak["mem_avail_mb_min"] is None or m < peak["mem_avail_mb_min"]):
                 peak["mem_avail_mb_min"] = m
+            w = fnum("power_w")
+            if w is not None:
+                powers.append(w)
+                if peak["power_w_peak"] is None or w > peak["power_w_peak"]:
+                    peak["power_w_peak"] = round(w, 2)
+            src = (row.get("power_source") or "").strip()
+            if src:
+                peak["power_source"] = src
+            t = fnum("temp_c")
+            if t is not None and (peak["temp_c_peak"] is None or t > peak["temp_c_peak"]):
+                peak["temp_c_peak"] = round(t, 2)
 except FileNotFoundError:
     pass
+if powers:
+    peak["power_w_avg"] = round(sum(powers) / len(powers), 2)
 print(json.dumps(peak))
 PY
 }

@@ -375,6 +375,7 @@ for model in sorted(models.keys()):
         "cont_batch_recommended": (data.get("cont_batch") or {}).get("recommended"),
         "fit_ctx_hint": fit_ctx,
         "decode_ms": rec_decode,
+        "decode_tps": best_row.get("decode_tps") if best_row else inter.get("decode_tps"),
         "prefill_tps": best_row.get("prefill_tps") if best_row else inter.get("prefill_tps"),
         "prefill_ttft": best_row.get("prefill_ttft") if best_row else inter.get("prefill_ttft"),
         "pp_idle": pp_idle,

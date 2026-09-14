@@ -95,6 +95,7 @@ run_cell() {
     summarize_stream "$cell_dir/stream.jsonl" "$cell_dir/stream_summary.json" >/dev/null || true
   else
     dt="null"
+    fill_tok="0"
   fi
 
   snap_after="$(mem_snapshot)"
@@ -102,14 +103,15 @@ run_cell() {
   peak="$(metrics_peak_from_csv "$cell_dir/metrics.csv")"
 
   bench_python - "$cell_dir" "$key" "$MODEL" "$kv" "$c" "$ok" "$phase" \
-    "$snap_before" "$snap_after" "$peak" "$dt" "$CAPACITY_BACKEND" \
+    "$snap_before" "$snap_after" "$peak" "$dt" "$CAPACITY_BACKEND" "$fill_tok" \
     "$CAPACITY_RUN_DIR/matrix.jsonl" "$CELLS_LEDGER" <<'PY'
 import json, os, sys
 (
     cell_dir, key, model, kv, c, ok, phase,
-    snap_before, snap_after, peak, dt, backend,
+    snap_before, snap_after, peak, dt, backend, fill_tok,
     matrix_path, ledger_path,
-) = sys.argv[1:15]
+) = sys.argv[1:16]
+fill_n = int(fill_tok) if str(fill_tok).isdigit() else 0
 row = {
     "key": key,
     "mode": "solo",
@@ -117,6 +119,7 @@ row = {
     "model": model,
     "kv": kv,
     "c": int(c),
+    "fill_tokens": fill_n,
     "ok": ok == "1",
     "phase": phase,
     "elapsed_s": None if dt == "null" else float(dt),
@@ -131,7 +134,17 @@ row = {
 stream_path = os.path.join(cell_dir, "stream_summary.json")
 if os.path.isfile(stream_path):
     with open(stream_path, encoding="utf-8") as f:
-        row["stream"] = json.load(f)
+        stream = json.load(f)
+    row["stream"] = stream
+    # Prefill ≈ time-to-first-token on the fill prompt
+    ttft_ms = stream.get("ttft_ms")
+    if ttft_ms and ttft_ms > 0 and fill_n > 0:
+        row["prefill_s"] = round(ttft_ms / 1000.0, 3)
+        row["prefill_tok_s"] = round(fill_n / (ttft_ms / 1000.0), 2)
+    elif row.get("elapsed_s") and fill_n > 0:
+        # fallback: whole request mostly prefill when max_tokens is small
+        row["prefill_s"] = row["elapsed_s"]
+        row["prefill_tok_s"] = round(fill_n / row["elapsed_s"], 2)
 with open(os.path.join(cell_dir, "summary.json"), "w", encoding="utf-8") as f:
     json.dump(row, f, indent=2)
     f.write("\n")
@@ -141,7 +154,12 @@ with open(matrix_path, "a", encoding="utf-8") as f:
 os.makedirs(os.path.dirname(ledger_path), exist_ok=True)
 with open(ledger_path, "a", encoding="utf-8") as f:
     f.write(line + "\n")
-print(f"done  {key} ok={row['ok']} phase={phase}")
+pp = row.get("prefill_tok_s")
+ps = row.get("prefill_s")
+extra = ""
+if pp is not None:
+    extra = f" prefill={ps}s {pp} t/s"
+print(f"done  {key} ok={row['ok']} phase={phase}{extra}")
 PY
   capacity_progress_end run
 }

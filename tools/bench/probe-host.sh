@@ -15,12 +15,14 @@ mkdir -p "$(dirname "$OUT")"
 PIN_FILE="$ROOT/.build/llama.pin"
 PIN_MD="$ROOT/docs/llama-pin.md"
 IMAGE="${LLAMA_IMAGE:-llama-cpp-vulkan-nix:latest}"
+POWER_URL="${GPU_POWER_URL:-}"
+THERMAL_URL="${GPU_THERMAL_URL:-}"
 
-bench_python - "$OUT" "$ROOT" "$PIN_FILE" "$PIN_MD" "$IMAGE" <<'PY'
-import json, os, platform, re, subprocess, sys
+bench_python - "$OUT" "$ROOT" "$PIN_FILE" "$PIN_MD" "$IMAGE" "$POWER_URL" "$THERMAL_URL" <<'PY'
+import json, os, platform, re, subprocess, sys, urllib.request
 from datetime import datetime, timezone
 
-out_path, root, pin_file, pin_md, image = sys.argv[1:6]
+out_path, root, pin_file, pin_md, image, power_url, thermal_url = sys.argv[1:8]
 
 def sh(cmd, timeout=5):
     try:
@@ -148,6 +150,18 @@ def gib(mib):
         return None
     return round(mib / 1024.0, 1)
 
+def fetch_json(url, timeout=1.5):
+    if not url or url.lower() in ("off", "0", "false"):
+        return None
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8", errors="replace"))
+    except Exception:
+        return None
+
+sidecar_power = fetch_json(power_url)
+sidecar_thermal = fetch_json(thermal_url)
+
 host = {
     "collected_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "hostname": platform.node(),
@@ -176,9 +190,19 @@ host = {
         "commit": pin.get("commit"),
         "fetched_at": pin.get("fetched_at"),
     },
+    "sidecar": {
+        "power_url": power_url,
+        "thermal_url": thermal_url,
+        "power_ok": bool(sidecar_power and sidecar_power.get("ok")),
+        "watts": (sidecar_power or {}).get("watts"),
+        "power_source": (sidecar_power or {}).get("source"),
+        "thermal_ok": bool(sidecar_thermal and sidecar_thermal.get("ok")),
+        "temperature_c": (sidecar_thermal or {}).get("temperature_c"),
+    },
     "notes": (
         "AMD Strix Halo / unified memory: GTT is the GPU-usable UMA pool "
-        "(not discrete VRAM). Compare benches only across similar GTT/RAM."
+        "(not discrete VRAM). Compare benches only across similar GTT/RAM. "
+        "Watts via host sidecar (Docker :9105) during metrics sampling."
     ),
 }
 
@@ -187,8 +211,10 @@ with open(out_path, "w", encoding="utf-8") as f:
     f.write("\n")
 
 print(f"Wrote {out_path}")
+sc = host.get("sidecar") or {}
 print(
     f"  host={host['hostname']} ram={host['ram_gib']}GiB "
-    f"gtt={host['gtt_total_gib']}GiB gpu={host.get('gpu') or '—'}"
+    f"gtt={host['gtt_total_gib']}GiB gpu={host.get('gpu') or '—'} "
+    f"sidecar_W={sc.get('watts') if sc.get('power_ok') else '—'}"
 )
 PY

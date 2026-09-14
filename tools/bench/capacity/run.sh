@@ -148,14 +148,26 @@ if solo:
                 elif not r.get("ok"):
                     cells.append("FAIL")
 # Enhance ledger compare with GTT + fill tok/s
-    else:
+                else:
                     gtt = (r.get("metrics_peak") or {}).get("gtt_used_mb") or (r.get("mem_after") or {}).get("gtt_used_mb")
-                    tps = (r.get("stream") or {}).get("tokens_per_sec")
+                    stream = r.get("stream") or {}
+                    fill_n = r.get("fill_tokens")
+                    if fill_n is None:
+                        fill_n = max(1024, int(int(r.get("c") or 0) * 0.90))
+                    prefill_s = r.get("prefill_s")
+                    prefill_tok_s = r.get("prefill_tok_s")
+                    ttft = stream.get("ttft_ms")
+                    if prefill_s is None and ttft and ttft > 0:
+                        prefill_s = round(ttft / 1000.0, 3)
+                    if prefill_tok_s is None and prefill_s and fill_n and prefill_s > 0:
+                        prefill_tok_s = round(fill_n / prefill_s, 2)
                     parts = []
                     if gtt is not None:
                         parts.append(f"{int(gtt)} MiB")
-                    if tps is not None:
-                        parts.append(f"{tps} t/s")
+                    if prefill_s is not None:
+                        parts.append(f"{prefill_s} s")
+                    if prefill_tok_s is not None:
+                        parts.append(f"{prefill_tok_s} t/s PP")
                     cells.append(" · ".join(parts) if parts else "ok")
             lines.append(f"| {c} | " + " | ".join(cells) + " |")
         lines.append("")
