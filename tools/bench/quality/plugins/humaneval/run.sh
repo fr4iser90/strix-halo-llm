@@ -339,41 +339,117 @@ fi
 
 METRICS_JSON="{}"
 if [[ "$DO_EVAL" -eq 1 ]]; then
-  echo "→ Evaluating functional correctness (executes model code)…"
-  bench_ensure_libstdcxx || true
-  set +e
-  bench_python -m human_eval.evaluate_functional_correctness "$SAMPLES" \
-    >"$RUN_DIR/eval.log" 2>&1
-  EVAL_RC=$?
-  set -e
-  cat "$RUN_DIR/eval.log" || true
+  RESULTS_JSONL="${SAMPLES}_results.jsonl"
+  # Re-score path: if results already exist (e.g. n=10 run), skip re-executing tests
+  if [[ "$SKIP_GENERATE" -eq 1 && -f "$RESULTS_JSONL" ]]; then
+    echo "→ Reusing existing $RESULTS_JSONL (no re-exec)…"
+    [[ -f "$RUN_DIR/eval.log" ]] || : >"$RUN_DIR/eval.log"
+  else
+    echo "→ Evaluating functional correctness (executes model code)…"
+    bench_ensure_libstdcxx || true
+    set +e
+    bench_python -m human_eval.evaluate_functional_correctness "$SAMPLES" \
+      >"$RUN_DIR/eval.log" 2>&1
+    EVAL_RC=$?
+    set -e
+    cat "$RUN_DIR/eval.log" || true
+  fi
   METRICS_JSON="$(bench_python - "$RUN_DIR" <<'PY'
-import json, glob, ast, os, sys
+import json, glob, ast, os, re, sys
 run_dir = sys.argv[1]
+
+def coerce_metrics(obj):
+    """Normalize evaluate_functional_correctness printout to plain floats."""
+    if not isinstance(obj, dict):
+        return {}
+    out = {}
+    for k, v in obj.items():
+        key = str(k)
+        if not key.startswith("pass@"):
+            continue
+        try:
+            out[key] = float(v)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+def parse_metrics_line(line: str):
+    line = line.strip()
+    if "pass@" not in line:
+        return {}
+    # Official harness often prints: {'pass@1': np.float64(0.62), 'pass@10': np.float64(0.79)}
+    cleaned = re.sub(r"np\.float64\(([^)]+)\)", r"\1", line)
+    cleaned = cleaned.replace("np.float(", "(")
+    if cleaned.startswith("{"):
+        try:
+            return coerce_metrics(json.loads(cleaned.replace("'", '"')))
+        except json.JSONDecodeError:
+            pass
+        try:
+            return coerce_metrics(ast.literal_eval(cleaned))
+        except (ValueError, SyntaxError):
+            pass
+    # Fallback: extract pass@k : number pairs
+    found = {}
+    for m in re.finditer(r"['\"]?(pass@\d+)['\"]?\s*:\s*(?:np\.float64\()?([0-9.eE+-]+)", line):
+        try:
+            found[m.group(1)] = float(m.group(2))
+        except ValueError:
+            pass
+    return found
+
+def pass_at_k_from_results(path: str):
+    """Unbiased pass@k from samples.jsonl_results.jsonl (no numpy)."""
+    import math
+    from collections import defaultdict
+    per_task = defaultdict(list)
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            row = json.loads(line)
+            per_task[row["task_id"]].append(bool(row.get("passed")))
+    if not per_task:
+        return {}
+
+    def estimate(n, c, k):
+        if n - c < k:
+            return 1.0
+        return 1.0 - math.comb(n - c, k) / math.comb(n, k)
+
+    ns = [len(v) for v in per_task.values()]
+    n_max = max(ns) if ns else 0
+    metrics = {}
+    for k in (1, 10):
+        if n_max < k:
+            continue
+        vals = []
+        for xs in per_task.values():
+            n = len(xs)
+            if n < k:
+                continue
+            c = sum(1 for p in xs if p)
+            vals.append(estimate(n, c, k))
+        if vals:
+            metrics[f"pass@{k}"] = sum(vals) / len(vals)
+    return metrics
+
 m = {}
 log = os.path.join(run_dir, "eval.log")
 if os.path.isfile(log):
     for line in open(log, encoding="utf-8"):
-        line = line.strip()
-        if "pass@" in line and line.startswith("{"):
-            try:
-                m = json.loads(line)
-            except json.JSONDecodeError:
-                try:
-                    m = ast.literal_eval(line)
-                except (ValueError, SyntaxError):
-                    pass
-results = glob.glob(os.path.join(run_dir, "samples.jsonl_results.jsonl"))
-if not m and results:
-    passed = total = 0
-    with open(results[0], encoding="utf-8") as f:
-        for line in f:
-            row = json.loads(line)
-            total += 1
-            if row.get("passed"):
-                passed += 1
-    if total:
-        m = {"pass@1": passed / total}
+        parsed = parse_metrics_line(line)
+        if parsed:
+            m = parsed
+
+results = sorted(glob.glob(os.path.join(run_dir, "samples.jsonl_results.jsonl")))
+if results:
+    from_results = pass_at_k_from_results(results[0])
+    # Prefer official log metrics; fill any missing k from results
+    for k, v in from_results.items():
+        if k not in m:
+            m[k] = v
+    if not m:
+        m = from_results
+
 print(json.dumps(m))
 PY
 )"

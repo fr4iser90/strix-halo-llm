@@ -362,7 +362,9 @@ def qual_table_html(qual_rows: list, *, fmt_stamp) -> str:
 
 
 def max_ctx_one_per_model(cap_latest: dict, cap_metrics_fn) -> str:
-    """One row per model: largest ok context (tie-break: prefer lower memory)."""
+    """One row per model at preferred KV (q8_0), largest ok context + dual note."""
+    prefer_kv = ("q8_0", "q8", "q5_0", "q5", "q4_0", "q4")  # first match wins as preferred
+
     solo = [
         r
         for r in (cap_latest or {}).values()
@@ -370,48 +372,122 @@ def max_ctx_one_per_model(cap_latest: dict, cap_metrics_fn) -> str:
     ]
     if not solo:
         return '<p class="meta">No capacity runs yet.</p>'
-    best: dict[str, Any] = {}
+
+    # model -> kv -> best row by c
+    by_model: dict[str, dict[str, Any]] = {}
     for r in solo:
         model = r.get("model") or "?"
+        kv = r.get("kv") or "?"
         c = int(r.get("c") or 0)
-        m = cap_metrics_fn(r) or {}
-        gtt = m.get("gtt_mb")
-        prev = best.get(model)
-        if prev is None or c > prev["c"] or (
-            c == prev["c"] and gtt is not None and (prev["gtt"] is None or gtt < prev["gtt"])
-        ):
-            best[model] = {
-                "c": c,
-                "kv": r.get("kv") or "—",
-                "gtt": gtt,
-                "prefill_s": m.get("prefill_s"),
-                "prefill_tok_s": m.get("prefill_tok_s"),
-                "full": model,
-            }
+        prev = by_model.setdefault(model, {}).get(kv)
+        if prev is None or c > int(prev.get("c") or 0):
+            by_model[model][kv] = r
+
+    def pick_row(kvs: dict[str, Any]):
+        for pref in prefer_kv:
+            if pref in kvs:
+                return kvs[pref], pref
+        # fallback: largest c, then any
+        best = None
+        for kv, r in kvs.items():
+            if best is None or int(r.get("c") or 0) > int(best[0].get("c") or 0):
+                best = (r, kv)
+        return best if best else (None, None)
+
+    def plausible(prefill_s, prefill_tok_s, c):
+        """Hide obvious measurement glitches (e.g. >1500 t/s at 128k)."""
+        if prefill_tok_s is not None and prefill_tok_s > 800:
+            return False
+        if prefill_s is not None and c and c >= 65536 and prefill_s < 30:
+            return False
+        return True
+
+    # other KVs that also reach same max (for note)
+    def other_note(model, chosen_kv, chosen_c):
+        kvs = by_model.get(model) or {}
+        alts = []
+        for kv, r in sorted(kvs.items()):
+            if kv == chosen_kv:
+                continue
+            if int(r.get("c") or 0) >= chosen_c:
+                alts.append(kv)
+        if not alts:
+            return ""
+        return f'<span class="meta">also @ {" / ".join(alts)}</span>'
+
     rows = []
-    for model in sorted(best.keys()):
-        b = best[model]
-        gtt_s = f"{b['gtt']} MiB" if b["gtt"] is not None else "—"
-        ps = f"{b['prefill_s']} s" if b["prefill_s"] is not None else "—"
-        pps = f"{b['prefill_tok_s']} t/s" if b["prefill_tok_s"] is not None else "—"
+    for model in sorted(by_model.keys()):
+        r, kv = pick_row(by_model[model])
+        if not r:
+            continue
+        m = cap_metrics_fn(r) or {}
+        c = int(r.get("c") or 0)
+        gtt_s = f"{m['gtt_mb']} MiB" if m.get("gtt_mb") is not None else "—"
+        ps_v, pps_v = m.get("prefill_s"), m.get("prefill_tok_s")
+        if plausible(ps_v, pps_v, c):
+            ps = esc(f"{ps_v} s") if ps_v is not None else "—"
+            pps = esc(f"{pps_v} t/s") if pps_v is not None else "—"
+        else:
+            ps = "—"
+            pps = '<span class="meta" title="Prefill metric looked inconsistent — see full grid">suspect</span>'
+        note = other_note(model, kv, c)
         rows.append(
             f'<tr><td title="{esc(model)}">{esc(display_name(model, 42))}</td>'
-            f"<td>{esc(b['kv'])}</td>"
-            f'<td class="n best">{b["c"]:,}</td>'
+            f"<td>{esc(kv)}</td>"
+            f'<td class="n best">{c:,}</td>'
             f'<td class="n">{esc(gtt_s)}</td>'
-            f'<td class="n">{esc(ps)}</td>'
-            f'<td class="n">{esc(pps)}</td></tr>'
+            f'<td class="n">{ps}</td>'
+            f'<td class="n">{pps}</td>'
+            f"<td>{note}</td></tr>"
         )
+
+    # Dual summary: max ok context per model
+    dual = [
+        r
+        for r in (cap_latest or {}).values()
+        if r.get("mode") == "dual" and not r.get("skipped") and r.get("ok")
+    ]
+    dual_best: dict[str, Any] = {}
+    for r in dual:
+        model = r.get("model") or "?"
+        c = int(r.get("c") or 0)
+        prev = dual_best.get(model)
+        if prev is None or c > int(prev.get("c") or 0):
+            dual_best[model] = r
+    dual_html = ""
+    if dual_best:
+        drows = []
+        for model in sorted(dual_best.keys()):
+            r = dual_best[model]
+            drows.append(
+                f'<tr><td title="{esc(model)}">{esc(display_name(model, 42))}</td>'
+                f"<td>{esc(r.get('kv') or '—')}</td>"
+                f'<td class="n best">{int(r.get("c") or 0):,}</td></tr>'
+            )
+        dual_html = (
+            "<h3>Two instances (dual)</h3>"
+            '<p class="meta">Largest context where two copies of the same model both fit.</p>'
+            "<table><thead><tr><th>Model</th><th>KV</th>"
+            '<th class="n">Max context</th></tr></thead><tbody>'
+            + "".join(drows)
+            + "</tbody></table>"
+        )
+
     return (
+        '<p class="meta">Preferred KV <strong>q8_0</strong> (typical sticky setting). '
+        "Other quants that also reach the same max are noted on the right. "
+        "Prompt cost is for a full fill at that context.</p>"
         "<table><thead><tr>"
         "<th>Model</th><th>KV</th>"
-        f'<th class="n">{tip("Max context", "Largest successful context for this model.")}</th>'
+        f'<th class="n">{tip("Max context", "Largest successful context at the preferred KV (q8 when measured).")}</th>'
         f'<th class="n">{tip("Memory", "Shared GPU memory at that context.")}</th>'
         f'<th class="n">{tip("Prompt time", "Seconds to process a full prompt at max context.")}</th>'
         f'<th class="n">{tip("Prompt speed", "Tokens/s while reading the prompt.")}</th>'
+        "<th>Also fits</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
+        + dual_html
     )
 
 
@@ -631,7 +707,6 @@ def write_public_pages(
 {host_one_liner(host)}
 <div class="card">
 <h2>Longest context that fits</h2>
-<p class="meta">One row per model — best (largest) successful context. Prefer lower memory on ties.</p>
 {max_ctx_one_per_model(cap_latest, cap_metrics_fn)}
 </div>
 <div class="card">

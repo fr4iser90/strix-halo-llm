@@ -43,13 +43,32 @@ def main() -> int:
     out_path = str(samples_path) + "_results.jsonl"
     write_jsonl(out_path, results)
 
-    # pass@1: fraction of tasks with at least one passing sample (n=1 → mean)
     if not per_task:
         print("{}")
         return 1
-    passed_tasks = sum(1 for xs in per_task.values() if any(xs))
-    pass1 = passed_tasks / len(per_task)
-    metrics = {"pass@1": pass1}
+
+    # pass@k (unbiased) for k in {1,10} when enough samples exist
+    import math
+
+    def estimate(n: int, c: int, k: int) -> float:
+        if n - c < k:
+            return 1.0
+        return 1.0 - math.comb(n - c, k) / math.comb(n, k)
+
+    n_max = max(len(xs) for xs in per_task.values())
+    metrics: dict[str, float] = {}
+    for k in (1, 10):
+        if n_max < k:
+            continue
+        vals = []
+        for xs in per_task.values():
+            n = len(xs)
+            if n < k:
+                continue
+            c = sum(1 for p in xs if p)
+            vals.append(estimate(n, c, k))
+        if vals:
+            metrics[f"pass@{k}"] = sum(vals) / len(vals)
     print(json.dumps(metrics))
     return 0
 
