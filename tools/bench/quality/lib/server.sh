@@ -16,7 +16,8 @@ set -euo pipefail
 source "$PROJECT_ROOT/tools/bench/capacity/lib/common.sh"
 
 QUALITY_URL="${QUALITY_URL:-${QUALITY_BASE_URL:-http://127.0.0.1:11601}}"
-QUALITY_SYNC_SOURCES="${QUALITY_SYNC_SOURCES:-${CAPACITY_SYNC_SOURCES:-coder,chat,lab}}"
+# Always prefer lab+stickys for quality model catalog (do not inherit capacity's coder,chat-only default).
+QUALITY_SYNC_SOURCES="${QUALITY_SYNC_SOURCES:-coder,chat,lab}"
 # Set by matrix when it owns lifecycle (prepare once, load per model, cleanup once)
 QUALITY_BENCH_OWNED="${QUALITY_BENCH_OWNED:-0}"
 QUALITY_BENCH_READY="${QUALITY_BENCH_READY:-0}"

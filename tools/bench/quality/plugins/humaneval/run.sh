@@ -31,7 +31,7 @@ LIMIT="${QUALITY_LIMIT:-0}"          # 0 = all 164 tasks
 MAX_TOKENS="${QUALITY_MAX_TOKENS:-512}"
 TEMPERATURE="${QUALITY_TEMPERATURE:-0.2}"
 TIMEOUT="${QUALITY_TIMEOUT:-120}"
-DO_EVAL=0
+DO_EVAL=1
 DRY_RUN=0
 INSTALL_HINT=1
 USE_BENCH=1
@@ -52,8 +52,8 @@ Options:
   --max-tokens N        completion budget (default $MAX_TOKENS)
   --temperature F       sampling temperature (default $TEMPERATURE)
   --timeout SEC         HTTP timeout per completion (default $TIMEOUT)
-  --eval                after generate, run functional correctness
-  --no-eval             generate only (default)
+  --eval                run functional correctness after generate (default)
+  --no-eval             generate only (no pass@k scores)
   --vendor DIR          human-eval checkout (default $VENDOR)
   --dry-run             print plan, exit
   -h, --help
@@ -61,7 +61,8 @@ Options:
 Env:
   QUALITY_BASE_URL  QUALITY_MODEL  QUALITY_N  QUALITY_LIMIT
   QUALITY_SKIP_BENCH=1   same as --no-bench
-  HUMAN_EVAL_EXECUTE=1   same as --eval
+  HUMAN_EVAL_EXECUTE=0   force --no-eval
+  QUALITY_SYNC_SOURCES   default coder,chat,lab (INI catalog for bench-a)
 
 Quants: HumanEval uses the *weight* preset (section name / GGUF), not a KV
 sweep. KV (ctk/ctv) stays whatever is in models-bench.ini (usually q8_0).
@@ -202,7 +203,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ "${HUMAN_EVAL_EXECUTE:-0}" == "1" ]] && DO_EVAL=1
+[[ "${HUMAN_EVAL_EXECUTE:-1}" == "0" ]] && DO_EVAL=0
 [[ "${QUALITY_SKIP_BENCH:-0}" == "1" ]] && USE_BENCH=0
 
 [[ -n "$MODEL" ]] || {
@@ -277,8 +278,8 @@ if ! bench_python -c "import human_eval.data" 2>/dev/null; then
   }
 fi
 
-# Matrix / HUMAN_EVAL_EXECUTE already set DO_EVAL; default-on when env says so
-[[ "${HUMAN_EVAL_EXECUTE:-0}" == "1" ]] && DO_EVAL=1
+# Matrix / HUMAN_EVAL_EXECUTE=0 can force generate-only
+[[ "${HUMAN_EVAL_EXECUTE:-1}" == "0" ]] && DO_EVAL=0
 
 bench_python "$PLUGIN_DIR/generate.py"
 
