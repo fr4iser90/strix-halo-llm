@@ -12,15 +12,15 @@ Compare results only across similar RAM/GTT/backends. [host.json](host.json)
 | OS | NixOS 26.05 (Yarara) |
 | Kernel | 7.2.2 |
 | CPU | AMD RYZEN AI MAX+ 395 w/ Radeon 8060S (32 threads) |
-| RAM | 124.9 GiB (avail ~77.3 GiB) |
+| RAM | 124.9 GiB (avail ~51.0 GiB) |
 | Swap | 18.7 GiB |
-| GTT (UMA) | 100.0 GiB (used ~28.8 GiB) |
+| GTT (UMA) | 100.0 GiB (used ~62.9 GiB) |
 | Visible VRAM | 512 MiB |
 | GPU | c5:00.0 Display controller: Advanced Micro Devices, Inc. [AMD/ATI] Strix Halo [Radeon Graphics / Radeon 8050S Graphics / Radeon 8060S Graphics] (rev c1) |
 | Backend | vulkan |
 | Image | llama-cpp-vulkan-nix:latest (`366f8b040ab0`) |
 | llama.cpp | qwen4exp/mtp @ `d1a92352cbd4` |
-| Probed | 2026-09-14T19:40:55Z |
+| Probed | 2026-09-14T20:18:16Z |
 
 > AMD Strix Halo / unified memory: GTT is the GPU-usable UMA pool (not discrete VRAM). Compare benches only across similar GTT/RAM.
 
@@ -63,8 +63,8 @@ Plan: [`scheduling/latest/apply-plan.json`](scheduling/latest/apply-plan.json)
 
 | Suite | Model | pass@1 | pass@10 | Stamp |
 | --- | --- | ---: | ---: | --- |
-| humaneval | `Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL` | 0.585 | — | `20260914T165918Z` |
-| humaneval | `Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL` | 0.598 | — | `20260914T174552Z` |
+| humaneval | `Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL` | 0.599 | 0.738 | `20260914T192032Z` |
+| humaneval | `Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL` | 0.607 | 0.762 | `20260914T194832Z` |
 | humaneval | `Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL` | 0.623 | 0.799 | `20260914T183437Z` |
 
 ## Capacity — KV×ctx / dual

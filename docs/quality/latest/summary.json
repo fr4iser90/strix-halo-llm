@@ -1,27 +1,39 @@
 {
-  "generated": "2026-09-14T19:12:06Z",
+  "generated": "2026-09-14T20:12:26Z",
   "rows": [
     {
       "suite": "humaneval",
-      "stamp": "20260914T165918Z",
+      "stamp": "20260914T192032Z",
       "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
       "endpoint": "http://127.0.0.1:11601/v1",
-      "pass_at_1": 0.5853658536585366,
-      "pass_at_10": null,
+      "pass_at_1": 0.5993902439024391,
+      "pass_at_10": 0.7378048780487805,
+      "pass_ks": {
+        "pass@1": 0.5993902439024391,
+        "pass@10": 0.7378048780487805
+      },
       "n_tasks": 164,
-      "n_samples": 1,
-      "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260914T165918Z/summary.json"
+      "n_samples": 10,
+      "elapsed_s": 1641,
+      "generate_s": 1633.6,
+      "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260914T192032Z/summary.json"
     },
     {
       "suite": "humaneval",
-      "stamp": "20260914T174552Z",
+      "stamp": "20260914T194832Z",
       "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL",
       "endpoint": "http://127.0.0.1:11601/v1",
-      "pass_at_1": 0.5975609756097561,
-      "pass_at_10": null,
+      "pass_at_1": 0.6067073170731707,
+      "pass_at_10": 0.7621951219512195,
+      "pass_ks": {
+        "pass@1": 0.6067073170731707,
+        "pass@10": 0.7621951219512195
+      },
       "n_tasks": 164,
-      "n_samples": 1,
-      "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260914T174552Z/summary.json"
+      "n_samples": 10,
+      "elapsed_s": 1434,
+      "generate_s": 1426.0,
+      "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260914T194832Z/summary.json"
     },
     {
       "suite": "humaneval",
@@ -30,8 +42,14 @@
       "endpoint": "http://127.0.0.1:11601/v1",
       "pass_at_1": 0.6231707317073171,
       "pass_at_10": 0.7987804878048781,
+      "pass_ks": {
+        "pass@1": 0.6231707317073171,
+        "pass@10": 0.7987804878048781
+      },
       "n_tasks": 164,
       "n_samples": 10,
+      "elapsed_s": null,
+      "generate_s": null,
       "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260914T183437Z/summary.json"
     }
   ]
