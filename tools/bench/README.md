@@ -92,16 +92,19 @@ Nice-to-haves: [`ROADMAP.md`](ROADMAP.md).
 After a matrix (or locally with existing `cells.jsonl` + sched summary):
 
 ```bash
-./bench index                 # local dashboard + pages-index + planner.html
-# Browser: output/bench/index.html       → benches + Capacity + local apply/planner
-#          output/bench/pages-index.html → Pages preview (benches only)
+./bench index                 # local dashboard + public pages + planner.html
+# Browser: output/bench/index.html       → local (benches + apply/planner)
+#          output/bench/pages-index.html → public Overview (Pages preview)
+#          output/bench/context.html     → Context & memory
+#          output/bench/quality.html     → Code correctness
+#          output/bench/host.html        → Host & build
 #          output/bench/planner.html     → recommendations (local only)
 ./bench apply-ini --plan plan.json
 ./bench apply-ini --plan plan.json --dry-run
-./bench publish               # docs/ = measured benches only (no planner / apply-plan)
+./bench publish               # docs/ = Overview + detail pages (no planner / apply)
 ```
 
-Pages = host + capacity + sched/throughput/quality. Recommendations stay local.
+Pages = Overview + Context + Quality + Host (plus linked throughput/scheduling compares). Recommendations stay local.
 
 ## Capacity
 

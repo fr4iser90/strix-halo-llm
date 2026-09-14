@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build output/bench/index.html (local: benches + apply/planner) and
-# pages-index.html (GitHub Pages: measured benches only).
+# Build local index.html (operator) + public pages-index/context/quality/host.html
+# (GitHub Pages: overview + detail pages, no apply/planner).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1114,30 +1114,7 @@ def verdict_html():
             "</div>"
         )
 
-    # Responsiveness under load (lowest TTFT)
-    best_ttft = None
-    for r in sch_recs or []:
-        ttft = parse_float(r.get("prefill_ttft"))
-        if ttft is None:
-            continue
-        if best_ttft is None or ttft < best_ttft[0]:
-            best_ttft = (ttft, r.get("model") or "—")
-    if best_ttft:
-        cards.append(
-            '<div class="verdict-card">'
-            f'<div class="verdict-label">{tip("First token under load", "Time to first token (TTFT) with concurrent users. Lower = feels more responsive when the server is busy.")}</div>'
-            f'<div class="verdict-value">{fmt_num(best_ttft[0], 0)} <span class="unit">ms</span></div>'
-            f'<div class="verdict-sub">{esc(short_name(best_ttft[1]))}</div>'
-            "</div>"
-        )
-    else:
-        cards.append(
-            '<div class="verdict-card muted">'
-            '<div class="verdict-label">First token under load</div>'
-            '<div class="verdict-value">—</div>'
-            '<div class="verdict-sub">No scheduling yet</div>'
-            "</div>"
-        )
+    # (TTFT under load is not a hero metric — see scheduling detail pages)
 
     return (
         '<section class="verdict" id="verdict" aria-label="At a glance">'
@@ -1373,9 +1350,9 @@ details.panel .card {{ margin: .75rem 0; border: none; background: #12141a; }}
 
 {max_ok_context_html()}
 
-<div class="card" id="scheduling">
-<h2>Best server settings under load</h2>
-<p class="meta">Winning knobs from scheduling sweeps with concurrent users. Green values are the recommended pick for this host.</p>
+<details class="panel" id="scheduling">
+<summary>Best server settings under load (operator)</summary>
+<p class="meta">Winning knobs from scheduling sweeps. Prefer <a href="pages-index.html">public overview</a> for sharing.</p>
 <p class="more"><a href="scheduling/latest/compare.html">→ Sweep details per model</a></p>
 <div class="legend">
   <span><strong>Slots</strong> — parallel requests the server keeps active</span>
@@ -1406,7 +1383,7 @@ details.panel .card {{ margin: .75rem 0; border: none; background: #12141a; }}
 <th class="n">{tip("TG tok/s", "Generation alone (idle).")}</th>
 <th class="n">{tip("Interleave", "Gain from overlapping request work when large.")}</th>
 </tr></thead><tbody>{sch_table}</tbody></table>
-</div>
+</details>
 
 <div class="card" id="throughput">
 <h2>Single-user throughput</h2>
@@ -1456,7 +1433,10 @@ This measures code correctness only — not chat quality, reasoning style, or sp
 </tr></thead><tbody>{qual_table}</tbody></table>
 </div>
 
+<details class="panel" id="capacity">
+<summary>Context × KV grid &amp; dual (lab detail)</summary>
 {capacity_html_card()}
+</details>
 
 <details class="panel" id="details-host">
 <summary>Host &amp; build details</summary>
@@ -1753,24 +1733,55 @@ footer = f"""
 
 </body></html>"""
 
-# Local full dashboard (benches + capacity + local apply/planner)
-LOCAL_NAV = '<nav class="toc" aria-label="On this page"><a href="#verdict">At a glance</a><a href="#charts">Speed</a><a href="#max-ctx">Context</a><a href="#scheduling">Under load</a><a href="#throughput">Throughput</a><a href="#quality">Code quality</a><a href="#capacity">Memory grid</a><a href="#details-host">Host</a><a href="#local-tools">Local tools</a></nav>'
+# --- Local full dashboard (operator: benches + apply/planner) ---
+LOCAL_NAV = (
+    '<nav class="toc" aria-label="On this page">'
+    '<a href="#verdict">At a glance</a>'
+    '<a href="#charts">Speed</a>'
+    '<a href="#max-ctx">Context</a>'
+    '<a href="#scheduling">Under load</a>'
+    '<a href="#throughput">Throughput</a>'
+    '<a href="#quality">Code quality</a>'
+    '<a href="#capacity">Memory grid</a>'
+    '<a href="#details-host">Host</a>'
+    '<a href="#local-tools">Local tools</a>'
+    '<span class="meta"> · </span>'
+    '<a href="pages-index.html">Public overview →</a>'
+    "</nav>"
+)
 page_local = page.replace("{LOCAL_NAV}", LOCAL_NAV) + local_tools + footer
 
-# GitHub Pages: measured benches only (no recommendations / apply / planner)
-LOCAL_NAV = '<nav class="toc" aria-label="On this page"><a href="#verdict">At a glance</a><a href="#charts">Speed</a><a href="#max-ctx">Context</a><a href="#scheduling">Under load</a><a href="#throughput">Throughput</a><a href="#quality">Code quality</a><a href="#capacity">Memory grid</a><a href="#details-host">Host</a></nav>'
-page_pages = page.replace("{LOCAL_NAV}", LOCAL_NAV) + footer
-page_pages = page_pages.replace(
-    "<p class=\"lede\">Measured on this host:",
-    "<p class=\"lede\">Public results measured on this host:",
-    1,
-)
-
-pages_html = os.path.join(out_root, "pages-index.html")
 with open(index_html, "w", encoding="utf-8") as f:
     f.write(page_local)
-with open(pages_html, "w", encoding="utf-8") as f:
-    f.write(page_pages)
+
+# --- Public site: overview + detail pages (GitHub Pages) ---
+_lib = os.path.normpath(os.path.join(out_root, "..", "..", "tools", "bench", "lib"))
+if _lib not in sys.path:
+    sys.path.insert(0, _lib)
+from pages_site import display_name as _disp, write_public_pages  # noqa: E402
+
+thr_chart_pub = {
+    "labels": [_disp(m.get("model"), 22) for m in thr_models],
+    "pp": thr_chart.get("pp"),
+    "tg": thr_chart.get("tg"),
+}
+
+pub_paths = write_public_pages(
+    out_root,
+    host=host,
+    thr_models=thr_models,
+    qual_rows=qual_rows,
+    cap_latest=cap_latest,
+    thr_chart=thr_chart_pub,
+    cap_chart=cap_chart,
+    capacity_grid_html=capacity_html_card(),
+    fingerprint_html=fingerprint_html(host),
+    host_html_card=host_html_card(host),
+    cap_metrics_fn=cap_metrics,
+    fmt_stamp=fmt_stamp,
+    cap_has_power=cap_has_power,
+)
+pages_html = os.path.join(out_root, "pages-index.html")
 
 # Refresh capacity compare.md with tok/s if ledger exists
 if cap_cells:
@@ -1783,7 +1794,8 @@ if cap_cells:
 
 print(f"Wrote {index_md}")
 print(f"Wrote {index_html} (local: benches + apply/planner)")
-print(f"Wrote {pages_html} (GitHub Pages: benches only)")
+for p in pub_paths:
+    print(f"Wrote {p}")
 print(f"  scheduling models: {len(sch_recs)}")
 print(f"  throughput models: {len(thr_models)}")
 print(f"  capacity cells: {cap_cells}")

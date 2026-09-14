@@ -37,12 +37,15 @@ fi
 # Planner stays local-only (not copied below)
 
 copy_if "$SRC/host.json" "$DST/host.json"
-# Prefer pages-index (no apply/planner); fall back to index.html
+# Prefer pages-index (overview); fall back to index.html
 if [[ -f "$SRC/pages-index.html" ]]; then
   copy_if "$SRC/pages-index.html" "$DST/index.html"
 else
   copy_if "$SRC/index.html" "$DST/index.html"
 fi
+copy_if "$SRC/context.html" "$DST/context.html"
+copy_if "$SRC/quality.html" "$DST/quality.html"
+copy_if "$SRC/host.html" "$DST/host.html"
 copy_if "$SRC/index.md" "$DST/index.md"
 copy_if "$SRC/chart.umd.min.js" "$DST/chart.umd.min.js"
 
@@ -95,7 +98,13 @@ fi
 cat >"$DST/README.md" <<'EOF'
 # GitHub Pages (benchmark results only)
 
-Static site root — **measured benches** (capacity, sched, throughput, quality, host).
+Static site — **measured benches** with a short overview plus detail pages:
+
+- `index.html` — Overview (at a glance, speed, throughput, HumanEval)
+- `context.html` — Max context, prompt-cost chart, full KV grid
+- `quality.html` — Code correctness
+- `host.html` — Hardware & build fingerprint
+
 Recommendation planner / apply-ini stay on the bench host (`output/bench/`), not here.
 
 Enable once per fork:
