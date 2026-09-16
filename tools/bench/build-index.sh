@@ -21,6 +21,13 @@ fi
 
 mkdir -p "$OUT" "$THR/latest" "$SCH/latest"
 
+# Multi-engine throughput: recover by-engine/* from stamped compares, rebuild merge
+if [[ -f "$SCRIPT_DIR/lib/thr_latest.sh" ]]; then
+  # shellcheck source=lib/thr_latest.sh
+  source "$SCRIPT_DIR/lib/thr_latest.sh"
+  bench_thr_rebuild_merged_latest "$THR" || true
+fi
+
 bench_python - "$OUT" "$THR" "$SCH" "$INDEX_MD" "$INDEX_HTML" "$HOST_JSON" <<'PY'
 import csv, glob, html, json, os, re, sys
 from collections import defaultdict
