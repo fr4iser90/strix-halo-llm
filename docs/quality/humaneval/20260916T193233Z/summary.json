@@ -1,0 +1,16 @@
+{
+  "suite": "humaneval",
+  "model": "halogen-qwen3.8-flash-next",
+  "engine": "halogen-flash",
+  "base_url": "http://127.0.0.1:8731/v1",
+  "stamp": "20260916T193233Z",
+  "n_tasks": 164,
+  "n_samples_per_task": 1,
+  "limit": 0,
+  "metrics": {
+    "pass@1": 0.6951219512195121
+  },
+  "generate_s": 521.1,
+  "elapsed_s": 523,
+  "notes": "HumanEval \u2014 https://github.com/openai/human-eval"
+}

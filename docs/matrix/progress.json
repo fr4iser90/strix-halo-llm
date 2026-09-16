@@ -1,7 +1,7 @@
 {
-  "updated": "2026-09-14T15:27:03Z",
-  "phase": "throughput",
-  "detail": "vulkan",
+  "updated": "2026-09-16T19:41:18Z",
+  "phase": "done",
+  "detail": "full",
   "profile": "/home/Jarvis/Documents/llama-cpp/tools/bench/matrix/profiles/full.json",
   "log": [
     {
@@ -503,6 +503,41 @@
       "t": "2026-09-14T15:27:03Z",
       "phase": "throughput",
       "detail": "vulkan"
+    },
+    {
+      "t": "2026-09-16T18:51:36Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-16T19:13:35Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-16T19:17:14Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-16T19:19:13Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-16T19:22:47Z",
+      "phase": "done",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-16T19:25:52Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-16T19:41:18Z",
+      "phase": "done",
+      "detail": "full"
     }
   ],
   "capacity": {

@@ -12,15 +12,16 @@ Compare results only across similar RAM/GTT/backends. [host.json](host.json)
 | OS | NixOS 26.05 (Yarara) |
 | Kernel | 7.2.2 |
 | CPU | AMD RYZEN AI MAX+ 395 w/ Radeon 8060S (32 threads) |
-| RAM | 124.9 GiB (avail ~51.0 GiB) |
+| RAM | 124.9 GiB (avail ~69.9 GiB) |
 | Swap | 18.7 GiB |
-| GTT (UMA) | 100.0 GiB (used ~62.9 GiB) |
+| GTT (UMA) | 100.0 GiB (used ~42.1 GiB) |
 | Visible VRAM | 512 MiB |
 | GPU | c5:00.0 Display controller: Advanced Micro Devices, Inc. [AMD/ATI] Strix Halo [Radeon Graphics / Radeon 8050S Graphics / Radeon 8060S Graphics] (rev c1) |
+| Engine | llama.cpp |
 | Backend | vulkan |
 | Image | llama-cpp-vulkan-nix:latest (`366f8b040ab0`) |
 | llama.cpp | qwen4exp/mtp @ `d1a92352cbd4` |
-| Probed | 2026-09-14T20:18:16Z |
+| Probed | 2026-09-16T20:29:39Z |
 
 > AMD Strix Halo / unified memory: GTT is the GPU-usable UMA pool (not discrete VRAM). Compare benches only across similar GTT/RAM.
 
@@ -30,10 +31,11 @@ Decode latency + prefill throughput **under load**. [Details →](scheduling/lat
 
 | Model | np ★ | ub ★ | b ★ | c ★ | MTP ★ | cont-batch | Prefill tok/s | TTFT ms | Decode tok/s | Decode ms | TG tok/s | Interleave |
 | --- | ---: | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | **1** | **128** | **64†** | **—** | **3** | off ★ | 54.4 | 31,898 | — | 17.9 | 56.9 | 297× |
-| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL | **1** | **256** | **64†** | **—** | **3** | on ★ | 63.7 | 31,868 | — | 37.6 | 56.9 | 344× |
-| Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL | **2** | **32** | **64†** | **—** | **3** | off ★ | 69.8 | 44,867 | — | 15.5 | 57.1 | 61× |
-| Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | **1** | **64** | **64†** | **—** | **3** | on ★ | 57.8 | 31,980 | — | 36.2 | 56.9 | 320× |
+| halogen-qwen3.8-flash-next | **—** | **—** | **64†** | **—** | **—** | on | 24.7 | 8,502 | 10.3 | 35.3 | — | — |
+| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | **1** | **128** | **64†** | **—** | **3** | off ★ | 54.4 | 31,898 | 75.8 | 17.9 | 57.3 | 297× |
+| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL | **1** | **256** | **64†** | **—** | **3** | on ★ | 63.7 | 31,868 | 64.1 | 37.6 | 57.3 | 344× |
+| Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL | **2** | **32** | **64†** | **—** | **3** | off ★ | 69.8 | 44,867 | 80.5 | 15.5 | 57.0 | 61× |
+| Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | **1** | **64** | **64†** | **—** | **3** | on ★ | 57.8 | 31,980 | 61.9 | 36.2 | 56.5 | 320× |
 
 † `b` default until the batch sweep finishes.
 
@@ -53,6 +55,7 @@ Plan: [`scheduling/latest/apply-plan.json`](scheduling/latest/apply-plan.json)
 
 | Model | PP (512 tok) | TG (128 tok) |
 | --- | ---: | ---: |
+| halogen-qwen3.8-flash-next | 387.13 | 17.59 |
 | Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL | 1030.6 | 57.3 |
 | Qwen3.6-35B-A3B-MTP-Q5_K_XL | 1029.6 | 57.0 |
 | Tiel-Coder-35B-A3B-MTP-Q5_K_XL | 1023.9 | 56.5 |
@@ -63,13 +66,14 @@ Plan: [`scheduling/latest/apply-plan.json`](scheduling/latest/apply-plan.json)
 
 | Suite | Model | pass@1 | pass@10 | Stamp |
 | --- | --- | ---: | ---: | --- |
+| humaneval | `halogen-qwen3.8-flash-next` | 0.695 | — | `20260916T193233Z` |
 | humaneval | `Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL` | 0.599 | 0.738 | `20260914T192032Z` |
 | humaneval | `Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL` | 0.607 | 0.762 | `20260914T194832Z` |
 | humaneval | `Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL` | 0.623 | 0.799 | `20260914T183437Z` |
 
 ## Capacity — KV×ctx / dual
 
-Ledger cells: **74** · [compare.md](capacity/latest/compare.md)
+Ledger cells: **79** · [compare.md](capacity/latest/compare.md)
 
 Cell = GTT MiB · prefill s · prefill tok/s
 
@@ -93,6 +97,7 @@ Cell = GTT MiB · prefill s · prefill tok/s
 | Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | q4_0 | **262144** | 27824 MiB | 230.9 |
 | Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | q5_0 | **262144** | 28144 MiB | 221.18 |
 | Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | q8_0 | **262144** | 29448 MiB | 241.35 |
+| halogen-qwen3.8-flash-next | native | **262144** | — MiB | 1806.77 |
 
 ### Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL (solo)
 
@@ -164,6 +169,18 @@ Cell = **GTT MiB · prefill s · prefill tok/s**
 | 196608 | 27426 MiB · 673.758 s · 262.63 t/s PP | 27514 MiB · 705.643 s · 250.76 t/s PP | 28641 MiB · 653.528 s · 270.76 t/s PP |
 | 262144 | 27824 MiB · 1021.789 s · 230.9 t/s PP | 28144 MiB · 1066.699 s · 221.18 t/s PP | 29448 MiB · 977.549 s · 241.35 t/s PP |
 
+### halogen-qwen3.8-flash-next (solo)
+
+Cell = **GTT MiB · prefill s · prefill tok/s**
+
+| c \ kv | native |
+| ---: | --- |
+| 32768 | 16.095 s · 1832.33 t/s PP |
+| 65536 | 30.611 s · 1926.81 t/s PP |
+| 131072 | 62.162 s · 1897.69 t/s PP |
+| 196608 | 96.317 s · 1837.13 t/s PP |
+| 262144 | 130.58 s · 1806.77 t/s PP |
+
 ### Dual (2× same model)
 
 | model | kv | c | ok | GTT peak | Mem avail | phase |
@@ -178,17 +195,18 @@ Cell = **GTT MiB · prefill s · prefill tok/s**
 
 ## Matrix — long-run status
 
-Phase: **throughput** · vulkan · updated `2026-09-14T15:27:03Z`
+Phase: **done** · full · updated `2026-09-16T19:41:18Z`
 
 
 ## Matrix progress
 
 | Model | Status | np ★ | ub ★ | b ★ | MTP ★ | TTFT ms | Decode tok/s | Decode ms |
 | --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: |
-| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | auto ✓ · ub ✓ · np ✓ · b ⏳ | 1 | 128 | 64† | 3 | 31,898 | — | 17.9 |
-| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL | auto ✓ · ub ✓ · np ✓ · b ⏳ | 1 | 256 | 64† | 3 | 31,868 | — | 37.6 |
-| Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL | auto ✓ · ub ✓ · np ✓ · b ⏳ | 2 | 32 | 64† | 3 | 44,867 | — | 15.5 |
-| Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | auto ✓ · ub ✓ · np ✓ · b ⏳ | 1 | 64 | 64† | 3 | 31,980 | — | 36.2 |
+| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | auto ✓ · ub ✓ · np ✓ · b ⏳ | 1 | 128 | 64† | 3 | 31,898 | 75.8 | 17.9 |
+| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL | auto ✓ · ub ✓ · np ✓ · b ⏳ | 1 | 256 | 64† | 3 | 31,868 | 64.1 | 37.6 |
+| Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL | auto ✓ · ub ✓ · np ✓ · b ⏳ | 2 | 32 | 64† | 3 | 44,867 | 80.5 | 15.5 |
+| Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | auto ✓ · ub ✓ · np ✓ · b ⏳ | 1 | 64 | 64† | 3 | 31,980 | 61.9 | 36.2 |
+| halogen-qwen3.8-flash-next | auto ✓ · ub ⏳ · np ⏳ · b ⏳ | — | — | 64† | — | 8,502 | 10.3 | 35.3 |
 
 ---
 
@@ -205,6 +223,7 @@ Phase: **throughput** · vulkan · updated `2026-09-14T15:27:03Z`
 
 | When | Model | Scenarios | Folder |
 | --- | --- | --- | --- |
+| 2026-09-16 19:32 UTC | halogen-qwen3.8-flash-next | 01_baseline_solo, 03_interleave_np2 | [20260916T193215Z](scheduling/20260916T193215Z/) |
 | 2026-09-14 15:21 UTC | Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 10_mtp_sweep | [20260914T152123Z](scheduling/20260914T152123Z/) |
 | 2026-09-14 15:19 UTC | Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 07_cont_batch | [20260914T151916Z](scheduling/20260914T151916Z/) |
 | 2026-09-14 15:15 UTC | Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 04_ub_sweep | [20260914T151536Z](scheduling/20260914T151536Z/) |

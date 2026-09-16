@@ -1,10 +1,28 @@
 {
-  "generated": "2026-09-14T20:12:26Z",
+  "generated": "2026-09-16T19:41:16Z",
   "rows": [
+    {
+      "suite": "humaneval",
+      "stamp": "20260916T193233Z",
+      "model": "halogen-qwen3.8-flash-next",
+      "engine": "halogen-flash",
+      "endpoint": "http://127.0.0.1:8731/v1",
+      "pass_at_1": 0.6951219512195121,
+      "pass_at_10": null,
+      "pass_ks": {
+        "pass@1": 0.6951219512195121
+      },
+      "n_tasks": 164,
+      "n_samples": 1,
+      "elapsed_s": 523,
+      "generate_s": 521.1,
+      "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260916T193233Z/summary.json"
+    },
     {
       "suite": "humaneval",
       "stamp": "20260914T192032Z",
       "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
+      "engine": "llama.cpp",
       "endpoint": "http://127.0.0.1:11601/v1",
       "pass_at_1": 0.5993902439024391,
       "pass_at_10": 0.7378048780487805,
@@ -22,6 +40,7 @@
       "suite": "humaneval",
       "stamp": "20260914T194832Z",
       "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL",
+      "engine": "llama.cpp",
       "endpoint": "http://127.0.0.1:11601/v1",
       "pass_at_1": 0.6067073170731707,
       "pass_at_10": 0.7621951219512195,
@@ -39,6 +58,7 @@
       "suite": "humaneval",
       "stamp": "20260914T183437Z",
       "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
+      "engine": "llama.cpp",
       "endpoint": "http://127.0.0.1:11601/v1",
       "pass_at_1": 0.6231707317073171,
       "pass_at_10": 0.7987804878048781,

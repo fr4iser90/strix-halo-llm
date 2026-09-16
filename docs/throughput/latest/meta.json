@@ -1,0 +1,15 @@
+{
+  "engines": {
+    "halogen-flash": {
+      "engine": "halogen-flash",
+      "recovered_from": "llama-bench-20260916T193229Z-halogen-flash-compare.md",
+      "n_models": 1
+    },
+    "llama.cpp": {
+      "engine": "llama.cpp",
+      "recovered_from": "llama-bench-20260914T152703Z-compare.md",
+      "n_models": 3
+    }
+  },
+  "engine": "halogen-flash,llama.cpp"
+}

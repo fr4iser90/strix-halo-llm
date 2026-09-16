@@ -1,6 +1,27 @@
 {
   "recommendations": [
     {
+      "engine": "halogen-flash",
+      "model": "halogen-qwen3.8-flash-next",
+      "best_ub": "\u2014",
+      "best_np": "\u2014",
+      "best_b": "\u2014",
+      "best_c": "\u2014",
+      "best_mtp": "\u2014",
+      "vram_mb": null,
+      "cont_batching": "on (default)",
+      "cont_batch_recommended": null,
+      "fit_ctx_hint": null,
+      "decode_ms": 35.26,
+      "decode_tps": 10.31,
+      "prefill_tps": 24.72,
+      "prefill_ttft": 8501.73,
+      "pp_idle": null,
+      "tg_idle": null,
+      "interleave_gain": null
+    },
+    {
+      "engine": "llama.cpp",
       "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
       "best_ub": "128",
       "best_np": "1",
@@ -12,13 +33,15 @@
       "cont_batch_recommended": "off",
       "fit_ctx_hint": null,
       "decode_ms": 17.85,
+      "decode_tps": 75.8,
       "prefill_tps": 54.41,
       "prefill_ttft": 31898.14,
-      "pp_idle": 1012.452507,
-      "tg_idle": 56.886941,
+      "pp_idle": 1030.583526,
+      "tg_idle": 57.33771,
       "interleave_gain": 296.8092806254334
     },
     {
+      "engine": "llama.cpp",
       "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL",
       "best_ub": "256",
       "best_np": "1",
@@ -30,13 +53,15 @@
       "cont_batch_recommended": "on",
       "fit_ctx_hint": null,
       "decode_ms": 37.56,
+      "decode_tps": 64.1,
       "prefill_tps": 63.68,
       "prefill_ttft": 31868.04,
-      "pp_idle": 1012.452507,
-      "tg_idle": 56.886941,
+      "pp_idle": 1030.583526,
+      "tg_idle": 57.33771,
       "interleave_gain": 343.92425793244627
     },
     {
+      "engine": "llama.cpp",
       "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL",
       "best_ub": "32",
       "best_np": "2",
@@ -48,13 +73,15 @@
       "cont_batch_recommended": "off",
       "fit_ctx_hint": null,
       "decode_ms": 15.46,
+      "decode_tps": 80.55,
       "prefill_tps": 69.81,
       "prefill_ttft": 44867.11,
-      "pp_idle": 1033.457036,
-      "tg_idle": 57.091937,
+      "pp_idle": 1029.611426,
+      "tg_idle": 57.004944,
       "interleave_gain": 61.460411712752226
     },
     {
+      "engine": "llama.cpp",
       "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
       "best_ub": "64",
       "best_np": "1",
@@ -66,12 +93,13 @@
       "cont_batch_recommended": "on",
       "fit_ctx_hint": null,
       "decode_ms": 36.17,
+      "decode_tps": 61.88,
       "prefill_tps": 57.83,
       "prefill_ttft": 31980.02,
-      "pp_idle": 1019.573588,
-      "tg_idle": 56.885952,
+      "pp_idle": 1023.869383,
+      "tg_idle": 56.513167,
       "interleave_gain": 320.3918973941368
     }
   ],
-  "models": 4
+  "models": 5
 }

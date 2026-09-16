@@ -1,17 +1,13 @@
 {
-  "stamp": "20260914T140859Z",
-  "tag": "kv-ctx",
-  "backend": "vulkan",
-  "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL,Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
-  "model_list": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL,Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL",
-  "url_a": "",
-  "url_b": "",
-  "kv_list": "q8_0,q5_0,q4_0",
+  "stamp": "20260916T192633Z",
+  "tag": "http-kv-ctx",
+  "engine": "halogen-flash",
+  "backend": "http",
+  "model_list": "",
+  "url_a": "http://127.0.0.1:8731",
+  "kv_list": "native",
   "c_list": "32768,65536,131072,196608,262144",
-  "dual_c_list": "",
-  "skip_existing": "1",
-  "force": "0",
-  "server_version": "version: 0.3.0-dev (build 0, commit unknown)",
-  "image_id": "sha256:366f8b040ab04854e20667a26c9090aee918fd14631b4afb2feb3713040cd34e",
-  "image_name": "llama-cpp-vulkan-nix"
+  "server_version": "version={'api': '0.11.1', 'engine': '0.11.1', 'match': True} status=ok",
+  "image_id": "halogen-flash",
+  "image_name": "halogen-flash-server"
 }

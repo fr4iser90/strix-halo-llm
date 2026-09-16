@@ -1,6 +1,6 @@
 # Capacity ledger (latest per cell)
 
-Cells: 74
+Cells: 79
 
 Cell = GTT MiB · prefill s · prefill tok/s
 
@@ -73,6 +73,18 @@ Cell = **GTT MiB · prefill s · prefill tok/s**
 | 131072 | 26778 MiB · 393.41 s · 299.85 t/s PP | 26938 MiB · 402.198 s · 293.3 t/s PP | 27556 MiB · 384.376 s · 306.9 t/s PP |
 | 196608 | 27426 MiB · 673.758 s · 262.63 t/s PP | 27514 MiB · 705.643 s · 250.76 t/s PP | 28641 MiB · 653.528 s · 270.76 t/s PP |
 | 262144 | 27824 MiB · 1021.789 s · 230.9 t/s PP | 28144 MiB · 1066.699 s · 221.18 t/s PP | 29448 MiB · 977.549 s · 241.35 t/s PP |
+
+### halogen-qwen3.8-flash-next (solo)
+
+Cell = **GTT MiB · prefill s · prefill tok/s**
+
+| c \ kv | native |
+| ---: | --- |
+| 32768 | 16.095 s · 1832.33 t/s PP |
+| 65536 | 30.611 s · 1926.81 t/s PP |
+| 131072 | 62.162 s · 1897.69 t/s PP |
+| 196608 | 96.317 s · 1837.13 t/s PP |
+| 262144 | 130.58 s · 1806.77 t/s PP |
 
 ### Dual (2× same model)
 

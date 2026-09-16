@@ -44,13 +44,26 @@ section.model { margin: 2rem 0; padding: 1rem 0; border-top: 1px solid #2a2e37; 
 <th>cont-batch</th><th class="n">PP on</th><th class="n">PP off</th>
 <th class="n">Decode ms</th><th class="n">Prefill tok/s</th>
 <th class="n">Interleave</th>
-</tr></thead><tbody><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">128</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">462.8</td><td class="n">462.4</td><td class="n">17.9</td><td class="n">54.4</td><td class="n pos">297×</td></tr><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td class="n best">1</td><td class="n best">256</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">462.5</td><td class="n">462.9</td><td class="n">37.6</td><td class="n">63.7</td><td class="n pos">344×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">2</td><td class="n best">32</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">491.5</td><td class="n">491.2</td><td class="n">15.5</td><td class="n">69.8</td><td class="n pos">61×</td></tr><tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">64</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">462.8</td><td class="n">462.9</td><td class="n">36.2</td><td class="n">57.8</td><td class="n pos">320×</td></tr></tbody></table>
+</tr></thead><tbody><tr><td>halogen-qwen3.8-flash-next</td><td class="n best">—</td><td class="n best">—</td><td class="n best">—</td><td class="n best">—</td><td class="n">on (default)</td><td class="n">—</td><td class="n">—</td><td class="n">35.3</td><td class="n">24.7</td><td class="n ">—</td></tr><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">128</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">—</td><td class="n">—</td><td class="n">17.9</td><td class="n">54.4</td><td class="n pos">297×</td></tr><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td class="n best">1</td><td class="n best">256</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">—</td><td class="n">—</td><td class="n">37.6</td><td class="n">63.7</td><td class="n pos">344×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">2</td><td class="n best">32</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">—</td><td class="n">—</td><td class="n">15.5</td><td class="n">69.8</td><td class="n pos">61×</td></tr><tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">64</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">—</td><td class="n">—</td><td class="n">36.2</td><td class="n">57.8</td><td class="n pos">320×</td></tr></tbody></table>
 
 <h2>Details per model</h2>
 
 <section class="model">
+<h3>halogen-qwen3.8-flash-next <span class="badge">halogen-flash</span> </h3>
+
+
+<h4>Interleaving np=2</h4>
+<table><thead><tr>
+<th>Scenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
+<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
+</tr></thead><tbody><tr><td>01 solo</td><td class="n">26.2</td><td class="n">34.1</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>03 interleave</td><td class="n">35.3</td><td class="n">10.3</td><td class="n">24.7</td><td class="n bad">8,502</td></tr></tbody></table>
+
+
+
+</section>
+<section class="model">
 <h3>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL <span class="badge">ub=128</span> <span class="badge">np=1</span></h3>
-<p class="meta">Throughput idle: PP <strong>1,012</strong> · TG <strong>56.9</strong> tok/s</p>
+<p class="meta">Throughput idle: PP <strong>1,031</strong> · TG <strong>57.3</strong> tok/s</p>
 <p class="gain">Interleaving: Prefill-TTFT <strong>297× faster</strong> (47,077 → 158.6 ms), Decode ~37.1 ms</p>
 <h4>Interleaving np=2</h4>
 <table><thead><tr>
@@ -73,7 +86,7 @@ section.model { margin: 2rem 0; padding: 1rem 0; border-top: 1px solid #2a2e37; 
 </section>
 <section class="model">
 <h3>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL <span class="badge">ub=256</span> <span class="badge">np=1</span></h3>
-<p class="meta">Throughput idle: PP <strong>1,012</strong> · TG <strong>56.9</strong> tok/s</p>
+<p class="meta">Throughput idle: PP <strong>1,031</strong> · TG <strong>57.3</strong> tok/s</p>
 <p class="gain">Interleaving: Prefill-TTFT <strong>344× faster</strong> (47,042 → 136.8 ms), Decode ~17.2 ms</p>
 <h4>Interleaving np=2</h4>
 <table><thead><tr>
@@ -96,7 +109,7 @@ section.model { margin: 2rem 0; padding: 1rem 0; border-top: 1px solid #2a2e37; 
 </section>
 <section class="model">
 <h3>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL <span class="badge">ub=32</span> <span class="badge">np=2</span></h3>
-<p class="meta">Throughput idle: PP <strong>1,033</strong> · TG <strong>57.1</strong> tok/s</p>
+<p class="meta">Throughput idle: PP <strong>1,030</strong> · TG <strong>57.0</strong> tok/s</p>
 <p class="gain">Interleaving: Prefill-TTFT <strong>61× faster</strong> (45,232 → 736.0 ms), Decode ~32.4 ms</p>
 <h4>Interleaving np=2</h4>
 <table><thead><tr>
@@ -119,7 +132,7 @@ section.model { margin: 2rem 0; padding: 1rem 0; border-top: 1px solid #2a2e37; 
 </section>
 <section class="model">
 <h3>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL <span class="badge">ub=64</span> <span class="badge">np=1</span></h3>
-<p class="meta">Throughput idle: PP <strong>1,020</strong> · TG <strong>56.9</strong> tok/s</p>
+<p class="meta">Throughput idle: PP <strong>1,024</strong> · TG <strong>56.5</strong> tok/s</p>
 <p class="gain">Interleaving: Prefill-TTFT <strong>320× faster</strong> (47,213 → 147.4 ms), Decode ~38.5 ms</p>
 <h4>Interleaving np=2</h4>
 <table><thead><tr>

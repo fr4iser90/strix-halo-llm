@@ -15,16 +15,27 @@ Decode latency and prefill throughput **under load** (2 slots, rolling prefill).
 
 | Model | np ★ | ub ★ | b ★ | c ★ | cont-batch | PP on | PP off | Decode ms | Prefill tok/s |
 | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: |
-| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 1 | 128 | — | — | off ★ | 462.8 | 462.4 | 17.9 | 54.4 |
-| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL | 1 | 256 | — | — | on ★ | 462.5 | 462.9 | 37.6 | 63.7 |
-| Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL | 2 | 32 | — | — | off ★ | 491.5 | 491.2 | 15.5 | 69.8 |
-| Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 1 | 64 | — | — | on ★ | 462.8 | 462.9 | 36.2 | 57.8 |
+| halogen-qwen3.8-flash-next | — | — | — | — | on (default) | — | — | 35.3 | 24.7 |
+| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 1 | 128 | — | — | off ★ | — | — | 17.9 | 54.4 |
+| Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL | 1 | 256 | — | — | on ★ | — | — | 37.6 | 63.7 |
+| Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL | 2 | 32 | — | — | off ★ | — | — | 15.5 | 69.8 |
+| Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 1 | 64 | — | — | on ★ | — | — | 36.2 | 57.8 |
 
 ---
 
+## halogen-qwen3.8-flash-next · engine `halogen-flash`
+
+### Interleaving — lohnt sich np=2?
+
+| Scenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
+| --- | ---: | ---: | ---: | ---: |
+| 01 solo (reference) | 26.2 | 34.1 | — | — |
+| 03 interleave (np=2) | 35.3 | 10.3 | 24.7 | 8,502 ⚠ |
+
+
 ## Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL
 
-**Throughput (idle, lab Vulkan):** PP 1,012 tok/s · TG 56.9 tok/s
+**Throughput (idle, Vulkan):** PP 1,031 tok/s · TG 57.3 tok/s
 
 ### Interleaving — lohnt sich np=2?
 
@@ -84,7 +95,7 @@ Scenario 03 under load.
 
 ## Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL
 
-**Throughput (idle, lab Vulkan):** PP 1,012 tok/s · TG 56.9 tok/s
+**Throughput (idle, Vulkan):** PP 1,031 tok/s · TG 57.3 tok/s
 
 ### Interleaving — lohnt sich np=2?
 
@@ -144,7 +155,7 @@ Scenario 03 under load.
 
 ## Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL
 
-**Throughput (idle, lab Vulkan):** PP 1,033 tok/s · TG 57.1 tok/s
+**Throughput (idle, Vulkan):** PP 1,030 tok/s · TG 57.0 tok/s
 
 ### Interleaving — lohnt sich np=2?
 
@@ -204,7 +215,7 @@ Scenario 03 under load.
 
 ## Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL
 
-**Throughput (idle, lab Vulkan):** PP 1,020 tok/s · TG 56.9 tok/s
+**Throughput (idle, Vulkan):** PP 1,024 tok/s · TG 56.5 tok/s
 
 ### Interleaving — lohnt sich np=2?
 
