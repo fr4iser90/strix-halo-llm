@@ -745,7 +745,10 @@ EOF
   } >"$html"
 
   cp -f "$CMP" "$OUT_DIR/llama-bench-$STAMP-compare.md"
-  log "latest → $CMP"
+  # shellcheck source=../../lib/thr_latest.sh
+  source "$PROJECT_ROOT/tools/bench/lib/thr_latest.sh"
+  bench_thr_publish_engine_latest "${BENCH_ENGINE:-llama.cpp}" "$CMP" "$OUT_DIR/latest/meta.json" "$html"
+  log "latest → $CMP (+ by-engine)"
   log "html    → $html"
   cat "$CMP"
 }

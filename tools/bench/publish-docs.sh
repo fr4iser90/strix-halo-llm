@@ -46,6 +46,12 @@ copy_if "$SRC/chart.umd.min.js" "$DST/chart.umd.min.js"
 
 copy_if "$SRC/throughput/latest/compare.html" "$DST/throughput/latest/compare.html"
 copy_if "$SRC/throughput/latest/compare.md" "$DST/throughput/latest/compare.md"
+copy_if "$SRC/throughput/latest/meta.json" "$DST/throughput/latest/meta.json"
+if [[ -d "$SRC/throughput/latest/by-engine" ]]; then
+  mkdir -p "$DST/throughput/latest/by-engine"
+  cp -a "$SRC/throughput/latest/by-engine/." "$DST/throughput/latest/by-engine/"
+  echo "  + docs/throughput/latest/by-engine/"
+fi
 
 copy_if "$SRC/scheduling/latest/compare.html" "$DST/scheduling/latest/compare.html"
 copy_if "$SRC/scheduling/latest/compare.md" "$DST/scheduling/latest/compare.md"

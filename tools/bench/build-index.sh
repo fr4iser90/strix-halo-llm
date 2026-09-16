@@ -87,40 +87,153 @@ def rel(*parts):
     return "/".join(parts)
 
 
-# --- Throughput latest (lab vulkan preferred) ---
+# --- Throughput latest (multi-engine: latest/by-engine/* + merged compare) ---
 thr_models = []
-thr_engine = "llama.cpp"
-thr_meta = os.path.join(thr, "latest", "meta.json")
-if os.path.isfile(thr_meta):
-    try:
-        with open(thr_meta, encoding="utf-8") as f:
-            thr_engine = (json.load(f).get("engine") or "llama.cpp").strip() or "llama.cpp"
-    except (OSError, json.JSONDecodeError):
-        pass
-thr_cmp = os.path.join(thr, "latest", "compare.md")
-if os.path.isfile(thr_cmp):
+
+def _parse_thr_compare(path, default_engine="llama.cpp"):
+    models = []
+    engine = default_engine
     in_table = False
-    with open(thr_cmp, encoding="utf-8") as f:
-        for line in f:
-            line = line.rstrip()
-            if line.lower().startswith("engine:"):
-                thr_engine = line.split(":", 1)[1].strip() or thr_engine
-                continue
-            if line.startswith("| model |"):
-                in_table = True
-                continue
-            if in_table:
-                if not line.startswith("|") or line.startswith("| ---"):
-                    if thr_models:
-                        break
+    header_cols = []
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        return engine, models
+    for line in lines:
+        raw = line.rstrip()
+        low = raw.lower()
+        if low.startswith("engine:"):
+            engine = raw.split(":", 1)[1].strip() or engine
+            continue
+        if raw.startswith("|") and "model" in low and ("pp" in low or "tg" in low):
+            header_cols = [c.strip() for c in raw.strip("|").split("|")]
+            in_table = True
+            continue
+        if in_table:
+            if not raw.startswith("|") or raw.startswith("| ---") or re.match(r"^\|\s*-+", raw):
+                if models and not raw.startswith("|"):
+                    break
+                if raw.startswith("| ---") or re.match(r"^\|\s*-+", raw):
                     continue
-                parts = [p.strip() for p in line.split("|")[1:-1]]
-                if len(parts) >= 3 and parts[0] != "model" and not parts[0].startswith("---"):
+                if not raw.startswith("|"):
+                    if models:
+                        # next ## section in merged file
+                        in_table = False
+                        header_cols = []
+                    continue
+            parts = [p.strip() for p in raw.strip("|").split("|")]
+            if not parts or parts[0].lower() == "model":
+                continue
+            pp = tg = "—"
+            if header_cols and len(header_cols) == len(parts):
+                for h, v in zip(header_cols, parts):
+                    hl = h.lower()
+                    if hl.endswith(" pp") or hl == "pp":
+                        pp = v
+                    elif hl.endswith(" tg") or hl == "tg":
+                        tg = v
+                if pp == "—" and len(parts) >= 3:
+                    pp, tg = parts[1], parts[2]
+            elif len(parts) >= 3:
+                pp, tg = parts[1], parts[2]
+            models.append({
+                "model": parts[0],
+                "pp": pp,
+                "tg": tg,
+                "engine": engine,
+            })
+    return engine, models
+
+# Prefer per-engine snapshots; rebuild/merge recovers stamped archives.
+_thr_latest_sh = os.path.join(out_root, "..", "..", "tools", "bench", "lib", "thr_latest.sh")
+_thr_latest_sh = os.path.normpath(_thr_latest_sh)
+if os.path.isfile(_thr_latest_sh):
+    try:
+        import subprocess
+        subprocess.run(
+            ["bash", "-c", f'source "{_thr_latest_sh}" && bench_thr_rebuild_merged_latest "{thr}"'],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except Exception:
+        pass
+
+_by_eng = os.path.join(thr, "latest", "by-engine")
+if os.path.isdir(_by_eng):
+    for _slug in sorted(os.listdir(_by_eng)):
+        _edir = os.path.join(_by_eng, _slug)
+        if not os.path.isdir(_edir):
+            continue
+        _meta_p = os.path.join(_edir, "meta.json")
+        _cmp_p = os.path.join(_edir, "compare.md")
+        _eng = _slug
+        if os.path.isfile(_meta_p):
+            try:
+                with open(_meta_p, encoding="utf-8") as f:
+                    _eng = (json.load(f).get("engine") or _eng).strip() or _eng
+            except (OSError, json.JSONDecodeError):
+                pass
+        if os.path.isfile(_cmp_p):
+            _eng2, _mods = _parse_thr_compare(_cmp_p, _eng)
+            for m in _mods:
+                m["engine"] = _eng2 or _eng
+                thr_models.append(m)
+
+# Legacy / merged file fallback if still empty
+if not thr_models:
+    thr_engine = "llama.cpp"
+    thr_meta = os.path.join(thr, "latest", "meta.json")
+    if os.path.isfile(thr_meta):
+        try:
+            with open(thr_meta, encoding="utf-8") as f:
+                _mj = json.load(f)
+            if isinstance(_mj.get("engines"), dict):
+                for _e, _info in _mj["engines"].items():
+                    pass  # models come from sections below
+            else:
+                thr_engine = (_mj.get("engine") or "llama.cpp").strip() or "llama.cpp"
+        except (OSError, json.JSONDecodeError):
+            pass
+    thr_cmp = os.path.join(thr, "latest", "compare.md")
+    if os.path.isfile(thr_cmp):
+        # Merged multi-section or single table
+        _cur = thr_engine
+        in_table = False
+        header_cols = []
+        with open(thr_cmp, encoding="utf-8") as f:
+            for line in f:
+                raw = line.rstrip()
+                low = raw.lower()
+                if raw.startswith("## "):
+                    _cur = raw[3:].strip() or _cur
+                    in_table = False
+                    continue
+                if low.startswith("engine:"):
+                    _cur = raw.split(":", 1)[1].strip() or _cur
+                    continue
+                if raw.startswith("|") and "model" in low and ("pp" in low or "tg" in low):
+                    header_cols = [c.strip() for c in raw.strip("|").split("|")]
+                    in_table = True
+                    continue
+                if in_table:
+                    if not raw.startswith("|") or raw.startswith("| ---") or re.match(r"^\|\s*-+", raw):
+                        if thr_models and not raw.startswith("|"):
+                            in_table = False
+                        continue
+                    parts = [p.strip() for p in raw.strip("|").split("|")]
+                    if not parts or parts[0].lower() == "model":
+                        continue
+                    pp = tg = "—"
+                    if len(parts) >= 3:
+                        pp, tg = parts[1], parts[2]
                     thr_models.append({
                         "model": parts[0],
-                        "pp": parts[1],
-                        "tg": parts[2],
-                        "engine": thr_engine,
+                        "pp": pp,
+                        "tg": tg,
+                        "engine": _cur,
                     })
 
 thr_runs = {}

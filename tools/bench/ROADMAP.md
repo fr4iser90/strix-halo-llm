@@ -42,4 +42,5 @@ setup” decisions. Items below are polish — track here so they are not forgot
 - [x] Halogen full matrix (`full-halogen` / `./bench halogen matrix`) — HTTP capacity+sched+throughput+quality
 - [x] Generic engine lifecycle (`lib/lifecycle.sh` + `lib/engines/*.sh`) — prepare/cleanup per engine; Halogen compose+stickys
 - [x] Suite-primary layout — `*/backends/http.sh` + `lib/engines/*`; `halogen/` compat shim only
+- [x] Multi-engine throughput latest (`latest/by-engine/<engine>/` + merged compare; no overwrite)
 - [ ] One-page “first matrix” checklist on GitHub Pages index

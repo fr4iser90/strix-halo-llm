@@ -74,6 +74,8 @@ Priority: `--engine` > `BENCH_ENGINE=` > profile `"engine"` > `llama.cpp`.
 
 After runs: `./bench index && ./bench publish` (engine tabs when ≥2 engines have data). On **Compare**, pick any two models (any engine) for PP/TG/pass@k/ctx — not only identical names.
 
+Throughput `latest/` is **multi-engine**: each engine keeps `throughput/latest/by-engine/<engine>/`; merged `compare.md` is rebuilt so Halogen does not wipe llama.cpp charts.
+
 ## Full matrix (multi-day)
 
 Align INIs with disk first, then run the matrix.

@@ -71,11 +71,13 @@ PY
     bench_http_log "warn: TG stream failed for $model"
     TG_MAP["$model"]=""
   fi
-  bench_http_log "  $model  PP=${PP_MAP[$model]:—}  TG=${TG_MAP[$model]:—}"
+  bench_http_log "  $model  PP=${PP_MAP[$model]:-}  TG=${TG_MAP[$model]:-}"
 done
 
 LABEL="$(bench_engine_label "$ENGINE")"
-CMP="$OUT_DIR/latest/compare.md"
+ENG_DIR="$OUT_DIR/latest/by-engine/$(printf '%s' "$ENGINE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+mkdir -p "$ENG_DIR" "$OUT_DIR/latest"
+CMP="$ENG_DIR/compare.md"
 {
   echo "# llama-bench compare"
   echo
@@ -83,7 +85,7 @@ CMP="$OUT_DIR/latest/compare.md"
   echo
   echo "$LABEL HTTP throughput ($STAMP). PP ≈ fill_tokens/TTFT (${PP_TOKENS} tok). TG = decode tok/s (${TG_TOKENS} tok)."
   echo
-  echo "| model | $LABEL pp | $LABEL tg |"
+  echo "| model | pp | tg |"
   echo "| --- | ---: | ---: |"
   for model in "${MODELS[@]}"; do
     [[ -n "$model" ]] || continue
@@ -95,6 +97,7 @@ CMP="$OUT_DIR/latest/compare.md"
   done
 } >"$CMP"
 
+META="$ENG_DIR/meta.json"
 {
   printf '{\n'
   printf '  "engine": "%s",\n' "$ENGINE"
@@ -103,7 +106,10 @@ CMP="$OUT_DIR/latest/compare.md"
   printf '  "scope": "run",\n'
   printf '  "base_url": "%s"\n' "$(bench_http_base_url)"
   printf '}\n'
-} >"$OUT_DIR/latest/meta.json"
+} >"$META"
 
 cp -f "$CMP" "$OUT_DIR/llama-bench-$STAMP-${ENGINE}-compare.md"
-bench_http_log "throughput → $CMP"
+# shellcheck source=../../lib/thr_latest.sh
+source "$PROJECT_ROOT/tools/bench/lib/thr_latest.sh"
+bench_thr_publish_engine_latest "$ENGINE" "$CMP" "$META"
+bench_http_log "throughput → $ENG_DIR (+ merged latest)"
