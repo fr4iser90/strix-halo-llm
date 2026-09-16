@@ -55,9 +55,14 @@ export HALOGEN_MODELS=~/Documents/halogen-flash-server/models   # weights dir (*
 | Env | Meaning |
 |-----|---------|
 | `HALOGEN_MODELS` | **Weights directory** for compose (not API model ids) |
+| `HALOGEN_COMPOSE` | Compose file (absolute or repo-relative; default `compose.halogen-flash-server.yaml`) |
+| `HALOGEN_COMPOSE_DIR` | Working dir for `docker compose` (default: dirname of compose file) |
 | `--model` / `MATRIX_MODELS` | API model id(s) from `/v1/models` |
 | `BENCH_ENGINE_SKIP_LIFECYCLE=1` | BYO server — no compose up/down |
 | `BENCH_ENGINE_KEEP=1` | Leave engine containers up after bench |
+
+Keep **halogen-flash-server** as a sibling git repo. Point `.env` at it — do not submodule/vendor the whole tree. This repo only needs a thin compose (or `HALOGEN_COMPOSE` → upstream `docker-compose.yml`) + `HALOGEN_MODELS`.
+
 
 **Add a new engine:**
 1. `lib/engines/<id>.sh` → `engine_<prefix>_{prepare,cleanup,base_url}`

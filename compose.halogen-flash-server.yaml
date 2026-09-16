@@ -125,7 +125,10 @@ services:
     ipc: host
     ulimits:
       memlock: -1
-    group_add: [keep-groups]
+    group_add:
+      # Podman: keep-groups. Docker: host video/render GIDs (or omit if already in group).
+      - "video"
+      - "render"
     # THE API MUST NOT START UNTIL THIS ANSWERS. Reading the weights takes
     # minutes, and `depends_on` alone waits only for the container to START.
     # Without this the front-end connects, is refused, and exits at boot:

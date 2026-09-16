@@ -7,11 +7,16 @@
 #
 # Optional:
 #   HALOGEN_BASE_URL=http://127.0.0.1:8731
-#   HALOGEN_COMPOSE=compose.halogen-flash-server.yaml
+#   HALOGEN_COMPOSE=/abs/path/to/docker-compose.yml   # or relative to PROJECT_ROOT
+#   HALOGEN_COMPOSE_DIR=/abs/workdir for compose      # default: dirname(compose file)
 #   HALOGEN_WAIT_TRIES=1200           # default ~20m (engine weight load)
 #   BENCH_ENGINE_KEEP=1               # leave containers up after bench
 #   BENCH_ENGINE_SKIP_LIFECYCLE=1     # BYO — do not compose up/down
 #
+# Keep halogen-flash-server as an EXTERNAL repo. Point .env at it, e.g.:
+#   HALOGEN_MODELS=$HOME/Documents/halogen-flash-server/models
+#   HALOGEN_COMPOSE=$HOME/Documents/halogen-flash-server/docker-compose.yml
+# Or keep this repo's compose.halogen-flash-server.yaml and only set HALOGEN_MODELS.
 # shellcheck shell=bash
 
 # shellcheck source=../engine.sh
@@ -78,18 +83,33 @@ engine_halogen_flash_models_dir() {
 }
 
 engine_halogen_flash_compose_cmd() {
+  # Prints absolute path to compose file. HALOGEN_COMPOSE may be absolute or
+  # relative to PROJECT_ROOT.
   local root="${PROJECT_ROOT:?PROJECT_ROOT required}"
-  local file="${root}/${HALOGEN_COMPOSE}"
+  local file="${HALOGEN_COMPOSE:-compose.halogen-flash-server.yaml}"
+  if [[ "$file" != /* ]]; then
+    file="${root}/${file}"
+  fi
   [[ -f "$file" ]] || {
-    printf 'error: missing %s\n' "$file" >&2
+    printf 'error: missing compose file %s (set HALOGEN_COMPOSE)\n' "$file" >&2
     return 1
   }
-  printf '%s\n' "$file"
+  printf '%s\n' "$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
+}
+
+engine_halogen_flash_compose_dir() {
+  local compose
+  if [[ -n "${HALOGEN_COMPOSE_DIR:-}" && -d "${HALOGEN_COMPOSE_DIR}" ]]; then
+    printf '%s\n' "$(cd "$HALOGEN_COMPOSE_DIR" && pwd)"
+    return 0
+  fi
+  compose="$(engine_halogen_flash_compose_cmd)" || return 1
+  printf '%s\n' "$(dirname "$compose")"
 }
 
 engine_halogen_flash_prepare() {
   local root="${PROJECT_ROOT:?PROJECT_ROOT required}"
-  local compose models_dir url
+  local compose compose_dir models_dir url
   url="$(engine_halogen_flash_base_url)"
   export HALOGEN_BASE_URL="$url"
 
@@ -112,15 +132,18 @@ engine_halogen_flash_prepare() {
   }
   export HALOGEN_MODELS="$models_dir"
   compose="$(engine_halogen_flash_compose_cmd)" || return 1
+  compose_dir="$(engine_halogen_flash_compose_dir)" || return 1
 
   # Free GPU
   if declare -F bench_engine_stop_stickys >/dev/null 2>&1; then
     bench_engine_stop_stickys
   fi
 
-  bench_lifecycle_log "halogen-flash compose up (HALOGEN_MODELS=$models_dir)"
-  (cd "$root" && HALOGEN_MODELS="$models_dir" docker compose -f "$compose" up -d) || {
+  bench_lifecycle_log "halogen-flash compose up (file=$compose HALOGEN_MODELS=$models_dir)"
+  (cd "$compose_dir" && HALOGEN_MODELS="$models_dir" docker compose -f "$compose" up -d) || {
     printf 'error: docker compose up failed for %s\n' "$compose" >&2
+    printf 'hint: check HALOGEN_MODELS, GPU devices, and group_add (Docker needs video/render, not keep-groups)\n' >&2
+    printf 'hint: docker compose -f %s logs\n' "$compose" >&2
     return 1
   }
   export BENCH_ENGINE_BORROWED=0
@@ -136,8 +159,7 @@ engine_halogen_flash_prepare() {
 }
 
 engine_halogen_flash_cleanup() {
-  local root="${PROJECT_ROOT:?PROJECT_ROOT required}"
-  local compose
+  local compose compose_dir
 
   if [[ "${BENCH_ENGINE_BORROWED:-0}" == "1" ]]; then
     bench_lifecycle_log "halogen-flash was borrowed — not stopping"
@@ -145,12 +167,13 @@ engine_halogen_flash_cleanup() {
   fi
 
   compose="$(engine_halogen_flash_compose_cmd 2>/dev/null)" || compose=""
+  compose_dir="$(engine_halogen_flash_compose_dir 2>/dev/null)" || compose_dir="${PROJECT_ROOT:-.}"
 
   if [[ "${BENCH_ENGINE_KEEP:-0}" == "1" ]]; then
     bench_lifecycle_log "BENCH_ENGINE_KEEP=1 — leaving halogen-flash up"
   elif [[ -n "$compose" && -f "$compose" ]]; then
     bench_lifecycle_log "halogen-flash compose stop"
-    (cd "$root" && docker compose -f "$compose" stop 2>/dev/null) || true
+    (cd "$compose_dir" && docker compose -f "$compose" stop 2>/dev/null) || true
   fi
 
   if declare -F bench_engine_restore_stickys >/dev/null 2>&1; then
