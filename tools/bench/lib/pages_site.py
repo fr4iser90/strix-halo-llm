@@ -169,28 +169,118 @@ def engine_switch_script() -> str:
 """
 
 
-def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
-    """Head-to-head rows for models that appear under ≥2 engines."""
-    if len(engines) < 2:
-        return ""
-    # Collect metrics per (short-ish model key) per engine
-    # Prefer exact model name match first.
-    thr_by: dict[str, dict[str, dict]] = {}
-    qual_by: dict[str, dict[str, dict]] = {}
-    ctx_by: dict[str, dict[str, dict]] = {}
+def _compare_catalog(by_engine: dict[str, dict], engines: list[str]) -> list[dict]:
+    """Flatten per-engine metrics into picker entries (one row per engine+model)."""
+    # key: (engine, model) -> metrics
+    bucket: dict[tuple[str, str], dict] = {}
+
+    def slot(eng: str, model: str) -> dict:
+        k = (eng, model)
+        if k not in bucket:
+            bucket[k] = {
+                "id": f"{eng}::{model}",
+                "engine": eng,
+                "engine_label": engine_label(eng),
+                "model": model,
+                "label": f"{engine_label(eng)} · {display_name(model, 42)}",
+                "pp": None,
+                "tg": None,
+                "pass_at_1": None,
+                "pass_at_10": None,
+                "n": None,
+                "max_c": None,
+            }
+        return bucket[k]
 
     for eng in engines:
         payload = by_engine.get(eng) or {}
         for m in payload.get("thr_models") or []:
-            name = m.get("model") or ""
+            name = (m.get("model") or "").strip()
             if not name:
                 continue
-            thr_by.setdefault(name, {})[eng] = m
+            e = slot(eng, name)
+            e["pp"] = parse_float(m.get("pp"))
+            e["tg"] = parse_float(m.get("tg"))
+        for r in payload.get("qual_rows") or []:
+            name = (r.get("model") or "").strip()
+            if not name:
+                continue
+            e = slot(eng, name)
+            p1 = parse_float(r.get("pass_at_1"))
+            p10 = parse_float(r.get("pass_at_10"))
+            n = r.get("n")
+            # Prefer higher-n run when multiple quality rows collide
+            prev_n = int(e["n"] or 0)
+            cur_n = int(n or 0) if n not in (None, "") else 0
+            if e["pass_at_1"] is None or cur_n >= prev_n:
+                if p1 is not None:
+                    e["pass_at_1"] = p1
+                if p10 is not None:
+                    e["pass_at_10"] = p10
+                if n not in (None, ""):
+                    e["n"] = cur_n
+        for r in (payload.get("cap_latest") or {}).values():
+            if r.get("mode") != "solo" or r.get("skipped") or not r.get("ok"):
+                continue
+            name = (r.get("model") or "").strip()
+            if not name:
+                continue
+            e = slot(eng, name)
+            c = int(r.get("c") or 0)
+            if e["max_c"] is None or c > int(e["max_c"] or 0):
+                e["max_c"] = c
+
+    entries = list(bucket.values())
+    entries.sort(key=lambda x: (x["engine_label"].lower(), display_name(x["model"], 80).lower()))
+    return entries
+
+
+def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
+    """Interactive model pair picker (any engine × model) + optional same-name overlaps."""
+    if len(engines) < 2:
+        return ""
+
+    catalog = _compare_catalog(by_engine, engines)
+    if not catalog:
+        return (
+            '<div class="engine-panel" data-engine="__compare__" hidden>'
+            '<div class="card"><h2>Compare models</h2>'
+            '<p class="meta">No bench data yet to compare.</p></div></div>'
+        )
+
+    options = []
+    for e in catalog:
+        options.append(
+            f'<option value="{esc(e["id"])}">{esc(e["label"])}</option>'
+        )
+    opts_html = "\n".join(options)
+
+    # Default: first entry of eng0 vs first of eng1 (or second overall)
+    default_a = catalog[0]["id"]
+    default_b = catalog[0]["id"]
+    eng0 = engines[0]
+    for e in catalog:
+        if e["engine"] != eng0:
+            default_b = e["id"]
+            break
+    else:
+        if len(catalog) > 1:
+            default_b = catalog[1]["id"]
+
+    # Same-name auto rows (kept as secondary section)
+    thr_by: dict[str, dict[str, dict]] = {}
+    qual_by: dict[str, dict[str, dict]] = {}
+    ctx_by: dict[str, dict[str, dict]] = {}
+    for eng in engines:
+        payload = by_engine.get(eng) or {}
+        for m in payload.get("thr_models") or []:
+            name = m.get("model") or ""
+            if name:
+                thr_by.setdefault(name, {})[eng] = m
         for r in payload.get("qual_rows") or []:
             name = r.get("model") or ""
-            if not name:
-                continue
-            qual_by.setdefault(name, {})[eng] = r
+            if name:
+                qual_by.setdefault(name, {})[eng] = r
         for r in (payload.get("cap_latest") or {}).values():
             if r.get("mode") != "solo" or r.get("skipped") or not r.get("ok"):
                 continue
@@ -208,37 +298,19 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
             return "—"
         return f"{((bf - af) / abs(af)) * 100:+.0f}%"
 
-    rows_html: list[str] = []
+    overlap_rows: list[str] = []
     eng_a, eng_b = engines[0], engines[1]
-    # Prefer thr models that exist in both; then qual; then capacity-only
-    names = sorted(
-        set(thr_by) | set(qual_by) | set(ctx_by),
-        key=lambda n: display_name(n, 40).lower(),
-    )
-    for name in names:
+    for name in sorted(set(thr_by) | set(qual_by) | set(ctx_by), key=lambda n: display_name(n, 40).lower()):
         thr = thr_by.get(name) or {}
         qual = qual_by.get(name) or {}
         ctx = ctx_by.get(name) or {}
-        if len(thr) < 2 and len(qual) < 2 and len(ctx) < 2:
-            # only show rows with at least one shared metric across ≥2 engines
-            engines_hit = set(thr) | set(qual) | set(ctx)
-            if len(engines_hit) < 2:
-                continue
-
-        def cell(map_, eng, key, fmt="num"):
-            row = map_.get(eng) or {}
-            val = row.get(key)
-            if fmt == "pct":
-                return fmt_pct(val)
-            if fmt == "ctx":
-                return f"{int(val):,}" if val else "—"
-            return fmt_num(val) if val not in (None, "") else "—"
-
-        # One row per interesting metric family
+        engines_hit = set(thr) | set(qual) | set(ctx)
+        if len(engines_hit) < 2:
+            continue
         if thr.get(eng_a) or thr.get(eng_b):
             a_tg = (thr.get(eng_a) or {}).get("tg")
             b_tg = (thr.get(eng_b) or {}).get("tg")
-            rows_html.append(
+            overlap_rows.append(
                 f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
                 f"<td>Generation tok/s</td>"
                 f'<td class="n">{esc(fmt_num(a_tg) if a_tg not in (None, "") else "—")}</td>'
@@ -247,7 +319,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
             )
             a_pp = (thr.get(eng_a) or {}).get("pp")
             b_pp = (thr.get(eng_b) or {}).get("pp")
-            rows_html.append(
+            overlap_rows.append(
                 f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
                 f"<td>Prompt tok/s</td>"
                 f'<td class="n">{esc(fmt_num(a_pp) if a_pp not in (None, "") else "—")}</td>'
@@ -257,7 +329,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
         if qual.get(eng_a) or qual.get(eng_b):
             a_p = (qual.get(eng_a) or {}).get("pass_at_1")
             b_p = (qual.get(eng_b) or {}).get("pass_at_1")
-            rows_html.append(
+            overlap_rows.append(
                 f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
                 f"<td>HumanEval pass@1</td>"
                 f'<td class="n">{esc(fmt_pct(a_p))}</td>'
@@ -267,7 +339,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
         if ctx.get(eng_a) or ctx.get(eng_b):
             a_c = (ctx.get(eng_a) or {}).get("c")
             b_c = (ctx.get(eng_b) or {}).get("c")
-            rows_html.append(
+            overlap_rows.append(
                 f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
                 f"<td>Max context</td>"
                 f'<td class="n">{esc(f"{int(a_c):,}" if a_c else "—")}</td>'
@@ -275,27 +347,137 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
                 f'<td class="n">{esc(delta_pct(a_c, b_c))}</td></tr>'
             )
 
-    if not rows_html:
-        body = (
-            '<p class="meta">No overlapping models yet. Run the same model on both engines '
-            "to see a head-to-head here.</p>"
-        )
-    else:
-        body = (
+    if overlap_rows:
+        overlap_html = (
+            '<h3 class="compare-sub">Same name on both engines</h3>'
             "<table><thead><tr>"
             "<th>Model</th><th>Metric</th>"
-            f"<th class=\"n\">{esc(engine_label(eng_a))}</th>"
-            f"<th class=\"n\">{esc(engine_label(eng_b))}</th>"
+            f'<th class="n">{esc(engine_label(eng_a))}</th>'
+            f'<th class="n">{esc(engine_label(eng_b))}</th>'
             '<th class="n">Δ</th>'
             "</tr></thead><tbody>"
-            + "".join(rows_html)
+            + "".join(overlap_rows)
             + "</tbody></table>"
         )
+    else:
+        overlap_html = (
+            '<p class="meta compare-sub">No identical model names across engines yet '
+            "(use the pickers above for Flash vs Tiel, etc.).</p>"
+        )
+
+    catalog_json = json.dumps(catalog, ensure_ascii=False).replace("<", "\\u003c")
+
+    picker = f"""
+<div class="compare-pick">
+  <label class="compare-field">
+    <span>Model A</span>
+    <select id="compare-a" aria-label="Model A">{opts_html}</select>
+  </label>
+  <label class="compare-field">
+    <span>Model B</span>
+    <select id="compare-b" aria-label="Model B">{opts_html}</select>
+  </label>
+</div>
+<table class="compare-pair"><thead><tr>
+  <th>Metric</th>
+  <th class="n" id="compare-head-a">A</th>
+  <th class="n" id="compare-head-b">B</th>
+  <th class="n">Δ (B vs A)</th>
+</tr></thead>
+<tbody id="compare-pair-body">
+  <tr><td colspan="4" class="meta">Pick two models.</td></tr>
+</tbody></table>
+<script type="application/json" id="compare-catalog">{catalog_json}</script>
+<script>
+(function () {{
+  const catEl = document.getElementById("compare-catalog");
+  const selA = document.getElementById("compare-a");
+  const selB = document.getElementById("compare-b");
+  const body = document.getElementById("compare-pair-body");
+  const headA = document.getElementById("compare-head-a");
+  const headB = document.getElementById("compare-head-b");
+  if (!catEl || !selA || !selB || !body) return;
+  const catalog = JSON.parse(catEl.textContent || "[]");
+  const byId = Object.fromEntries(catalog.map((e) => [e.id, e]));
+  selA.value = {json.dumps(default_a)};
+  selB.value = {json.dumps(default_b)};
+
+  function fmtNum(v) {{
+    if (v === null || v === undefined || v === "") return "—";
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "—";
+    if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, {{ maximumFractionDigits: 0 }});
+    return n.toLocaleString(undefined, {{ maximumFractionDigits: 1, minimumFractionDigits: 1 }});
+  }}
+  function fmtPct(v) {{
+    if (v === null || v === undefined || v === "") return "—";
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "—";
+    return (n * 100).toFixed(1) + "%";
+  }}
+  function fmtCtx(v) {{
+    if (v === null || v === undefined || v === "") return "—";
+    return Number(v).toLocaleString();
+  }}
+  function delta(a, b) {{
+    const af = Number(a), bf = Number(b);
+    if (!Number.isFinite(af) || !Number.isFinite(bf) || af === 0) return "—";
+    const d = ((bf - af) / Math.abs(af)) * 100;
+    return (d >= 0 ? "+" : "") + d.toFixed(0) + "%";
+  }}
+  function shortLabel(e) {{
+    if (!e) return "—";
+    const m = (e.model || "").replace(/-UD-Q[\\w.]+$/i, "").replace(/-MTP/g, "");
+    return (e.engine_label || e.engine) + " · " + (m.length > 28 ? m.slice(0, 27) + "…" : m);
+  }}
+  function render() {{
+    const a = byId[selA.value];
+    const b = byId[selB.value];
+    headA.textContent = shortLabel(a);
+    headB.textContent = shortLabel(b);
+    headA.title = a ? (a.engine + " / " + a.model) : "";
+    headB.title = b ? (b.engine + " / " + b.model) : "";
+    if (!a || !b) {{
+      body.innerHTML = '<tr><td colspan="4" class="meta">Pick two models.</td></tr>';
+      return;
+    }}
+    const rows = [
+      ["Generation tok/s", fmtNum(a.tg), fmtNum(b.tg), delta(a.tg, b.tg)],
+      ["Prompt tok/s", fmtNum(a.pp), fmtNum(b.pp), delta(a.pp, b.pp)],
+      ["HumanEval pass@1", fmtPct(a.pass_at_1), fmtPct(b.pass_at_1), delta(a.pass_at_1, b.pass_at_1)],
+      ["HumanEval pass@10", fmtPct(a.pass_at_10), fmtPct(b.pass_at_10), delta(a.pass_at_10, b.pass_at_10)],
+      ["Max context", fmtCtx(a.max_c), fmtCtx(b.max_c), delta(a.max_c, b.max_c)],
+    ];
+    body.innerHTML = rows.map(([m, av, bv, d]) =>
+      "<tr><td>" + m + '</td><td class="n">' + av + '</td><td class="n">' + bv +
+      '</td><td class="n">' + d + "</td></tr>"
+    ).join("");
+    try {{
+      localStorage.setItem("bench-compare-a", selA.value);
+      localStorage.setItem("bench-compare-b", selB.value);
+    }} catch (_) {{}}
+  }}
+  try {{
+    const sa = localStorage.getItem("bench-compare-a");
+    const sb = localStorage.getItem("bench-compare-b");
+    if (sa && byId[sa]) selA.value = sa;
+    if (sb && byId[sb]) selB.value = sb;
+  }} catch (_) {{}}
+  selA.addEventListener("change", render);
+  selB.addEventListener("change", render);
+  render();
+}})();
+</script>
+"""
+
     return (
         '<div class="engine-panel" data-engine="__compare__" hidden>'
-        '<div class="card"><h2>Compare engines</h2>'
-        '<p class="meta">Same model name across engines. Δ is relative to the first engine column.</p>'
-        f"{body}</div></div>"
+        '<div class="card"><h2>Compare models</h2>'
+        '<p class="meta">Pick any two measured models (any engine). '
+        "Δ is B relative to A.</p>"
+        f"{picker}"
+        f"{overlap_html}"
+        "</div></div>"
     )
 
 
@@ -375,6 +557,17 @@ summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
 .engine-badge { display: inline-block; font-size: .72rem; font-weight: 600;
   padding: .1rem .4rem; border-radius: 4px; background: #1a2e24; color: #7ddea5;
   margin-left: .35rem; vertical-align: middle; }
+.compare-pick { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem;
+  margin: 0 0 1rem; }
+@media (max-width: 640px) { .compare-pick { grid-template-columns: 1fr; } }
+.compare-field { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem;
+  color: #9aa0a6; }
+.compare-field select { appearance: none; width: 100%; padding: .55rem .7rem;
+  border-radius: 8px; border: 1px solid #252a35; background: #12151c; color: #e8eaed;
+  font: inherit; cursor: pointer; }
+.compare-field select:focus { outline: 2px solid #3d4f6f; outline-offset: 1px; }
+.compare-pair { margin-bottom: 1.25rem; }
+.compare-sub { margin-top: 1.25rem; }
 select.model-pick { background: #12141a; color: #e8eaed; border: 1px solid #2a2e37;
   border-radius: 4px; padding: .35rem .5rem; font: inherit; margin: .25rem .5rem .75rem 0; }
 .scroll { overflow-x: auto; margin: .5rem 0 1rem; }

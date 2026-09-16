@@ -72,7 +72,7 @@ Keep **halogen-flash-server** as a sibling git repo. Point `.env` at it — do n
 
 Priority: `--engine` > `BENCH_ENGINE=` > profile `"engine"` > `llama.cpp`.
 
-After runs: `./bench index && ./bench publish` (engine tabs when ≥2 engines have data).
+After runs: `./bench index && ./bench publish` (engine tabs when ≥2 engines have data). On **Compare**, pick any two models (any engine) for PP/TG/pass@k/ctx — not only identical names.
 
 ## Full matrix (multi-day)
 
