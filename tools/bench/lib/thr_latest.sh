@@ -10,6 +10,8 @@
 # shellcheck shell=bash
 
 _BENCH_THR_LATEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=python.sh
+source "$_BENCH_THR_LATEST_DIR/python.sh"
 # shellcheck source=engine.sh
 source "$_BENCH_THR_LATEST_DIR/engine.sh" 2>/dev/null || true
 
@@ -47,10 +49,8 @@ bench_thr_publish_engine_latest() {
   else
     printf '{"engine":"%s"}\n' "$eng" >"$eng_dir/meta.json"
   fi
-  # Ensure engine field in meta
-  if command -v python3 >/dev/null 2>&1 || [[ -n "${BENCH_PYTHON:-}" ]]; then
-    local py="${BENCH_PYTHON:-python3}"
-    "$py" - "$eng_dir/meta.json" "$eng" <<'PY' || true
+  # Ensure engine field in meta (Nix: use bench_python, not bare python3)
+  bench_python - "$eng_dir/meta.json" "$eng" <<'PY' || true
 import json, sys
 path, eng = sys.argv[1], sys.argv[2]
 try:
@@ -65,7 +65,6 @@ with open(path, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PY
-  fi
   if [[ -n "$html_src" && -f "$html_src" ]]; then
     cp -f "$html_src" "$eng_dir/compare.html"
   fi
@@ -75,9 +74,9 @@ PY
 
 bench_thr_rebuild_merged_latest() {
   local out="${1:?}"
-  local py="${BENCH_PYTHON:-python3}"
   mkdir -p "$out/latest"
-  "$py" - "$out" <<'PY'
+  # NixOS often has no `python3` on PATH — always go through bench_python
+  bench_python - "$out" <<'PY'
 import json, os, re, sys
 from pathlib import Path
 
