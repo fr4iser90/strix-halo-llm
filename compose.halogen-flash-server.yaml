@@ -126,9 +126,10 @@ services:
     ulimits:
       memlock: -1
     group_add:
-      # Podman: keep-groups. Docker: host video/render GIDs (or omit if already in group).
-      - "video"
-      - "render"
+      # Docker resolves names against the *host* group DB. Many hosts have
+      # `video` but no `render` → "unable to find group render". Override in
+      # .env if needed, e.g. HALOGEN_GROUP_ADD=video or a numeric GID.
+      - ${HALOGEN_GROUP_ADD:-video}
     # THE API MUST NOT START UNTIL THIS ANSWERS. Reading the weights takes
     # minutes, and `depends_on` alone waits only for the container to START.
     # Without this the front-end connects, is refused, and exits at boot:

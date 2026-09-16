@@ -17,6 +17,8 @@
 #   HALOGEN_MODELS=$HOME/Documents/halogen-flash-server/models
 #   HALOGEN_COMPOSE=$HOME/Documents/halogen-flash-server/docker-compose.yml
 # Or keep this repo's compose.halogen-flash-server.yaml and only set HALOGEN_MODELS.
+# If Docker errors "unable to find group render": HALOGEN_GROUP_ADD=video (default)
+#   or a numeric GID from `getent group video` / `ls -l /dev/dri`.
 # shellcheck shell=bash
 
 # shellcheck source=../engine.sh
