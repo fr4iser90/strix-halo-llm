@@ -27,7 +27,7 @@ source "$_BENCH_LIFECYCLE_DIR/engine.sh"
 # shellcheck source=python.sh
 source "$_BENCH_LIFECYCLE_DIR/python.sh"
 
-: "${PROJECT_ROOT:=$(cd "$_BENCH_LIFECYCLE_DIR/../.." && pwd)}"
+: "${PROJECT_ROOT:=$(cd "$_BENCH_LIFECYCLE_DIR/../../.." && pwd)}"
 
 BENCH_ENGINE_READY="${BENCH_ENGINE_READY:-0}"
 BENCH_ENGINE_OWNED="${BENCH_ENGINE_OWNED:-0}"

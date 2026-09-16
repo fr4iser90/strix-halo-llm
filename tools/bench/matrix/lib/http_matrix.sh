@@ -65,7 +65,8 @@ matrix_http_run_quality() {
   fi
   local models=() m qargs=(--n "$n_samples" --no-bench --eval --base-url "$QUALITY_BASE_URL")
   [[ "$limit" -gt 0 ]] && qargs+=(--limit "$limit")
-  mapfile -t models < <(bench_http_resolve_models)
+  mapfile -t models < <(bench_http_resolve_models) || matrix_http_die "no models from /v1/models"
+  [[ ${#models[@]} -gt 0 ]] || matrix_http_die "no models from /v1/models"
   local failed=0
   for m in "${models[@]}"; do
     [[ -n "$m" ]] || continue

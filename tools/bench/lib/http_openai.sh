@@ -17,7 +17,7 @@ source "$_BENCH_HTTP_DIR/engine.sh"
 # shellcheck source=lifecycle.sh
 source "$_BENCH_HTTP_DIR/lifecycle.sh"
 
-: "${PROJECT_ROOT:=$(cd "$_BENCH_HTTP_DIR/../.." && pwd)}"
+: "${PROJECT_ROOT:=$(cd "$_BENCH_HTTP_DIR/../../.." && pwd)}"
 
 STREAM_CLIENT="${STREAM_CLIENT:-$PROJECT_ROOT/tools/bench/scheduling/lib/stream_client.py}"
 
@@ -48,11 +48,17 @@ bench_http_require_up() {
 }
 
 # Print model ids from /v1/models (one per line).
+# NOTE: never `curl | python - <<EOF` — heredoc steals stdin from the pipe.
 bench_http_list_models() {
-  local url="${1:-$(bench_http_base_url)}"
-  curl -sfS --max-time 10 "${url%/}/v1/models" | bench_python - <<'PY'
-import json, sys
-data = json.load(sys.stdin)
+  local url="${1:-$(bench_http_base_url)}" raw
+  raw="$(curl -sfS --max-time 10 "${url%/}/v1/models")" || {
+    bench_http_log "warn: GET ${url%/}/v1/models failed"
+    return 1
+  }
+  BENCH_HTTP_MODELS_JSON="$raw" bench_python - <<'PY'
+import json, os
+raw = os.environ.get("BENCH_HTTP_MODELS_JSON") or ""
+data = json.loads(raw) if raw.strip() else {}
 for m in data.get("data") or []:
     mid = (m.get("id") or "").strip()
     if mid:
@@ -71,9 +77,19 @@ bench_http_resolve_models() {
       [[ -n "$p" ]] && out+=("$p")
     done
   else
-    mapfile -t out < <(bench_http_list_models)
+    mapfile -t out < <(bench_http_list_models) || true
   fi
-  [[ ${#out[@]} -gt 0 ]] || bench_http_die "no models (set --model / MATRIX_MODELS or check /v1/models)"
+  # drop empties
+  local -a cleaned=()
+  local x
+  for x in "${out[@]:-}"; do
+    [[ -n "$x" ]] && cleaned+=("$x")
+  done
+  out=("${cleaned[@]:-}")
+  if [[ ${#out[@]} -eq 0 ]]; then
+    printf '[bench http] error: no models (set --model / MATRIX_MODELS or check /v1/models)\n' >&2
+    return 1
+  fi
   printf '%s\n' "${out[@]}"
 }
 
@@ -82,9 +98,9 @@ bench_http_fingerprint() {
   eng="$(bench_engine_normalize "${BENCH_ENGINE:-halogen-flash}")"
   raw="$(curl -sfS --max-time 5 "${url%/}/health" 2>/dev/null || true)"
   if [[ -n "$raw" ]]; then
-    ver="$(printf '%s' "$raw" | bench_python - <<'PY'
-import json, sys
-raw = sys.stdin.read().strip()
+    ver="$(BENCH_HTTP_HEALTH_JSON="$raw" bench_python - <<'PY'
+import json, os
+raw = (os.environ.get("BENCH_HTTP_HEALTH_JSON") or "").strip()
 try:
     data = json.loads(raw)
     if isinstance(data, dict):

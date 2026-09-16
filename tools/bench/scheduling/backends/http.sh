@@ -23,7 +23,10 @@ bench_http_require_up
 bench_http_fingerprint
 
 MODELS=()
-mapfile -t MODELS < <(bench_http_resolve_models)
+if ! mapfile -t MODELS < <(bench_http_resolve_models); then
+  bench_http_die "no models (set --model / MATRIX_MODELS or check /v1/models)"
+fi
+[[ ${#MODELS[@]} -gt 0 ]] || bench_http_die "no models (set --model / MATRIX_MODELS or check /v1/models)"
 bench_http_log "sched models (${#MODELS[@]}): ${MODELS[*]}"
 
 SHORT="$FIXTURES/prompt_short.txt"
