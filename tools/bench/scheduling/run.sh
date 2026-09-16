@@ -6,6 +6,8 @@ SCHED_BENCH_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SCHED_BENCH_ROOT
 source "$SCHED_BENCH_ROOT/lib/common.sh"
 source "$SCHED_BENCH_ROOT/lib/report.sh"
+# shellcheck source=../lib/engine.sh
+source "$PROJECT_ROOT/tools/bench/lib/engine.sh"
 
 AUTO=0
 LIST_ONLY=0
@@ -22,7 +24,10 @@ Decode latency while concurrent long prefill (bench-a :11601).
 Stops stickys, syncs models-bench.ini, restores after (unless --no-restore).
 Sweeps restart bench-a only — not llama-lab. Coexist scenarios use lab :11537 explicitly.
 
+HTTP engines (halogen-flash): uses scheduling/backends/http.sh instead of INI sweeps.
+
 Options:
+  --engine NAME       llama.cpp (default) | halogen-flash
   --list              list scenarios / matrices
   --auto              run 01 + 02 + 03
   --matrix FILE       matrix yaml under tools/bench/scheduling/matrix/
@@ -42,6 +47,7 @@ Env:
 
 Examples:
   ./bench sched --auto
+  ./bench sched --engine halogen-flash
   SCHED_NP=2 SCHED_UB=32 ./bench sched --scenario interleave_np2
   ./bench sched --matrix qwen36_vl.yaml
   SCHED_RESTART_BENCH=1 ./bench sched --scenario ub_sweep
@@ -121,6 +127,12 @@ cleanup() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
+    --engine)
+      shift
+      [[ $# -gt 0 ]] || die "--engine needs a name"
+      BENCH_ENGINE="$(bench_engine_normalize "$1")"
+      export BENCH_ENGINE
+      ;;
     --list) LIST_ONLY=1 ;;
     --auto) AUTO=1 ;;
     --compare) COMPARE_ONLY=1 ;;
@@ -143,6 +155,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$LIST_ONLY" -eq 1 ]]; then
+  if [[ "$(bench_engine_protocol)" == "http" ]]; then
+    echo "HTTP engine ($BENCH_ENGINE): scheduling/backends/http.sh"
+    echo "  01_baseline_solo + 03_interleave_np2 (no INI sweeps)"
+    exit 0
+  fi
   echo "Scenarios:"
   list_scenarios
   echo ""
@@ -155,6 +172,10 @@ if [[ "$COMPARE_ONLY" -eq 1 ]]; then
   report_latest || true
   [[ -f "$PROJECT_ROOT/tools/bench/build-index.sh" ]] && bash "$PROJECT_ROOT/tools/bench/build-index.sh" || true
   exit 0
+fi
+
+if [[ "$(bench_engine_protocol)" == "http" ]]; then
+  exec bash "$SCHED_BENCH_ROOT/backends/http.sh"
 fi
 
 trap cleanup EXIT

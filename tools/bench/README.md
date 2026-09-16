@@ -16,35 +16,56 @@ Most users only need **A** (and maybe **B**). Dual (**D**) is optional — not p
 | What | Path | Role |
 |------|------|------|
 | **`./bench`** | Root | menu / recipes / all suites |
-| `./bench matrix` | `tools/bench/matrix/` | Multi-suite orchestrator |
-| `./bench capacity` | `tools/bench/capacity/` | KV×ctx + dual (`bench-a/b`) |
-| `./bench sched` | `tools/bench/scheduling/` | np/ub under load (**bench-a** `:11601`) |
-| `./bench quality` | `tools/bench/quality/` | HumanEval on **bench-a** |
-| `./bench throughput` | `tools/bench/throughput/` | PP/TG llama-bench (stickys stopped) |
+| `./bench matrix` | `tools/bench/matrix/` | Multi-suite orchestrator (`--engine`) |
+| `./bench capacity` | `tools/bench/capacity/` | KV×ctx + dual (`bench-a/b`) · `backends/http.sh` |
+| `./bench sched` | `tools/bench/scheduling/` | np/ub under load · `backends/http.sh` |
+| `./bench quality` | `tools/bench/quality/` | HumanEval (`--no-bench` for HTTP engines) |
+| `./bench throughput` | `tools/bench/throughput/` | PP/TG llama-bench · `backends/http.sh` |
 | `./bench publish` | `tools/bench/publish-docs.sh` | → `docs/` GitHub Pages |
 
-**Suite layout:** `run.sh` + `lib/server.sh` (prepare/cleanup) + `scenarios/` or `plugins/` + `README.md`.
+**Layout (suite primary + engine adapter):**
+
+```
+tools/bench/
+  capacity|scheduling|throughput|quality|matrix/   # suites (what you measure)
+    backends/http.sh                                 # OpenAI HTTP path (halogen-flash, …)
+  lib/engines/*.sh                                   # lifecycle adapters (prepare/cleanup)
+  lib/{lifecycle,http_openai,engine}.sh              # shared
+  halogen/                                           # compat shim → matrix/suites + --engine
+```
 
 **Routers:** sticky `:11535`/`:11538` · lab `:11537` (coexist) · bench `:11601`/`:11602` (capacity/quality/sched) · llama-bench one-shot (throughput) · Halogen Flash API `:8731` (`BENCH_ENGINE=halogen-flash`).
 
-## Engines (unified `--engine`)
+## Engines (unified `--engine` + lifecycle)
 
-Same matrix profile for every runtime — pick the engine explicitly:
+Same matrix profile for every runtime — pick the engine; lifecycle is per-adapter; HTTP suites use `*/backends/http.sh`:
 
 ```bash
 # llama.cpp (bench-a) — default if --engine omitted
 ./bench matrix --profile full --engine llama.cpp --model Tiel-Coder-35B,Qwen3.6-35B
 
-# Halogen Flash (API must already listen on :8731)
-./bench matrix --profile full --engine halogen-flash --model YOUR_API_MODEL_ID
-
-# shorthand / aliases (same thing):
-./bench halogen matrix --model YOUR_API_MODEL_ID
-./bench matrix --profile full-halogen --model YOUR_API_MODEL_ID
+# Halogen Flash — auto compose up/down + stop/restore stickys
+export HALOGEN_MODELS=~/Documents/halogen-flash-server/models   # weights dir (*.hgn + tokenizer/)
+./bench matrix --profile full --engine halogen-flash              # model ids from /v1/models
+./bench capacity http --engine halogen-flash
+./bench throughput --engine halogen-flash
+./bench sched --engine halogen-flash
 ```
 
-Known: `llama.cpp`, `halogen-flash` — register more in `tools/bench/lib/engine.sh` + adapter.  
-Priority: `--engine` > `BENCH_ENGINE=` env > profile `"engine"` > `llama.cpp`.
+| Env | Meaning |
+|-----|---------|
+| `HALOGEN_MODELS` | **Weights directory** for compose (not API model ids) |
+| `--model` / `MATRIX_MODELS` | API model id(s) from `/v1/models` |
+| `BENCH_ENGINE_SKIP_LIFECYCLE=1` | BYO server — no compose up/down |
+| `BENCH_ENGINE_KEEP=1` | Leave engine containers up after bench |
+
+**Add a new engine:**
+1. `lib/engines/<id>.sh` → `engine_<prefix>_{prepare,cleanup,base_url}`
+2. Register in `bench_engine_known` / `normalize` / `protocol` (`http` vs `native`)
+3. If HTTP: reuse `*/backends/http.sh`; if native: extend suite `lib/server.sh`
+4. Matrix: dispatch in `matrix/run.sh` (HTTP → `matrix/lib/http_matrix.sh`)
+
+Priority: `--engine` > `BENCH_ENGINE=` > profile `"engine"` > `llama.cpp`.
 
 After runs: `./bench index && ./bench publish` (engine tabs when ≥2 engines have data).
 

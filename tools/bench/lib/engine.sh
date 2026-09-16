@@ -8,6 +8,7 @@
 # Env BENCH_ENGINE is the same knob (set by --engine or profile).
 # `backend` (vulkan/rocm/cpu) stays the GPU path under llama.cpp.
 #
+# Lifecycle (compose start/stop): tools/bench/lib/lifecycle.sh + engines/*.sh
 # shellcheck shell=bash
 : "${BENCH_ENGINE:=llama.cpp}"
 
@@ -58,6 +59,32 @@ bench_engine_default_url() {
     halogen-flash) printf '%s\n' "${HALOGEN_BASE_URL:-http://127.0.0.1:8731}" ;;
     *) printf '%s\n' "${QUALITY_BASE_URL:-http://127.0.0.1:11601}" ;;
   esac
+}
+
+# How suites talk to the engine: http | native (llama-server / llama-bench).
+bench_engine_protocol() {
+  case "$(bench_engine_normalize "${1:-$BENCH_ENGINE}")" in
+    halogen-flash) printf '%s\n' "http" ;;
+    *) printf '%s\n' "native" ;;
+  esac
+}
+
+# Suite backend script for current engine, or empty if suite uses native path.
+#   bench_suite_backend_path <suite-dir>
+# → e.g. …/capacity/backends/http.sh
+bench_suite_backend_path() {
+  local suite_dir="${1:?}"
+  local proto
+  proto="$(bench_engine_protocol)"
+  case "$proto" in
+    http)
+      if [[ -f "$suite_dir/backends/http.sh" ]]; then
+        printf '%s\n' "$suite_dir/backends/http.sh"
+        return 0
+      fi
+      ;;
+  esac
+  return 1
 }
 
 # Infer engine from a base URL when BENCH_ENGINE was left default.

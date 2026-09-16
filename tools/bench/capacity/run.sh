@@ -11,6 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=../lib/engine.sh
+source "$ROOT/tools/bench/lib/engine.sh"
 
 usage() {
   cat <<'EOF'
@@ -21,7 +23,8 @@ Commands:
   list                     show models currently in models-bench.ini
   fingerprint              show current llama-server / image fingerprint
   stale                    list ledger cells stale vs current fingerprint
-  kv-ctx | kv              solo KV×ctx (default: ALL synced models)
+  kv-ctx | kv              solo KV×ctx (default: ALL synced models) [llama.cpp]
+  http                     context ladder via OpenAI HTTP (halogen-flash, …)
   dual                     two bench instances concurrent (c auto from host;
                            auto-skips if RAM/GTT below ~64/48 GiB —
                            CAPACITY_FORCE_DUAL=1 to override)
@@ -41,6 +44,7 @@ Auto (default):
   • skip cells already ok in cells.jsonl **with same server_version + image_id**
 
 Options:
+  --engine NAME            llama.cpp (default) | halogen-flash
   --model NAME[,NAME…]     only these models (exact or unique substring; repeatable)
   --no-vl                  drop *-VL twin sections
   --from LIST              sync sources: coder,chat,lab  (default coder,chat)
@@ -57,6 +61,7 @@ Options:
 Examples:
   ./bench capacity sync
   ./bench capacity kv-ctx
+  ./bench capacity http --engine halogen-flash
   ./bench capacity dual
   ./bench capacity kv-ctx --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel,Qwen3.6-35B
   ./bench capacity kv-ctx --no-vl
@@ -67,6 +72,12 @@ EOF
 parse_opts() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --engine)
+        shift
+        BENCH_ENGINE="$(bench_engine_normalize "${1:?}")"
+        export BENCH_ENGINE
+        shift
+        ;;
       --model|--models)
         shift
         local add="${1:?}"
@@ -280,7 +291,18 @@ case "$cmd" in
     ;;
   kv-ctx|kv|kv_ctx)
     parse_opts "$@"
-    run_scenario "$SCRIPT_DIR/scenarios/kv_ctx.sh"
+    if [[ "$(bench_engine_protocol)" == "http" ]]; then
+      bash "$SCRIPT_DIR/backends/http.sh"
+    else
+      run_scenario "$SCRIPT_DIR/scenarios/kv_ctx.sh"
+    fi
+    ;;
+  http)
+    parse_opts "$@"
+    export BENCH_ENGINE="${BENCH_ENGINE:-halogen-flash}"
+    BENCH_ENGINE="$(bench_engine_normalize "$BENCH_ENGINE")"
+    export BENCH_ENGINE
+    bash "$SCRIPT_DIR/backends/http.sh"
     ;;
   dual|dual-256k|dual_256k)
     # dual-256k kept as alias for older docs/scripts
@@ -291,6 +313,6 @@ case "$cmd" in
     compare_from_ledger
     ;;
   *)
-    die "unknown command: $cmd (try: sync | list | fingerprint | stale | kv-ctx | dual | compare)"
+    die "unknown command: $cmd (try: sync | list | fingerprint | stale | kv-ctx | http | dual | compare)"
     ;;
 esac

@@ -17,7 +17,8 @@ SCHED="$ROOT/tools/bench/scheduling/run.sh"
 THROUGHPUT="$ROOT/tools/bench/throughput/run.sh"
 QUALITY="$ROOT/tools/bench/quality/run.sh"
 BUILD_INDEX="$ROOT/tools/bench/build-index.sh"
-HALOGEN="$ROOT/tools/bench/halogen/run.sh"
+# shellcheck source=lib/http_matrix.sh
+source "$ROOT/tools/bench/matrix/lib/http_matrix.sh"
 
 # shellcheck source=../lib/python.sh
 source "$ROOT/tools/bench/lib/python.sh"
@@ -474,21 +475,19 @@ run_matrix() {
 
   case "$BENCH_ENGINE" in
     halogen-flash)
-      log "engine=halogen-flash → HTTP matrix @ ${HALOGEN_BASE_URL:-http://127.0.0.1:8731}"
+      log "engine=halogen-flash → suite HTTP backends @ ${HALOGEN_BASE_URL:-http://127.0.0.1:8731}"
       print_plan
       if [[ "$DRY" == "1" ]]; then
-        log "dry-run — would run halogen HTTP suites"
+        log "dry-run — would run capacity/sched/throughput/quality HTTP backends"
         return 0
       fi
       mkdir -p "$OUT"
       write_progress "start" "$PROFILE_NAME"
-      local hargs=(matrix)
-      [[ -n "${MATRIX_MODELS:-}" ]] && hargs+=(--model "$MATRIX_MODELS")
       if [[ -n "${CAP_C:-}" ]]; then
         export CAPACITY_C_LIST="$CAP_C" HALOGEN_C_LIST="$CAP_C"
       fi
-      chmod +x "$HALOGEN" "$ROOT"/tools/bench/halogen/*.sh 2>/dev/null || true
-      "$HALOGEN" "${hargs[@]}"
+      chmod +x "$ROOT"/tools/bench/{capacity,throughput,scheduling}/backends/*.sh 2>/dev/null || true
+      matrix_http_run_full halogen-flash
       write_progress "done" "$PROFILE_NAME"
       log "matrix done (halogen-flash) — ./bench publish to update Pages"
       return 0
