@@ -118,6 +118,7 @@ import json, os, sys
 row = {
     "key": key,
     "mode": "dual",
+    "engine": os.environ.get("BENCH_ENGINE", "llama.cpp"),
     "backend": backend,
     "model": model,
     "kv": kv,

@@ -12,6 +12,8 @@ source "$PROJECT_ROOT/tools/bench/lib/python.sh"
 source "$PROJECT_ROOT/tools/bench/lib/host_mem.sh"
 # shellcheck source=../../lib/compose_overlay.sh
 source "$PROJECT_ROOT/tools/bench/lib/compose_overlay.sh"
+# shellcheck source=../../lib/engine.sh
+source "$PROJECT_ROOT/tools/bench/lib/engine.sh"
 # shellcheck source=ini.sh
 source "$CAPACITY_ROOT/lib/ini.sh"
 # shellcheck source=sync_ini.sh
@@ -319,7 +321,8 @@ patch_bench_section() {
 
 cell_key() {
   local mode="$1" model="$2" kv="$3" c="$4"
-  printf '%s|%s|%s|%s|%s' "$CAPACITY_BACKEND" "$mode" "$model" "$kv" "$c"
+  # llama.cpp keeps legacy 5-part keys; other engines prefix so ledgers never collide.
+  printf '%s%s|%s|%s|%s|%s' "$(bench_engine_cell_key_prefix)" "$CAPACITY_BACKEND" "$mode" "$model" "$kv" "$c"
 }
 
 # Detect llama-server version + image id. Call after bench-a is up when possible.
@@ -876,7 +879,7 @@ capacity_progress_end() {
 capacity_progress_skip_rest_of_ladder() {
   local model="${1:?}" kv="${2:?}"
   local mode="${3:-dual}"
-  local prefix="${CAPACITY_BACKEND}|${mode}|${model}|${kv}|"
+  local prefix="$(bench_engine_cell_key_prefix)${CAPACITY_BACKEND}|${mode}|${model}|${kv}|"
   local key
   while IFS= read -r key; do
     [[ -n "$key" ]] || continue
@@ -929,6 +932,7 @@ out, tag = sys.argv[1], sys.argv[2]
 data = {
     "stamp": os.environ.get("CAPACITY_STAMP", ""),
     "tag": tag,
+    "engine": os.environ.get("BENCH_ENGINE", "llama.cpp"),
     "backend": os.environ.get("CAPACITY_BACKEND", "vulkan"),
     "model": os.environ.get("CAPACITY_MODEL", ""),
     "model_list": os.environ.get("CAPACITY_MODEL_LIST", ""),

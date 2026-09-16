@@ -1,15 +1,28 @@
 {
   "name": "default",
-  "description": "Recommended: solo capacity KV×ctx + optional dual (auto c / auto-skip small hosts) + sched auto/ub/np",
+  "description": "Recommended: solo capacity KV\u00d7ctx + optional dual (auto c / auto-skip small hosts) + sched auto/ub/np",
   "sync_from": "coder,chat",
   "suites": {
     "capacity": {
       "enabled": true,
-      "kv": ["q8_0", "q5_0", "q4_0"],
-      "c": [32768, 65536, 131072, 196608, 262144],
+      "kv": [
+        "q8_0",
+        "q5_0",
+        "q4_0"
+      ],
+      "c": [
+        32768,
+        65536,
+        131072,
+        196608,
+        262144
+      ],
       "dual": {
         "enabled": true,
-        "kv": ["q8_0", "q5_0"],
+        "kv": [
+          "q8_0",
+          "q5_0"
+        ],
         "c": "auto",
         "skip_below_ram_gib": 64,
         "skip_below_gtt_gib": 48
@@ -17,7 +30,11 @@
     },
     "sched": {
       "enabled": true,
-      "scenarios": ["auto", "ub_sweep", "np_sweep"],
+      "scenarios": [
+        "auto",
+        "ub_sweep",
+        "np_sweep"
+      ],
       "np": 2,
       "ub": 32,
       "b": 64,
@@ -28,7 +45,9 @@
     },
     "throughput": {
       "enabled": false,
-      "backends": ["vulkan"],
+      "backends": [
+        "vulkan"
+      ],
       "scope": "bench"
     },
     "quality": {

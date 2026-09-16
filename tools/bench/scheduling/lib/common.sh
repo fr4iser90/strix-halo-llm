@@ -21,6 +21,8 @@ STREAM_CLIENT="${SCHED_BENCH_ROOT}/lib/stream_client.py"
 
 # shellcheck source=../../lib/python.sh
 source "$PROJECT_ROOT/tools/bench/lib/python.sh"
+# shellcheck source=../../lib/engine.sh
+source "$PROJECT_ROOT/tools/bench/lib/engine.sh"
 # shellcheck source=server.sh
 source "$SCHED_BENCH_ROOT/lib/server.sh"
 
@@ -82,6 +84,7 @@ out, tag = sys.argv[1], sys.argv[2]
 data = {
     "stamp": os.environ.get("SCHED_STAMP", ""),
     "tag": tag,
+    "engine": os.environ.get("BENCH_ENGINE", "llama.cpp"),
     "base_url": os.environ.get("SCHED_BASE_URL", ""),
     "model": os.environ.get("SCHED_MODEL", ""),
     "np": os.environ.get("SCHED_NP", ""),

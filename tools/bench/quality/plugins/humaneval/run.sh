@@ -19,12 +19,15 @@ ROOT="${PROJECT_ROOT:-}"
 
 # shellcheck source=../../../lib/python.sh
 source "$ROOT/tools/bench/lib/python.sh"
+# shellcheck source=../../../lib/engine.sh
+source "$ROOT/tools/bench/lib/engine.sh"
+bench_engine_apply_quality_defaults
 
 OUT_ROOT="${QUALITY_OUT:-$ROOT/output/bench/quality}"
 SUITE="humaneval"
 VENDOR="${HUMAN_EVAL_VENDOR:-$QUALITY_DIR/.vendor/human-eval}"
 
-BASE_URL="${QUALITY_BASE_URL:-http://127.0.0.1:11601}"
+BASE_URL="${QUALITY_BASE_URL:-$(bench_engine_default_url)}"
 MODEL="${QUALITY_MODEL:-}"
 N_SAMPLES="${QUALITY_N:-1}"
 LIMIT="${QUALITY_LIMIT:-0}"          # 0 = all 164 tasks
@@ -35,6 +38,15 @@ DO_EVAL=1
 DRY_RUN=0
 USE_BENCH=1
 EVAL_ONLY_DIR=""
+
+# If user points at Halogen (:8731) without setting BENCH_ENGINE, tag as halogen-flash.
+if [[ "${BENCH_ENGINE}" == "llama.cpp" ]]; then
+  inferred="$(bench_engine_from_url "$BASE_URL")"
+  if [[ "$inferred" != "llama.cpp" ]]; then
+    BENCH_ENGINE="$inferred"
+    export BENCH_ENGINE
+  fi
+fi
 
 usage() {
   cat <<EOF
@@ -521,6 +533,7 @@ elif generate_s is not None:
 summary = {
     "suite": suite,
     "model": model,
+    "engine": os.environ.get("BENCH_ENGINE", "llama.cpp"),
     "base_url": api,
     "stamp": stamp,
     "n_tasks": n_tasks,

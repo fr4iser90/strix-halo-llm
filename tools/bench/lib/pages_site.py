@@ -71,6 +71,234 @@ def display_name(name: str | None, n: int = 28) -> str:
     return short or s[:n]
 
 
+def normalize_engine(value: Any) -> str:
+    raw = str(value or "llama.cpp").strip().lower().replace("_", "-")
+    raw = re.sub(r"-+", "-", raw)
+    aliases = {
+        "": "llama.cpp",
+        "llama": "llama.cpp",
+        "llamacpp": "llama.cpp",
+        "llama-cpp": "llama.cpp",
+        "llama.cpp": "llama.cpp",
+        "halogen": "halogen-flash",
+        "halogen-flash": "halogen-flash",
+        "halogenflash": "halogen-flash",
+        "flash-server": "halogen-flash",
+    }
+    return aliases.get(raw, raw or "llama.cpp")
+
+
+def engine_label(engine: str) -> str:
+    eng = normalize_engine(engine)
+    return {
+        "llama.cpp": "llama.cpp",
+        "halogen-flash": "Halogen Flash",
+    }.get(eng, eng)
+
+
+def row_engine(row: dict | None) -> str:
+    if not row:
+        return "llama.cpp"
+    if row.get("engine"):
+        return normalize_engine(row.get("engine"))
+    key = str(row.get("key") or "")
+    parts = key.split("|")
+    # Legacy: backend|mode|model|kv|c  — Non-legacy: engine|backend|mode|…
+    if len(parts) >= 6 and parts[0] not in ("vulkan", "rocm", "cpu"):
+        return normalize_engine(parts[0])
+    return "llama.cpp"
+
+
+def engine_tabs_html(engines: list[str], *, include_compare: bool = True) -> str:
+    """Global engine filter. Hidden when only one engine (keeps legacy look)."""
+    if len(engines) < 2:
+        return ""
+    buttons = []
+    for i, eng in enumerate(engines):
+        cls = " active" if i == 0 else ""
+        buttons.append(
+            f'<button type="button" class="engine-tab{cls}" data-engine="{esc(eng)}" '
+            f'aria-pressed="{"true" if i == 0 else "false"}">{esc(engine_label(eng))}</button>'
+        )
+    if include_compare:
+        buttons.append(
+            '<button type="button" class="engine-tab" data-engine="__compare__" '
+            'aria-pressed="false">Compare</button>'
+        )
+    return (
+        '<nav class="engine-tabs" aria-label="Inference engine">'
+        + "".join(buttons)
+        + "</nav>"
+    )
+
+
+def engine_switch_script() -> str:
+    return """
+<script>
+(function () {
+  const tabs = Array.from(document.querySelectorAll(".engine-tabs .engine-tab"));
+  const panels = Array.from(document.querySelectorAll(".engine-panel"));
+  if (!tabs.length || !panels.length) return;
+  const KEY = "benchEngineTab";
+  function activate(id) {
+    tabs.forEach((btn) => {
+      const on = btn.getAttribute("data-engine") === id;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    panels.forEach((p) => {
+      p.hidden = p.getAttribute("data-engine") !== id;
+    });
+    try { localStorage.setItem(KEY, id); } catch (e) {}
+    // Re-layout Chart.js canvases that were hidden at init
+    if (typeof Chart !== "undefined") {
+      Object.values(Chart.instances || {}).forEach((c) => {
+        try { c.resize(); } catch (e) {}
+      });
+    }
+  }
+  tabs.forEach((btn) => btn.addEventListener("click", () => activate(btn.getAttribute("data-engine"))));
+  let initial = tabs[0].getAttribute("data-engine");
+  try {
+    const saved = localStorage.getItem(KEY);
+    if (saved && tabs.some((t) => t.getAttribute("data-engine") === saved)) initial = saved;
+  } catch (e) {}
+  activate(initial);
+})();
+</script>
+"""
+
+
+def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
+    """Head-to-head rows for models that appear under ≥2 engines."""
+    if len(engines) < 2:
+        return ""
+    # Collect metrics per (short-ish model key) per engine
+    # Prefer exact model name match first.
+    thr_by: dict[str, dict[str, dict]] = {}
+    qual_by: dict[str, dict[str, dict]] = {}
+    ctx_by: dict[str, dict[str, dict]] = {}
+
+    for eng in engines:
+        payload = by_engine.get(eng) or {}
+        for m in payload.get("thr_models") or []:
+            name = m.get("model") or ""
+            if not name:
+                continue
+            thr_by.setdefault(name, {})[eng] = m
+        for r in payload.get("qual_rows") or []:
+            name = r.get("model") or ""
+            if not name:
+                continue
+            qual_by.setdefault(name, {})[eng] = r
+        for r in (payload.get("cap_latest") or {}).values():
+            if r.get("mode") != "solo" or r.get("skipped") or not r.get("ok"):
+                continue
+            name = r.get("model") or ""
+            if not name:
+                continue
+            prev = ctx_by.setdefault(name, {}).get(eng)
+            c = int(r.get("c") or 0)
+            if prev is None or c > int(prev.get("c") or 0):
+                ctx_by[name][eng] = r
+
+    def delta_pct(a, b) -> str:
+        af, bf = parse_float(a), parse_float(b)
+        if af is None or bf is None or af == 0:
+            return "—"
+        return f"{((bf - af) / abs(af)) * 100:+.0f}%"
+
+    rows_html: list[str] = []
+    eng_a, eng_b = engines[0], engines[1]
+    # Prefer thr models that exist in both; then qual; then capacity-only
+    names = sorted(
+        set(thr_by) | set(qual_by) | set(ctx_by),
+        key=lambda n: display_name(n, 40).lower(),
+    )
+    for name in names:
+        thr = thr_by.get(name) or {}
+        qual = qual_by.get(name) or {}
+        ctx = ctx_by.get(name) or {}
+        if len(thr) < 2 and len(qual) < 2 and len(ctx) < 2:
+            # only show rows with at least one shared metric across ≥2 engines
+            engines_hit = set(thr) | set(qual) | set(ctx)
+            if len(engines_hit) < 2:
+                continue
+
+        def cell(map_, eng, key, fmt="num"):
+            row = map_.get(eng) or {}
+            val = row.get(key)
+            if fmt == "pct":
+                return fmt_pct(val)
+            if fmt == "ctx":
+                return f"{int(val):,}" if val else "—"
+            return fmt_num(val) if val not in (None, "") else "—"
+
+        # One row per interesting metric family
+        if thr.get(eng_a) or thr.get(eng_b):
+            a_tg = (thr.get(eng_a) or {}).get("tg")
+            b_tg = (thr.get(eng_b) or {}).get("tg")
+            rows_html.append(
+                f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
+                f"<td>Generation tok/s</td>"
+                f'<td class="n">{esc(fmt_num(a_tg) if a_tg not in (None, "") else "—")}</td>'
+                f'<td class="n">{esc(fmt_num(b_tg) if b_tg not in (None, "") else "—")}</td>'
+                f'<td class="n">{esc(delta_pct(a_tg, b_tg))}</td></tr>'
+            )
+            a_pp = (thr.get(eng_a) or {}).get("pp")
+            b_pp = (thr.get(eng_b) or {}).get("pp")
+            rows_html.append(
+                f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
+                f"<td>Prompt tok/s</td>"
+                f'<td class="n">{esc(fmt_num(a_pp) if a_pp not in (None, "") else "—")}</td>'
+                f'<td class="n">{esc(fmt_num(b_pp) if b_pp not in (None, "") else "—")}</td>'
+                f'<td class="n">{esc(delta_pct(a_pp, b_pp))}</td></tr>'
+            )
+        if qual.get(eng_a) or qual.get(eng_b):
+            a_p = (qual.get(eng_a) or {}).get("pass_at_1")
+            b_p = (qual.get(eng_b) or {}).get("pass_at_1")
+            rows_html.append(
+                f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
+                f"<td>HumanEval pass@1</td>"
+                f'<td class="n">{esc(fmt_pct(a_p))}</td>'
+                f'<td class="n">{esc(fmt_pct(b_p))}</td>'
+                f'<td class="n">{esc(delta_pct(a_p, b_p))}</td></tr>'
+            )
+        if ctx.get(eng_a) or ctx.get(eng_b):
+            a_c = (ctx.get(eng_a) or {}).get("c")
+            b_c = (ctx.get(eng_b) or {}).get("c")
+            rows_html.append(
+                f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
+                f"<td>Max context</td>"
+                f'<td class="n">{esc(f"{int(a_c):,}" if a_c else "—")}</td>'
+                f'<td class="n">{esc(f"{int(b_c):,}" if b_c else "—")}</td>'
+                f'<td class="n">{esc(delta_pct(a_c, b_c))}</td></tr>'
+            )
+
+    if not rows_html:
+        body = (
+            '<p class="meta">No overlapping models yet. Run the same model on both engines '
+            "to see a head-to-head here.</p>"
+        )
+    else:
+        body = (
+            "<table><thead><tr>"
+            "<th>Model</th><th>Metric</th>"
+            f"<th class=\"n\">{esc(engine_label(eng_a))}</th>"
+            f"<th class=\"n\">{esc(engine_label(eng_b))}</th>"
+            '<th class="n">Δ</th>'
+            "</tr></thead><tbody>"
+            + "".join(rows_html)
+            + "</tbody></table>"
+        )
+    return (
+        '<div class="engine-panel" data-engine="__compare__" hidden>'
+        '<div class="card"><h2>Compare engines</h2>'
+        '<p class="meta">Same model name across engines. Δ is relative to the first engine column.</p>'
+        f"{body}</div></div>"
+    )
+
+
 SHARED_CSS = """
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -136,6 +364,17 @@ summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
   font: inherit; }
 .btn.active { background: #3d5a3d; }
 .metric-tabs { margin: .5rem 0 1rem; }
+.engine-tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 0 1.15rem;
+  padding: .35rem; background: #171a21; border: 1px solid #252a35; border-radius: 10px; }
+.engine-tabs button { appearance: none; border: none; cursor: pointer; font: inherit;
+  color: #9aa0a6; background: transparent; padding: .45rem .85rem; border-radius: 7px;
+  font-size: .88rem; font-weight: 500; }
+.engine-tabs button:hover { color: #e8eaed; background: #1e2330; }
+.engine-tabs button.active { color: #e8eaed; background: #2a3444; }
+.engine-panel[hidden] { display: none !important; }
+.engine-badge { display: inline-block; font-size: .72rem; font-weight: 600;
+  padding: .1rem .4rem; border-radius: 4px; background: #1a2e24; color: #7ddea5;
+  margin-left: .35rem; vertical-align: middle; }
 select.model-pick { background: #12141a; color: #e8eaed; border: 1px solid #2a2e37;
   border-radius: 4px; padding: .35rem .5rem; font: inherit; margin: .25rem .5rem .75rem 0; }
 .scroll { overflow-x: auto; margin: .5rem 0 1rem; }
@@ -161,7 +400,7 @@ def site_nav(active: str) -> str:
     return f'<nav class="site-nav" aria-label="Site">{"".join(links)}</nav>'
 
 
-def host_one_liner(host: dict | None) -> str:
+def host_one_liner(host: dict | None, engines: list[str] | None = None) -> str:
     if not host:
         return '<p class="host-line">Host not probed yet. <a href="host.html">Host details</a></p>'
     gpu = host.get("gpu") or "GPU"
@@ -173,9 +412,19 @@ def host_one_liner(host: dict | None) -> str:
     backend = host.get("backend_default") or "—"
     pin = host.get("llama_pin") or {}
     commit = (pin.get("commit") or "")[:8] or "—"
+    eng_list = engines or []
+    if not eng_list:
+        default = normalize_engine(host.get("engine_default") or "llama.cpp")
+        eng_list = [default]
+    if len(eng_list) == 1 and eng_list[0] == "llama.cpp":
+        eng_bit = f'llama.cpp <code>{esc(commit)}</code>'
+    elif len(eng_list) == 1:
+        eng_bit = esc(engine_label(eng_list[0]))
+    else:
+        eng_bit = " · ".join(esc(engine_label(e)) for e in eng_list)
     return (
         f'<p class="host-line">{esc(gpu)} · {esc(ram_s)} · {esc(backend)} · '
-        f'llama.cpp <code>{esc(commit)}</code> · '
+        f'{eng_bit} · '
         f'<a href="host.html">Host details</a></p>'
     )
 
@@ -587,21 +836,23 @@ def max_ctx_one_per_model(cap_latest: dict, cap_metrics_fn) -> str:
     )
 
 
-def overview_chart_script(thr_chart: dict) -> str:
+def overview_chart_script(thr_chart: dict, canvas_id: str = "chart-thr") -> str:
     data = json.dumps({"throughput": thr_chart}, ensure_ascii=False).replace("<", "\\u003c")
+    sid = f"bench-thr-data-{canvas_id}"
     return f"""
-<script id="bench-chart-data" type="application/json">{data}</script>
+<script id="{esc(sid)}" type="application/json">{data}</script>
 <script>
 (function () {{
-  const raw = document.getElementById("bench-chart-data");
-  if (!raw || typeof Chart === "undefined") return;
+  const raw = document.getElementById({json.dumps(sid)});
+  const canvas = document.getElementById({json.dumps(canvas_id)});
+  if (!raw || !canvas || typeof Chart === "undefined") return;
   let DATA;
   try {{ DATA = JSON.parse(raw.textContent); }} catch (e) {{ return; }}
   const thr = DATA.throughput || {{}};
   if (!(thr.labels || []).length) return;
   const tick = {{ color: "#9aa0a6" }};
   const grid = {{ color: "#2a2e37" }};
-  new Chart(document.getElementById("chart-thr"), {{
+  new Chart(canvas, {{
     type: "bar",
     data: {{
       labels: thr.labels,
@@ -624,18 +875,25 @@ def overview_chart_script(thr_chart: dict) -> str:
 </script>
 """
 
-
-def context_chart_script(cap_chart: dict) -> str:
+def context_chart_script(
+    cap_chart: dict,
+    *,
+    model_sel: str = "cap-model",
+    y_sel: str = "cap-y",
+    canvas_id: str = "chart-cap",
+    fallback_id: str = "cap-fallback",
+) -> str:
     data = json.dumps({"capacity": cap_chart}, ensure_ascii=False).replace("<", "\\u003c")
+    sid = f"bench-cap-data-{canvas_id}"
     return f"""
-<script id="bench-chart-data" type="application/json">{data}</script>
+<script id="{esc(sid)}" type="application/json">{data}</script>
 <script>
 (function () {{
-  const raw = document.getElementById("bench-chart-data");
-  const sel = document.getElementById("cap-model");
-  const ySel = document.getElementById("cap-y");
-  const canvas = document.getElementById("chart-cap");
-  const fallback = document.getElementById("cap-fallback");
+  const raw = document.getElementById({json.dumps(sid)});
+  const sel = document.getElementById({json.dumps(model_sel)});
+  const ySel = document.getElementById({json.dumps(y_sel)});
+  const canvas = document.getElementById({json.dumps(canvas_id)});
+  const fallback = document.getElementById({json.dumps(fallback_id)});
   if (!raw) return;
   let DATA;
   try {{ DATA = JSON.parse(raw.textContent); }} catch (e) {{ return; }}
@@ -731,6 +989,10 @@ def context_chart_script(cap_chart: dict) -> str:
 """
 
 
+def _slug(engine: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", normalize_engine(engine)).strip("-") or "engine"
+
+
 def write_public_pages(
     out_root: str,
     *,
@@ -746,122 +1008,210 @@ def write_public_pages(
     cap_metrics_fn,
     fmt_stamp,
     cap_has_power: bool = False,
+    by_engine: dict | None = None,
+    engines: list | None = None,
 ) -> list[str]:
     """Write overview + detail pages. Returns list of written paths."""
-    written = []
+    written: list[str] = []
 
-    # --- Overview ---
+    if not by_engine:
+        eng = "llama.cpp"
+        if host and host.get("engine_default"):
+            eng = normalize_engine(host.get("engine_default"))
+        by_engine = {
+            eng: {
+                "thr_models": thr_models or [],
+                "qual_rows": qual_rows or [],
+                "cap_latest": cap_latest or {},
+                "thr_chart": thr_chart or {},
+                "cap_chart": cap_chart or {},
+                "capacity_grid_html": capacity_grid_html or "",
+                "cap_has_power": cap_has_power,
+            }
+        }
+    engines = [normalize_engine(e) for e in (engines or list(by_engine.keys()))]
+    if not engines:
+        engines = ["llama.cpp"]
+    engines = sorted(engines, key=lambda e: (0 if e == "llama.cpp" else 1, e))
+
+    tabs = engine_tabs_html(engines, include_compare=len(engines) >= 2)
+    switch = engine_switch_script() if len(engines) >= 2 else ""
+
+    overview_panels: list[str] = []
+    for i, eng in enumerate(engines):
+        payload = by_engine.get(eng) or {}
+        slug = _slug(eng)
+        thr_m = payload.get("thr_models") or []
+        qual = payload.get("qual_rows") or []
+        cap = payload.get("cap_latest") or {}
+        thr_c = payload.get("thr_chart") or {}
+        canvas = f"chart-thr-{slug}"
+        hidden = "" if i == 0 else " hidden"
+        overview_panels.append(
+            f'<div class="engine-panel" data-engine="{esc(eng)}"{hidden}>'
+            f"{verdict_cards(thr_m, qual, cap)}"
+            f'<div class="card" id="charts-{esc(slug)}">'
+            f"<h2>Prompt vs generation</h2>"
+            f'<p class="meta">Tokens per second with the model alone on the server. Higher is better.'
+            f' <span class="engine-badge">{esc(engine_label(eng))}</span></p>'
+            f'<div class="chart-box"><div class="chart-wrap"><canvas id="{esc(canvas)}"></canvas></div></div>'
+            f"</div>"
+            f"{thr_table_html(thr_m)}"
+            f'<div class="card" id="quality-preview-{esc(slug)}">'
+            f"<h2>Code correctness</h2>"
+            f'<p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a>'
+            f" · Duration = whole run (see n); pass@1/@10 share the same samples when n≥10.</p>"
+            f"{qual_table_html(qual, fmt_stamp=fmt_stamp)}"
+            f"</div>"
+            f"{overview_chart_script(thr_c, canvas)}"
+            f"</div>"
+        )
+    overview_panels.append(compare_panel_html(by_engine, engines))
+
     body = f"""
 <header>
 <h1>LLM bench results</h1>
 <p class="lede">Speed, longest usable context, and code correctness — measured on this host.</p>
 </header>
-{host_one_liner(host)}
-{verdict_cards(thr_models, qual_rows, cap_latest)}
-<div class="card" id="charts">
-<h2>Prompt vs generation</h2>
-<p class="meta">Tokens per second with the model alone on the server. Higher is better.</p>
-<div class="chart-box"><div class="chart-wrap"><canvas id="chart-thr"></canvas></div></div>
-</div>
-{thr_table_html(thr_models)}
-<div class="card" id="quality-preview">
-<h2>Code correctness</h2>
-<p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a>
-· Duration = whole run (see n); pass@1/@10 share the same samples when n≥10.</p>
-{qual_table_html(qual_rows, fmt_stamp=fmt_stamp)}
-</div>
+{host_one_liner(host, engines)}
+{tabs}
+{"".join(overview_panels)}
 <p class="links-row">
   <a href="context.html">Context &amp; memory →</a>
   <a href="quality.html">Quality details →</a>
   <a href="host.html">Host &amp; build →</a>
   <a href="scheduling/latest/compare.html">Under-load sweeps →</a>
 </p>
-{overview_chart_script(thr_chart)}
+{switch}
 """
     overview = shell("LLM Bench — Overview", "overview", body, chart_js=True)
-    # Default entry point = same as GitHub Pages (index.html)
     path = os.path.join(out_root, "index.html")
     with open(path, "w", encoding="utf-8") as f:
         f.write(overview)
     written.append(path)
-    # Compat alias for older publish / bookmarks
     alias = os.path.join(out_root, "pages-index.html")
     with open(alias, "w", encoding="utf-8") as f:
         f.write(overview)
     written.append(alias)
 
-    # --- Context ---
-    power_opt = (
-        '<option value="power_w">GPU watts (avg)</option>' if cap_has_power else ""
-    )
-    # capacity_grid_html may be a full card; wrap in details
-    grid_block = capacity_grid_html or '<p class="meta">No capacity grid yet.</p>'
+    ctx_panels: list[str] = []
+    for i, eng in enumerate(engines):
+        payload = by_engine.get(eng) or {}
+        slug = _slug(eng)
+        cap = payload.get("cap_latest") or {}
+        cap_c = payload.get("cap_chart") or {}
+        power = bool(payload.get("cap_has_power", cap_has_power))
+        power_opt = (
+            '<option value="power_w">GPU watts (avg)</option>' if power else ""
+        )
+        grid = payload.get("capacity_grid_html") or capacity_grid_html or (
+            '<p class="meta">No capacity grid yet.</p>'
+        )
+        if i > 0 and not payload.get("capacity_grid_html"):
+            grid = (
+                f'<p class="meta">Ledger cells for {esc(engine_label(eng))} — '
+                "see capacity/latest/compare.md for the full grid.</p>"
+            )
+        model_sel = f"cap-model-{slug}"
+        y_sel = f"cap-y-{slug}"
+        canvas = f"chart-cap-{slug}"
+        fallback = f"cap-fallback-{slug}"
+        hidden = "" if i == 0 else " hidden"
+        ctx_panels.append(
+            f'<div class="engine-panel" data-engine="{esc(eng)}"{hidden}>'
+            f'<div class="card">'
+            f"<h2>Longest context that fits "
+            f'<span class="engine-badge">{esc(engine_label(eng))}</span></h2>'
+            f"{max_ctx_one_per_model(cap, cap_metrics_fn)}"
+            f"</div>"
+            f'<div class="card">'
+            f"<h2>Prompt cost vs context</h2>"
+            f'<p class="meta">Pick a model. Lower line = faster prompt processing as context grows.</p>'
+            f'<label class="meta" for="{esc(model_sel)}">Model </label>'
+            f'<select id="{esc(model_sel)}" class="model-pick"></select>'
+            f'<label class="meta" for="{esc(y_sel)}">Y axis </label>'
+            f'<select id="{esc(y_sel)}" class="model-pick">'
+            f'<option value="prefill_s" selected>Prompt time (s)</option>'
+            f'<option value="prefill_tok_s">Prompt speed (tok/s)</option>'
+            f'<option value="gtt_gib">Memory (GiB)</option>'
+            f"{power_opt}"
+            f"</select>"
+            f'<div class="chart-box"><div class="chart-wrap tall">'
+            f'<canvas id="{esc(canvas)}"></canvas></div>'
+            f'<div id="{esc(fallback)}" class="meta" hidden></div></div>'
+            f"</div>"
+            f'<details class="panel">'
+            f"<summary>Full context × KV grid &amp; dual instances</summary>"
+            f'<p class="meta">Lab detail — every measured cell. Prefer the summary table above for decisions.</p>'
+            f"{grid}"
+            f"</details>"
+            f"{context_chart_script(cap_c, model_sel=model_sel, y_sel=y_sel, canvas_id=canvas, fallback_id=fallback)}"
+            f"</div>"
+        )
+    if len(engines) >= 2:
+        ctx_panels.append(compare_panel_html(by_engine, engines))
+
     ctx_body = f"""
 <header>
 <h1>Context &amp; memory</h1>
 <p class="lede">How far context can grow, and what prompt processing costs at that point.</p>
 </header>
-{host_one_liner(host)}
-<div class="card">
-<h2>Longest context that fits</h2>
-{max_ctx_one_per_model(cap_latest, cap_metrics_fn)}
-</div>
-<div class="card">
-<h2>Prompt cost vs context</h2>
-<p class="meta">Pick a model. Lower line = faster prompt processing as context grows.</p>
-<label class="meta" for="cap-model">Model </label>
-<select id="cap-model" class="model-pick"></select>
-<label class="meta" for="cap-y">Y axis </label>
-<select id="cap-y" class="model-pick">
-  <option value="prefill_s" selected>Prompt time (s)</option>
-  <option value="prefill_tok_s">Prompt speed (tok/s)</option>
-  <option value="gtt_gib">Memory (GiB)</option>
-  {power_opt}
-</select>
-<div class="chart-box"><div class="chart-wrap tall"><canvas id="chart-cap"></canvas></div>
-<div id="cap-fallback" class="meta" hidden></div></div>
-</div>
-<details class="panel">
-<summary>Full context × KV grid &amp; dual instances</summary>
-<p class="meta">Lab detail — every measured cell. Prefer the summary table above for decisions.</p>
-{grid_block}
-</details>
+{host_one_liner(host, engines)}
+{tabs}
+{"".join(ctx_panels)}
 <p class="more"><a href="capacity/latest/compare.md">→ Capacity ledger (markdown)</a></p>
-{context_chart_script(cap_chart)}
+{switch}
 """
     path = os.path.join(out_root, "context.html")
     with open(path, "w", encoding="utf-8") as f:
         f.write(shell("LLM Bench — Context", "context", ctx_body, chart_js=True))
     written.append(path)
 
-    # --- Quality ---
+    q_panels: list[str] = []
+    for i, eng in enumerate(engines):
+        payload = by_engine.get(eng) or {}
+        qual = payload.get("qual_rows") or []
+        hidden = "" if i == 0 else " hidden"
+        q_panels.append(
+            f'<div class="engine-panel" data-engine="{esc(eng)}"{hidden}>'
+            f'<div class="card">'
+            f"<h2>HumanEval "
+            f'<span class="engine-badge">{esc(engine_label(eng))}</span></h2>'
+            f'<p class="meta"><strong>pass@k</strong> = share of problems solved within k samples '
+            f"(from <em>one</em> run with <code>n≥k</code>). "
+            f"<strong>Duration</strong> is wall time for that whole run — not “time for pass@1” vs “time for pass@10”. "
+            f"Hover Duration for details. Higher % is better; best pass@1 is highlighted.</p>"
+            f"{qual_table_html(qual, fmt_stamp=fmt_stamp)}"
+            f'<p class="more"><a href="quality/latest/compare.md">→ Per-run details</a></p>'
+            f"</div></div>"
+        )
+    if len(engines) >= 2:
+        q_panels.append(compare_panel_html(by_engine, engines))
+
     q_body = f"""
 <header>
 <h1>Code correctness</h1>
 <p class="lede">HumanEval-style Python coding problems. Measures whether generated code passes unit tests — not chat style, reasoning prose, or speed.</p>
 </header>
-{host_one_liner(host)}
-<div class="card">
-<h2>HumanEval</h2>
-<p class="meta"><strong>pass@k</strong> = share of problems solved within k samples (from <em>one</em> run with <code>n≥k</code>).
-<strong>Duration</strong> is wall time for that whole run — not “time for pass@1” vs “time for pass@10”.
-Hover Duration for details. Higher % is better; best pass@1 is highlighted.</p>
-{qual_table_html(qual_rows, fmt_stamp=fmt_stamp)}
-<p class="more"><a href="quality/latest/compare.md">→ Per-run details</a></p>
-</div>
+{host_one_liner(host, engines)}
+{tabs}
+{"".join(q_panels)}
+{switch}
 """
     path = os.path.join(out_root, "quality.html")
     with open(path, "w", encoding="utf-8") as f:
         f.write(shell("LLM Bench — Quality", "quality", q_body))
     written.append(path)
 
-    # --- Host ---
-    # Strip outer card duplication somewhat — host_html_card already has card
+    eng_note = (
+        "Results only compare fairly on the same machine, driver, and engine build."
+    )
     h_body = f"""
 <header>
 <h1>Host &amp; build</h1>
-<p class="lede">Results only compare fairly on the same machine, driver, and llama.cpp build.</p>
+<p class="lede">{esc(eng_note)}</p>
 </header>
+{host_one_liner(host, engines)}
 {host_html_card}
 {fingerprint_html}
 """

@@ -115,6 +115,7 @@ fill_n = int(fill_tok) if str(fill_tok).isdigit() else 0
 row = {
     "key": key,
     "mode": "solo",
+    "engine": os.environ.get("BENCH_ENGINE", "llama.cpp"),
     "backend": backend,
     "model": model,
     "kv": kv,

@@ -1,0 +1,180 @@
+# docker-compose.yml: halogen-flash-server, two-container topology.
+#
+# ONE IMAGE, TWO ROLES. The release image's entrypoint takes `engine` or `api`
+# as its argument, so both services below are the same build and cannot drift
+# apart.
+#
+# Two services because they have nothing in common at RESTART time: the engine
+# needs the GPU and re-reads the weights; the front-end needs a tokenizer and
+# starts in a second. Splitting them means a front-end change redeploys without
+# a model reload. If you do not need that, the single container is simpler:
+#
+#   podman run --rm -it --device /dev/kfd --device /dev/dri \
+#     --group-add keep-groups --ipc=host --ulimit memlock=-1:-1 \
+#     -v /path/to/halogen-models:/models:ro \
+#     -p 8731:8731 ghcr.io/peonist-ai/halogen-flash-server:0.11.1
+#
+# ONE VOLUME IS ENOUGH. The weights repo ships the tokenizer inside it, and
+# both services below read it from there. Set HALOGEN_MODELS to the directory
+# `hf download` wrote and nothing else is required.
+#
+# The engine port is deliberately NOT published, because the token protocol has
+# no auth. Only the API is reachable, and it is the only edge.
+#
+# `keep-groups` in group_add is a PODMAN extension, so this file is written for
+# podman-compose. Under docker compose, replace it with
+# `group_add: ["video", "render"]`.
+#
+# Usage:
+#   HALOGEN_MODELS=~/halogen-models podman-compose up -d
+#   podman-compose restart api          # cheap: no model reload
+#   podman-compose logs -f engine       # watch the load, it takes minutes
+#
+# BOTH SERVICES MUST RUN THE SAME TAG. The api renders the prompt and the
+# engine runs it, and what one release can do the other may not know how to
+# ask for. Public issue #26 was an api at 0.4.4 in front of an engine at
+# 0.5.6: the front-end predated images, so it rendered the chat template's
+# image placeholder and never sent the pixels, and every picture was
+# described from nothing, with no error anywhere. The api now warns at
+# startup when the engine's version differs from its own, and /health shows
+# both, but the fix is this file: one tag, changed in both places.
+services:
+  engine:
+    image: ghcr.io/peonist-ai/halogen-flash-server:0.11.1
+    command: ["engine"]
+    environment:
+      # Separate netns from the api service, so the engine must listen on all
+      # interfaces WITHIN the compose network. It stays unpublished to the host.
+      HALOGEN_BIND: 0.0.0.0
+      #HALOGEN_VERBOSE: "1"
+      #HALOGEN_DMALLOC_LOG: "1"
+      # NOTHING ELSE IS SET HERE ON PURPOSE. The image already carries the
+      # shipped defaults (1 KV slot, 262,144 context, prompt cache mode 2,
+      # prefill chunk 32,768, the quality sidecar, the tuned GEMM plan). A copy
+      # of a default in a second file is a copy that goes stale: when the image
+      # changes, this file would silently override it with last release's
+      # value. Override here only what you actually mean to change, and see
+      # docs/FLAGS.md for what each one costs.
+      #
+      # The slots share one KV pool of HALOGEN_CTX positions (~26 KiB each)
+      # plus ~115 MiB per slot; 4 x 262,144 is ~28 GiB and is the default.
+      #
+      # Contexts past the native 262,144 (up to 1,048,576) need the model's
+      # static YaRN factor as well, and are a different model configuration:
+      # see the README's "1M context" section before uncommenting these.
+      # HALOGEN_ROPE_YARN: "4"
+      # HALOGEN_CTX: "1048576"
+      #
+      # The attention budget: how many tokens of the context each query
+      # attends through the model's sparse attention. The checkpoint's value
+      # is 2048 and is the default. 4096 retrieved two more of 96 planted
+      # facts at 16k in the README's battery for about 7% of prefill speed
+      # at 32k and 2% of decode; it is a different model configuration, not
+      # byte-identical. See the README's "Attention budget" section.
+      # HALOGEN_INDEXER_BUDGET: "4096"
+      #
+      # IMAGES ARE OFF UNTIL THIS IS SET, and unset is the shipped state: with
+      # no tower the engine never builds one, allocates nothing for it, and
+      # every image path is unreachable, so a text server is byte-identical to
+      # a build without any of it. Point it at the vision sidecar (0.84 GiB,
+      # fetched beside the checkpoint) to accept images on
+      # /v1/chat/completions and /v1/responses. `1` resolves to the sidecar
+      # beside the checkpoint. An image costs about 1,000 tokens at 1280x800
+      # and 2,040 at 1080p, out of the same context as the prompt.
+      HALOGEN_VISION_TOWER: ${HALOGEN_VISION_TOWER:-}
+      #
+      # BRING YOUR OWN GGUF (0.7.0). Point this at a llama.cpp GGUF of the
+      # model (any shard of a split) and the engine repacks it into RAM at
+      # startup, losslessly, and serves it with its own draft head
+      # (qwen38-flash-next-mtp.hgn, 1.4 GiB, beside the GGUF or from
+      # HALOGEN_MTP_HEAD). The models volume then holds the GGUF, the head
+      # and tokenizer/; no checkpoint, no sidecar. Startup is a read of the
+      # whole file every time unless HALOGEN_GGUF_CACHE=1 keeps the repack
+      # beside it (about 70 GiB, written once; needs the volume writable).
+      # The README's "Bring your own GGUF" section has which files and the
+      # numbers.
+      # HALOGEN_CHECKPOINT: /models/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf
+      # HALOGEN_GGUF_CACHE: "1"
+      #
+      # THE PROMPT CACHE ON DISK (0.10.0). Point this at a directory on a real
+      # filesystem (it takes O_DIRECT; a tmpfs cannot hold it) and every
+      # conversation's KV rows are written behind the request as it grows;
+      # after a restart, a follow-up turn resumes from the drive instead of
+      # re-prefilling the conversation. 27 KiB a token: 0.9 GB at 32k, 7.2 GB
+      # at 262k. HALOGEN_CACHE_DISK_GIB (default 64) bounds the directory,
+      # least recently used conversations out. See the README's "Prompt cache
+      # on disk" section, and stop_grace_period below.
+      # HALOGEN_CACHE_DIR: /cache
+      # HALOGEN_CACHE_DISK_GIB: "64"
+    volumes:
+      # The directory `hf download` wrote. It holds the checkpoint, the quality
+      # sidecar the engine picks up automatically, and tokenizer/.
+      - ${HALOGEN_MODELS:?set HALOGEN_MODELS to the directory hf download wrote}:/models:ro
+      # The prompt cache's disk tier, if HALOGEN_CACHE_DIR is set above:
+      # - ${HALOGEN_CACHE:-./halogen-cache}:/cache
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    # `ipc: host` is load-bearing: without it the GPU runtime dies during
+    # startup, and no `shm_size` substitutes (five sizes from 64 MiB to
+    # 64 GiB fail identically; the shared namespace itself is what is
+    # needed). `seccomp:unconfined` used to sit beside it and was measured
+    # to do nothing here (public issue #8: starts and serves without it
+    # under Podman; the reporter runs Docker 29 without it), so 0.6.1
+    # dropped it.
+    ipc: host
+    ulimits:
+      memlock: -1
+    group_add: [keep-groups]
+    # THE API MUST NOT START UNTIL THIS ANSWERS. Reading the weights takes
+    # minutes, and `depends_on` alone waits only for the container to START.
+    # Without this the front-end connects, is refused, and exits at boot:
+    #   ConnectionRefusedError: [Errno 111] Connect call failed
+    # then crash-loops under `restart` until the engine happens to be ready.
+    # start_period is what buys the load time: failures during it do not count.
+    # A CONNECT IS NOT A HEALTHCHECK. This probed `</dev/tcp/127.0.0.1/8730`,
+    # which the kernel completes into the listen backlog with no help from the
+    # engine: an engine whose GPU queue has aborted answers it forever.
+    # Measured on 0.4.4 with the engine stopped: green healthcheck, /health
+    # "ok", every request hung. halogen-healthcheck asks for a PONG, which the
+    # engine answers between decode rounds and between prefill chunks, so a
+    # busy server stays healthy and a wedged one does not.
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/halogen-healthcheck", "engine"]
+      interval: 10s
+      timeout: 35s
+      retries: 3
+      start_period: 20m
+    # A stop sends SIGTERM and, 10 s later by default, SIGKILL. The engine
+    # finishes writing the last turn's rows to the disk tier on SIGTERM
+    # (usually well under a second; a 262k first turn on a slow drive can
+    # take longer), so give it a minute rather than lose that turn.
+    stop_grace_period: 60s
+    restart: unless-stopped
+
+  api:
+    image: ghcr.io/peonist-ai/halogen-flash-server:0.11.1
+    command: ["api"]
+    depends_on:
+      engine:
+        condition: service_healthy
+    environment:
+      HALOGEN_ENGINE: engine:8730
+    volumes:
+      # Read-only, and only so the front-end can find tokenizer/ in the same
+      # directory. Set HALOGEN_TOKENIZER instead if your tokenizer lives
+      # elsewhere; it must be a FLAT directory, because HuggingFace cache
+      # snapshots are symlinks into a sibling blobs/ that dangle in a container.
+      - ${HALOGEN_MODELS:?set HALOGEN_MODELS to the directory hf download wrote}:/models:ro
+    ports:
+      - "8731:8731"          # the only published port
+    # /health asks the ENGINE for a PONG before it answers, so this is a
+    # check on the pair rather than on the front-end's own process. A live
+    # front-end in front of a dead engine used to report itself healthy.
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/halogen-healthcheck", "api"]
+      interval: 10s
+      timeout: 35s
+      retries: 3
+      start_period: 2m
+    restart: unless-stopped

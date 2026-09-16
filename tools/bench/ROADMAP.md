@@ -38,4 +38,6 @@ setup” decisions. Items below are polish — track here so they are not forgot
 ## Docs / forks
 
 - [x] Live INIs gitignored; templates in `examples/ini/`
+- [x] Engine dimension (`BENCH_ENGINE` / Halogen Flash) — tagged results + Pages engine tabs / Compare
+- [x] Halogen full matrix (`full-halogen` / `./bench halogen matrix`) — HTTP capacity+sched+throughput+quality
 - [ ] One-page “first matrix” checklist on GitHub Pages index

@@ -89,12 +89,23 @@ def rel(*parts):
 
 # --- Throughput latest (lab vulkan preferred) ---
 thr_models = []
+thr_engine = "llama.cpp"
+thr_meta = os.path.join(thr, "latest", "meta.json")
+if os.path.isfile(thr_meta):
+    try:
+        with open(thr_meta, encoding="utf-8") as f:
+            thr_engine = (json.load(f).get("engine") or "llama.cpp").strip() or "llama.cpp"
+    except (OSError, json.JSONDecodeError):
+        pass
 thr_cmp = os.path.join(thr, "latest", "compare.md")
 if os.path.isfile(thr_cmp):
     in_table = False
     with open(thr_cmp, encoding="utf-8") as f:
         for line in f:
             line = line.rstrip()
+            if line.lower().startswith("engine:"):
+                thr_engine = line.split(":", 1)[1].strip() or thr_engine
+                continue
             if line.startswith("| model |"):
                 in_table = True
                 continue
@@ -105,7 +116,12 @@ if os.path.isfile(thr_cmp):
                     continue
                 parts = [p.strip() for p in line.split("|")[1:-1]]
                 if len(parts) >= 3 and parts[0] != "model" and not parts[0].startswith("---"):
-                    thr_models.append({"model": parts[0], "pp": parts[1], "tg": parts[2]})
+                    thr_models.append({
+                        "model": parts[0],
+                        "pp": parts[1],
+                        "tg": parts[2],
+                        "engine": thr_engine,
+                    })
 
 thr_runs = {}
 for path in sorted(glob.glob(os.path.join(thr, "llama-bench-*-*-*.*"))):
@@ -288,6 +304,7 @@ def host_md_block(h):
         ("GTT (UMA)", f"{h.get('gtt_total_gib') or '—'} GiB" + (f" (used ~{round((h.get('gtt_used_mib') or 0)/1024, 1)} GiB)" if h.get("gtt_used_mib") else "")),
         ("Visible VRAM", f"{h.get('vram_total_mib') or '—'} MiB"),
         ("GPU", h.get("gpu") or "—"),
+        ("Engine", h.get("engine_default") or "llama.cpp"),
         ("Backend", h.get("backend_default") or "—"),
         ("Image", f"{h.get('docker_image') or '—'} (`{h.get('docker_image_id_short') or '—'}`)"),
         ("llama.cpp", f"{pin.get('ref') or '—'} @ `{commit_s}`"),
@@ -347,6 +364,7 @@ def host_html_card(h):
         row("Shared GPU memory (GTT)", gtt),
         row("Visible VRAM", f"{h.get('vram_total_mib') or '—'} MiB"),
         row("GPU", h.get("gpu") or "—"),
+        row("Inference engine", h.get("engine_default") or "llama.cpp"),
         row("Inference backend", h.get("backend_default") or "—"),
         row("Container image", f"{h.get('docker_image') or '—'} ({h.get('docker_image_id_short') or '—'})"),
         row("llama.cpp", f"{pin.get('ref') or '—'} @ {commit_s}"),
@@ -517,8 +535,16 @@ if os.path.isfile(cap_ledger):
             except json.JSONDecodeError:
                 continue
             key = row.get("key")
-            if key:
-                cap_latest[key] = row
+            if not key:
+                continue
+            # Normalize missing engine (legacy ledger rows)
+            if not row.get("engine"):
+                parts = str(key).split("|")
+                if len(parts) >= 6 and parts[0] not in ("vulkan", "rocm", "cpu"):
+                    row["engine"] = parts[0]
+                else:
+                    row["engine"] = "llama.cpp"
+            cap_latest[key] = row
 cap_cells = len(cap_latest)
 
 
@@ -1831,13 +1857,107 @@ with open(ops_html, "w", encoding="utf-8") as f:
 _lib = os.path.normpath(os.path.join(out_root, "..", "..", "tools", "bench", "lib"))
 if _lib not in sys.path:
     sys.path.insert(0, _lib)
-from pages_site import display_name as _disp, write_public_pages  # noqa: E402
+from pages_site import display_name as _disp, write_public_pages, normalize_engine  # noqa: E402
 
-thr_chart_pub = {
-    "labels": [_disp(m.get("model"), 22) for m in thr_models],
-    "pp": thr_chart.get("pp"),
-    "tg": thr_chart.get("tg"),
-}
+def _row_engine(r):
+    if not r:
+        return "llama.cpp"
+    if r.get("engine"):
+        return normalize_engine(r.get("engine"))
+    return "llama.cpp"
+
+# Ensure quality rows carry engine
+for r in qual_rows:
+    r["engine"] = _row_engine(r)
+
+# Ensure sched recs carry engine
+for r in sch_recs:
+    r["engine"] = _row_engine(r)
+
+# Discover engines present in any suite
+engine_set = set()
+for m in thr_models:
+    engine_set.add(_row_engine(m))
+for r in qual_rows:
+    engine_set.add(_row_engine(r))
+for r in sch_recs:
+    engine_set.add(_row_engine(r))
+for r in cap_latest.values():
+    engine_set.add(_row_engine(r))
+if host.get("engine_default"):
+    engine_set.add(normalize_engine(host.get("engine_default")))
+if not engine_set:
+    engine_set.add("llama.cpp")
+engines_sorted = sorted(engine_set, key=lambda e: (0 if e == "llama.cpp" else 1, e))
+
+
+def _thr_chart_for(models):
+    return {
+        "labels": [_disp(m.get("model"), 22) for m in models],
+        "pp": [_num(m.get("pp")) for m in models],
+        "tg": [_num(m.get("tg")) for m in models],
+    }
+
+
+def _cap_chart_for(cells: dict):
+    chart = {}
+    for r in cells.values():
+        if r.get("skipped") or not r.get("ok"):
+            continue
+        mode = r.get("mode") or "solo"
+        if mode not in ("solo", "dual"):
+            continue
+        model = r.get("model") or "?"
+        kv = r.get("kv") or "?"
+        if mode == "dual":
+            kv = f"{kv} dual"
+            peak = r.get("metrics_peak") or {}
+            mem_a = r.get("mem_after") or {}
+            gtt_mb = peak.get("gtt_used_mb") or mem_a.get("gtt_used_mb")
+            gtt_gib = round(float(gtt_mb) / 1024.0, 2) if gtt_mb is not None else None
+            point = {
+                "c": int(r.get("c") or 0),
+                "gtt_gib": gtt_gib,
+                "prefill_s": None,
+                "prefill_tok_s": None,
+                "power_w": peak.get("power_w_avg") if peak.get("power_w_avg") is not None else peak.get("power_w_peak"),
+            }
+        else:
+            m = cap_metrics(r)
+            if not m:
+                continue
+            point = {
+                "c": int(r.get("c") or 0),
+                "gtt_gib": m.get("gtt_gib"),
+                "prefill_s": m.get("prefill_s"),
+                "prefill_tok_s": m.get("prefill_tok_s"),
+                "power_w": m.get("power_w_avg") if m.get("power_w_avg") is not None else m.get("power_w_peak"),
+            }
+        chart.setdefault(model, {}).setdefault(kv, []).append(point)
+    for model in chart:
+        for kv in chart[model]:
+            chart[model][kv] = sorted(chart[model][kv], key=lambda p: p["c"])
+    return chart
+
+
+by_engine = {}
+for eng in engines_sorted:
+    thr_e = [m for m in thr_models if _row_engine(m) == eng]
+    qual_e = [r for r in qual_rows if _row_engine(r) == eng]
+    cap_e = {k: v for k, v in cap_latest.items() if _row_engine(v) == eng}
+    by_engine[eng] = {
+        "thr_models": thr_e,
+        "qual_rows": qual_e,
+        "cap_latest": cap_e,
+        "thr_chart": _thr_chart_for(thr_e),
+        "cap_chart": _cap_chart_for(cap_e),
+        "capacity_grid_html": capacity_html_card() if eng == engines_sorted[0] else "",
+        "cap_has_power": any(
+            (not r.get("skipped")) and _row_has_power(r) for r in cap_e.values()
+        ),
+    }
+
+thr_chart_pub = _thr_chart_for(thr_models)
 
 pub_paths = write_public_pages(
     out_root,
@@ -1853,6 +1973,8 @@ pub_paths = write_public_pages(
     cap_metrics_fn=cap_metrics,
     fmt_stamp=fmt_stamp,
     cap_has_power=cap_has_power,
+    by_engine=by_engine,
+    engines=engines_sorted,
 )
 
 # Refresh capacity compare.md with tok/s if ledger exists

@@ -1,15 +1,29 @@
 {
   "name": "full",
-  "description": "Multi-day matrix: solo capacity KV×c + all sched sweeps + throughput + HumanEval (no dual — run capacity dual separately if needed)",
+  "description": "Multi-day matrix: solo capacity KV\u00d7c + all sched sweeps + throughput + HumanEval (no dual \u2014 run capacity dual separately if needed)",
   "sync_from": "coder,chat,lab",
   "suites": {
     "capacity": {
       "enabled": true,
-      "kv": ["q8_0", "q5_0", "q4_0"],
-      "c": [32768, 65536, 131072, 196608, 262144],
+      "kv": [
+        "q8_0",
+        "q5_0",
+        "q4_0"
+      ],
+      "c": [
+        32768,
+        65536,
+        131072,
+        196608,
+        262144
+      ],
       "dual": {
         "enabled": false,
-        "kv": ["q8_0", "q5_0", "q4_0"],
+        "kv": [
+          "q8_0",
+          "q5_0",
+          "q4_0"
+        ],
         "c": "auto",
         "skip_below_ram_gib": 64,
         "skip_below_gtt_gib": 48
@@ -17,7 +31,14 @@
     },
     "sched": {
       "enabled": true,
-      "scenarios": ["auto", "ub_sweep", "np_sweep", "b_sweep", "cont_batch", "mtp_sweep"],
+      "scenarios": [
+        "auto",
+        "ub_sweep",
+        "np_sweep",
+        "b_sweep",
+        "cont_batch",
+        "mtp_sweep"
+      ],
       "np": 2,
       "ub": 32,
       "b": 64,
@@ -28,7 +49,9 @@
     },
     "throughput": {
       "enabled": true,
-      "backends": ["vulkan"],
+      "backends": [
+        "vulkan"
+      ],
       "scope": "bench"
     },
     "quality": {

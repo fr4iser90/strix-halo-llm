@@ -25,7 +25,28 @@ Most users only need **A** (and maybe **B**). Dual (**D**) is optional — not p
 
 **Suite layout:** `run.sh` + `lib/server.sh` (prepare/cleanup) + `scenarios/` or `plugins/` + `README.md`.
 
-**Routers:** sticky `:11535`/`:11538` · lab `:11537` (coexist) · bench `:11601`/`:11602` (capacity/quality/sched) · llama-bench one-shot (throughput).
+**Routers:** sticky `:11535`/`:11538` · lab `:11537` (coexist) · bench `:11601`/`:11602` (capacity/quality/sched) · llama-bench one-shot (throughput) · Halogen Flash API `:8731` (`BENCH_ENGINE=halogen-flash`).
+
+## Engines (unified `--engine`)
+
+Same matrix profile for every runtime — pick the engine explicitly:
+
+```bash
+# llama.cpp (bench-a) — default if --engine omitted
+./bench matrix --profile full --engine llama.cpp --model Tiel-Coder-35B,Qwen3.6-35B
+
+# Halogen Flash (API must already listen on :8731)
+./bench matrix --profile full --engine halogen-flash --model YOUR_API_MODEL_ID
+
+# shorthand / aliases (same thing):
+./bench halogen matrix --model YOUR_API_MODEL_ID
+./bench matrix --profile full-halogen --model YOUR_API_MODEL_ID
+```
+
+Known: `llama.cpp`, `halogen-flash` — register more in `tools/bench/lib/engine.sh` + adapter.  
+Priority: `--engine` > `BENCH_ENGINE=` env > profile `"engine"` > `llama.cpp`.
+
+After runs: `./bench index && ./bench publish` (engine tabs when ≥2 engines have data).
 
 ## Full matrix (multi-day)
 

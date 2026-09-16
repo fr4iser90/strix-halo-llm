@@ -1,0 +1,36 @@
+{
+  "name": "full-halogen",
+  "description": "DEPRECATED alias — use: ./bench matrix --profile full --engine halogen-flash. Same suites as full, HTTP API :8731.",
+  "engine": "halogen-flash",
+  "sync_from": "",
+  "suites": {
+    "capacity": {
+      "enabled": true,
+      "kv": ["native"],
+      "c": [32768, 65536, 131072, 196608, 262144],
+      "dual": { "enabled": false }
+    },
+    "sched": {
+      "enabled": true,
+      "scenarios": ["auto"],
+      "np": 2,
+      "ub": 0,
+      "b": 0,
+      "ub_list": "",
+      "np_list": "",
+      "b_list": "",
+      "mtp_list": ""
+    },
+    "throughput": {
+      "enabled": true,
+      "backends": ["halogen"],
+      "scope": "halogen"
+    },
+    "quality": {
+      "enabled": true,
+      "suite": "humaneval",
+      "n": 1,
+      "limit": 0
+    }
+  }
+}

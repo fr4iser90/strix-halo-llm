@@ -156,6 +156,7 @@ except OSError:
     pass
 
 backend = os.environ.get("BENCH_BACKEND") or os.environ.get("CAPACITY_BACKEND") or "vulkan"
+engine = (os.environ.get("BENCH_ENGINE") or "llama.cpp").strip() or "llama.cpp"
 
 def gib(mib):
     if mib is None:
@@ -192,6 +193,7 @@ host = {
     "vram_total_mib": vram_t,
     "vram_used_mib": vram_u,
     "gpu": gpu or None,
+    "engine_default": engine,
     "backend_default": backend,
     "docker_image": image,
     "docker_image_id": image_id or None,

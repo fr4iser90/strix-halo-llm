@@ -219,8 +219,10 @@ SWEEP_MAP = {
 }
 
 
-# Collect per-model latest auto + sweeps
+# Collect per-(engine, model) latest auto + sweeps
 models = defaultdict(lambda: {
+    "engine": "llama.cpp",
+    "model": "",
     "auto_stamp": "", "ub_stamp": "", "np_stamp": "", "b_stamp": "", "c_stamp": "",
     "cont_stamp": "", "fit_stamp": "", "mtp_stamp": "",
     "auto": {}, "ub_rows": [], "np_rows": [], "b_rows": [], "c_rows": [],
@@ -235,9 +237,13 @@ for run_dir in sorted(glob.glob(os.path.join(out_root, "20*"))):
         continue
     man = load_json(man_path)
     model = man.get("model", "")
+    engine = (man.get("engine") or "llama.cpp").strip() or "llama.cpp"
     stamp = man.get("stamp", os.path.basename(run_dir))
     if not model:
         continue
+    mkey = f"{engine}\x1f{model}"
+    models[mkey]["engine"] = engine
+    models[mkey]["model"] = model
 
     auto = {}
     sweeps = {"ub_rows": [], "np_rows": [], "b_rows": [], "c_rows": []}
@@ -255,19 +261,19 @@ for run_dir in sorted(glob.glob(os.path.join(out_root, "20*"))):
             continue
         summ = load_json(summ_path)
         if scen == "07_cont_batch":
-            if stamp >= models[model].get("cont_stamp", ""):
+            if stamp >= models[mkey].get("cont_stamp", ""):
                 cont_batch = summ
-                models[model]["cont_stamp"] = stamp
+                models[mkey]["cont_stamp"] = stamp
             continue
         if scen in ("10_mtp_sweep", "05_mtp_compare"):
-            if stamp >= models[model].get("mtp_stamp", ""):
+            if stamp >= models[mkey].get("mtp_stamp", ""):
                 mtp_sweep = summ
-                models[model]["mtp_stamp"] = stamp
+                models[mkey]["mtp_stamp"] = stamp
             continue
         if scen == "09_fit_probe":
-            if stamp >= models[model].get("fit_stamp", ""):
+            if stamp >= models[mkey].get("fit_stamp", ""):
                 fit_ctx = summ.get("context_length")
-                models[model]["fit_stamp"] = stamp
+                models[mkey]["fit_stamp"] = stamp
             continue
         param = SWEEP_MAP.get(scen)
         if param:
@@ -278,21 +284,21 @@ for run_dir in sorted(glob.glob(os.path.join(out_root, "20*"))):
             if row:
                 auto[scen] = row
 
-    if auto and stamp >= models[model]["auto_stamp"]:
-        models[model]["auto"] = auto
-        models[model]["auto_stamp"] = stamp
+    if auto and stamp >= models[mkey]["auto_stamp"]:
+        models[mkey]["auto"] = auto
+        models[mkey]["auto_stamp"] = stamp
     for key, stamp_key in [
         ("ub_rows", "ub_stamp"), ("np_rows", "np_stamp"), ("b_rows", "b_stamp"), ("c_rows", "c_stamp"),
     ]:
-        if sweeps[key] and stamp >= models[model][stamp_key]:
-            models[model][key] = sweeps[key]
-            models[model][stamp_key] = stamp
+        if sweeps[key] and stamp >= models[mkey][stamp_key]:
+            models[mkey][key] = sweeps[key]
+            models[mkey][stamp_key] = stamp
     if cont_batch:
-        models[model]["cont_batch"] = cont_batch
+        models[mkey]["cont_batch"] = cont_batch
     if mtp_sweep:
-        models[model]["mtp_sweep"] = mtp_sweep
+        models[mkey]["mtp_sweep"] = mtp_sweep
     if fit_ctx:
-        models[model]["fit_ctx"] = fit_ctx
+        models[mkey]["fit_ctx"] = fit_ctx
 
 pp_map, tg_map = load_throughput()
 
@@ -309,8 +315,10 @@ recommendations = []
 model_sections_md = []
 model_sections_html = []
 
-for model in sorted(models.keys()):
-    data = models[model]
+for mkey in sorted(models.keys(), key=lambda k: (models[k]["engine"], models[k]["model"])):
+    data = models[mkey]
+    model = data["model"]
+    engine = data.get("engine") or "llama.cpp"
     auto = data["auto"]
     ub_rows = data["ub_rows"]
     np_rows = data["np_rows"]
@@ -364,6 +372,7 @@ for model in sorted(models.keys()):
                 break
 
     rec = {
+        "engine": engine,
         "model": model,
         "best_ub": best_ub or "—",
         "best_np": best_np or "—",
@@ -385,7 +394,8 @@ for model in sorted(models.keys()):
     recommendations.append(rec)
 
     # --- Markdown section ---
-    md = [f"## {model}", ""]
+    eng_note = f" · engine `{engine}`" if engine != "llama.cpp" else ""
+    md = [f"## {model}{eng_note}", ""]
     if pp_idle or tg_idle:
         md.append(f"**Throughput (idle, Vulkan):** PP {fmt_num(pp_idle)} tok/s · TG {fmt_num(tg_idle)} tok/s")
         md.append("")
@@ -600,9 +610,12 @@ for model in sorted(models.keys()):
     if best_b:
         badges.append(f"b={best_b}")
     best_badge = " ".join(f'<span class="badge">{html.escape(b)}</span>' for b in badges)
+    eng_badge = ""
+    if engine and engine != "llama.cpp":
+        eng_badge = f' <span class="badge">{html.escape(engine)}</span>'
     model_sections_html.append(f"""
 <section class="model">
-<h3>{html.escape(model)} {best_badge}</h3>
+<h3>{html.escape(model)}{eng_badge} {best_badge}</h3>
 {tp_html}
 {gain_html}
 <h4>Interleaving np=2</h4>

@@ -23,6 +23,8 @@ ROCM_COMPOSE="${PROJECT_ROOT}/compose.rocm.yaml"
 
 # shellcheck source=server.sh
 source "$THROUGHPUT_ROOT/lib/server.sh"
+# shellcheck source=../../lib/engine.sh
+source "$PROJECT_ROOT/tools/bench/lib/engine.sh"
 
 usage() {
   cat <<'EOF'
@@ -651,6 +653,8 @@ write_compare() {
   {
     echo "# llama-bench compare"
     echo
+    echo "engine: ${BENCH_ENGINE:-llama.cpp}"
+    echo
     echo "$scope_note"
     echo
     if [[ "$scope" == history ]]; then
@@ -680,6 +684,16 @@ write_compare() {
       printf '%s |\n' "$local_row"
     done
   } >"$CMP"
+
+  # Sidecar for index/UI — llama-bench is always the llama.cpp engine today.
+  {
+    printf '{\n'
+    printf '  "engine": "%s",\n' "${BENCH_ENGINE:-llama.cpp}"
+    printf '  "stamp": "%s",\n' "$STAMP"
+    printf '  "suite": "%s",\n' "$SUITE"
+    printf '  "scope": "%s"\n' "$scope"
+    printf '}\n'
+  } >"$OUT_DIR/latest/meta.json"
 
   {
     cat <<EOF

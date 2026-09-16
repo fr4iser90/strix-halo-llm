@@ -17,9 +17,12 @@ SCHED="$ROOT/tools/bench/scheduling/run.sh"
 THROUGHPUT="$ROOT/tools/bench/throughput/run.sh"
 QUALITY="$ROOT/tools/bench/quality/run.sh"
 BUILD_INDEX="$ROOT/tools/bench/build-index.sh"
+HALOGEN="$ROOT/tools/bench/halogen/run.sh"
 
 # shellcheck source=../lib/python.sh
 source "$ROOT/tools/bench/lib/python.sh"
+# shellcheck source=../lib/engine.sh
+source "$ROOT/tools/bench/lib/engine.sh"
 # shellcheck source=../lib/host_mem.sh
 source "$ROOT/tools/bench/lib/host_mem.sh"
 # shellcheck source=../capacity/lib/sync_ini.sh
@@ -41,6 +44,7 @@ Commands:
 
 Options:
   --profile NAME|FILE      default | full | path/to.json  (default: default)
+  --engine NAME            llama.cpp (default) | halogen-flash
   --from LIST              override sync_from (coder,chat,lab)
   --model NAME[,NAME…]     only these models (exact or unique substring; repeatable)
   --no-vl                  drop *-VL twins (capacity/sched/quality)
@@ -51,18 +55,17 @@ Options:
   --dry-run                print plan only
 
 Profiles live in tools/bench/matrix/profiles/*.json — edit freely.
-Profile `full` leaves dual disabled (run ./bench capacity dual separately).
-When dual is enabled, it auto-skips below dual.skip_below_*_gib (default 64/48);
-use --force-dual or CAPACITY_FORCE_DUAL=1 to override. --skip-dual always skips.
-Full profile is multi-day; safe to Ctrl+C and re-run (capacity/sched skip done cells).
+Same profile + different --engine: llama.cpp uses bench-a; halogen-flash uses HTTP :8731.
+Alias: --profile full-halogen ≡ --profile full --engine halogen-flash
 
 Examples:
-  ./bench matrix --profile full
+  ./bench matrix --profile full --engine llama.cpp
+  ./bench matrix --profile full --engine halogen-flash --model YOUR_API_MODEL
   ./bench matrix --profile full --only capacity
   ./bench matrix --profile full --no-vl
   ./bench matrix --profile default
-  ./bench matrix --profile full --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL,Cyber-Tiel,Qwen3.6-35B
-  tmux new -s bench './bench matrix --profile full --model Tiel-Coder,Cyber-Tiel,Qwen3.6-35B'
+  ./bench matrix --profile full --model Tiel-Coder-35B,Cyber-Tiel,Qwen3.6-35B
+  tmux new -s bench './bench matrix --profile full --engine halogen-flash --model …'
 EOF
 }
 
@@ -75,6 +78,7 @@ MATRIX_MODELS="${MATRIX_MODELS:-}"
 MATRIX_NO_VL="${MATRIX_NO_VL:-0}"
 MATRIX_SKIP_DUAL="${MATRIX_SKIP_DUAL:-0}"
 MATRIX_FORCE_DUAL="${MATRIX_FORCE_DUAL:-0}"
+MATRIX_ENGINE_CLI=""
 
 resolve_profile() {
   local p="$1"
@@ -86,7 +90,7 @@ resolve_profile() {
     printf '%s\n' "$PROFILES/${p}.json"
     return
   fi
-  die "profile not found: $p (try: default, full)"
+  die "profile not found: $p (try: default, full — use --engine for Halogen)"
 }
 
 write_progress() {
@@ -150,6 +154,7 @@ with open(sys.argv[1], encoding="utf-8") as f:
     p = json.load(f)
 print(f"PROFILE_PATH={sys.argv[1]!r}")
 print(f"PROFILE_NAME={p.get('name','')!r}")
+print(f"PROFILE_ENGINE={p.get('engine', '')!r}")
 sf = p.get("sync_from", "coder,chat")
 print(f"SYNC_FROM={sf!r}")
 suites = p.get("suites") or {}
@@ -441,6 +446,7 @@ print_plan() {
   fi
   cat <<EOF
 Profile: $PROFILE_PATH
+  engine:        ${BENCH_ENGINE:-llama.cpp}
   sync_from:     $SYNC_FROM
   models:        $models_line
   capacity:      enabled=$SUITE_CAPACITY_ENABLED kv=$CAP_KV c=$CAP_C dual=$dual_line
@@ -451,9 +457,49 @@ EOF
 }
 
 run_matrix() {
+  # Alias kept for muscle memory: full-halogen ≡ full + --engine halogen-flash
+  if [[ "$PROFILE" == "full-halogen" ]]; then
+    PROFILE="full"
+    [[ -z "${MATRIX_ENGINE_CLI:-}" ]] && MATRIX_ENGINE_CLI="halogen-flash"
+  fi
+
   eval "$(load_profile)"
   [[ -n "$FROM_OVERRIDE" ]] && SYNC_FROM="$FROM_OVERRIDE"
+
+  # Unified engine: --engine > BENCH_ENGINE env > profile.engine > llama.cpp
+  BENCH_ENGINE="$(bench_engine_resolve "${MATRIX_ENGINE_CLI:-}" "${PROFILE_ENGINE:-}")" \
+    || die "set --engine to a known engine: $(bench_engine_known)"
+  export BENCH_ENGINE
   export MATRIX_MODELS MATRIX_NO_VL MATRIX_SKIP_DUAL MATRIX_FORCE_DUAL
+
+  case "$BENCH_ENGINE" in
+    halogen-flash)
+      log "engine=halogen-flash → HTTP matrix @ ${HALOGEN_BASE_URL:-http://127.0.0.1:8731}"
+      print_plan
+      if [[ "$DRY" == "1" ]]; then
+        log "dry-run — would run halogen HTTP suites"
+        return 0
+      fi
+      mkdir -p "$OUT"
+      write_progress "start" "$PROFILE_NAME"
+      local hargs=(matrix)
+      [[ -n "${MATRIX_MODELS:-}" ]] && hargs+=(--model "$MATRIX_MODELS")
+      if [[ -n "${CAP_C:-}" ]]; then
+        export CAPACITY_C_LIST="$CAP_C" HALOGEN_C_LIST="$CAP_C"
+      fi
+      chmod +x "$HALOGEN" "$ROOT"/tools/bench/halogen/*.sh 2>/dev/null || true
+      "$HALOGEN" "${hargs[@]}"
+      write_progress "done" "$PROFILE_NAME"
+      log "matrix done (halogen-flash) — ./bench publish to update Pages"
+      return 0
+      ;;
+    llama.cpp)
+      ;;
+    *)
+      die "no matrix adapter for engine=$BENCH_ENGINE (known: $(bench_engine_known))"
+      ;;
+  esac
+
   print_plan
   if [[ "$DRY" == "1" ]]; then
     if [[ "${CAP_DUAL_ENABLED:-0}" == "1" && "${MATRIX_SKIP_DUAL:-0}" != "1" ]]; then
@@ -542,6 +588,11 @@ while [[ $# -gt 0 ]]; do
     list) CMD=list; shift; break ;;
     run) CMD=run; shift ;;
     --profile) shift; PROFILE="${1:?}"; shift ;;
+    --engine)
+      shift
+      MATRIX_ENGINE_CLI="${1:?}"
+      shift
+      ;;
     --from) shift; FROM_OVERRIDE="${1:?}"; shift ;;
     --model|--models)
       shift

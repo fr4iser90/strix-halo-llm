@@ -23,6 +23,7 @@ THROUGHPUT="$ROOT/tools/bench/throughput/run.sh"
 SCHED="$ROOT/tools/bench/scheduling/run.sh"
 QUALITY="$ROOT/tools/bench/quality/run.sh"
 CAPACITY="$ROOT/tools/bench/capacity/run.sh"
+HALOGEN="$ROOT/tools/bench/halogen/run.sh"
 MATRIX="$ROOT/tools/bench/matrix/run.sh"
 SYNC_MODELS="$ROOT/tools/bench/sync-models-from-disk.sh"
 APPLY_INI="$ROOT/tools/bench/apply-ini.sh"
@@ -49,7 +50,8 @@ Commands:
   sched | scheduling | s   sticky feel: np/ub under load (bench-a :11601)
   quality | q              HumanEval / plugins (bench-a :11601)
   capacity | cap           memory fit KV×ctx + optional dual (bench-a/b)
-  matrix | m               multi-suite orchestrator (--profile default|full)
+  halogen | halo           Halogen Flash full matrix (HTTP :8731 — server must be up)
+  matrix | m               multi-suite (--profile full|default · --engine llama.cpp|halogen-flash)
   sync-models              scan ./models → lab/emb/extractor INIs
   list | compare | compare-sched | apply-ini | index | publish | probe-host
   help                     this help
@@ -309,6 +311,12 @@ case "$cmd" in
     [[ -x "$CAPACITY" ]] || chmod +x "$CAPACITY" 2>/dev/null || true
     chmod +x "$ROOT"/tools/bench/capacity/scenarios/*.sh 2>/dev/null || true
     exec "$CAPACITY" "$@"
+    ;;
+  halogen|halo)
+    shift
+    [[ -x "$HALOGEN" ]] || chmod +x "$HALOGEN" 2>/dev/null || true
+    chmod +x "$ROOT"/tools/bench/halogen/*.sh "$ROOT"/tools/bench/halogen/lib/*.sh 2>/dev/null || true
+    exec "$HALOGEN" "$@"
     ;;
   matrix|m)
     shift

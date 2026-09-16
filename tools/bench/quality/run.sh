@@ -37,9 +37,10 @@ Policy: quality runs on bench-a (stickys stopped). Never sticky :11535/:11538.
 Override only with --no-bench / QUALITY_SKIP_BENCH=1 (advanced).
 
 Env:
-  QUALITY_BASE_URL   default http://127.0.0.1:11601
+  QUALITY_BASE_URL   default http://127.0.0.1:11601 (Halogen: http://127.0.0.1:8731)
   QUALITY_MODEL      API model / INI section name (weight quant)
   QUALITY_OUT        output root (default output/bench/quality)
+  BENCH_ENGINE       llama.cpp (default) | halogen-flash — stored in summary.json
 
 Examples:
   ./bench quality list
@@ -116,6 +117,7 @@ for path in sorted(glob.glob(os.path.join(root, "*", "*", "summary.json"))):
         "suite": suite,
         "stamp": stamp,
         "model": data.get("model", "—"),
+        "engine": (data.get("engine") or "llama.cpp").strip() or "llama.cpp",
         "endpoint": data.get("base_url", "—"),
         "pass_at_1": pass_ks.get("pass@1", metrics.get("pass_at_1")),
         "pass_at_10": pass_ks.get("pass@10", metrics.get("pass_at_10")),
@@ -127,15 +129,15 @@ for path in sorted(glob.glob(os.path.join(root, "*", "*", "summary.json"))):
         "path": path,
     })
 
-# latest per (suite, model)
+# latest per (suite, engine, model)
 best = {}
 for r in rows:
-    key = (r["suite"], r["model"])
+    key = (r["suite"], r.get("engine") or "llama.cpp", r["model"])
     prev = best.get(key)
     if prev is None or r["stamp"] > prev["stamp"]:
         best[key] = r
 
-latest = sorted(best.values(), key=lambda r: (r["suite"], r["model"]))
+latest = sorted(best.values(), key=lambda r: (r["suite"], r.get("engine") or "llama.cpp", r["model"]))
 os.makedirs(os.path.join(root, "latest"), exist_ok=True)
 with open(os.path.join(root, "latest", "summary.json"), "w", encoding="utf-8") as f:
     json.dump({"generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "rows": latest}, f, indent=2)
@@ -165,8 +167,8 @@ def fmt_dur(sec):
         return f"{s/60:.0f}m"
     return f"{s/3600:.1f}h"
 
-header = "| Suite | Model | " + " | ".join(all_ks) + " | n | samples/task | Duration | Stamp |"
-sep = "| --- | --- | " + " | ".join(["---:"] * len(all_ks)) + " | ---: | ---: | --- | --- |"
+header = "| Suite | Engine | Model | " + " | ".join(all_ks) + " | n | samples/task | Duration | Stamp |"
+sep = "| --- | --- | --- | " + " | ".join(["---:"] * len(all_ks)) + " | ---: | ---: | --- | --- |"
 lines = [
     "# Quality benchmarks — latest",
     "",
@@ -177,7 +179,7 @@ for r in latest:
     pks = r.get("pass_ks") or {}
     cells = [fmt(pks.get(k, r.get("pass_at_1") if k == "pass@1" else r.get("pass_at_10") if k == "pass@10" else None)) for k in all_ks]
     lines.append(
-        f"| {r['suite']} | `{r['model']}` | " + " | ".join(cells) +
+        f"| {r['suite']} | `{r.get('engine') or 'llama.cpp'}` | `{r['model']}` | " + " | ".join(cells) +
         f" | {fmt(r['n_tasks'])} | {fmt(r['n_samples'])} | {fmt_dur(r.get('elapsed_s'))} | `{r['stamp']}` |"
     )
 lines.append("")
