@@ -41,10 +41,11 @@ Usage: ./stack [<command>] [engine[,engine…]]
 Engines: llama · halogen · gufo · piper · whisper
 
 Env (edit in .env — template: .env.example):
-  STACK_ENGINES=halogen,llama,piper,whisper
+  STACK_ENGINES=gufo,llama,piper,whisper
   LLAMA_SERVICES=llama-embeddings
-  LLAMA_DAILY_SERVICES=llama-embeddings
-  MODELS_ROOT / MODELS_DIR / HALOGEN_MODELS / TTS_MODELS / STT_MODELS
+  GUFO_MODEL=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
+  GUFO_EXTRA_ARGS=--context 262144
+  MODELS_ROOT / MODELS_DIR / GUFO_MODELS / HALOGEN_MODELS / TTS_MODELS / STT_MODELS
 EOF
 }
 
@@ -179,15 +180,21 @@ engine_compose_up() {
         docker compose "${envf[@]}" -f compose.yaml up -d)
       ;;
     gufo)
-      [[ -n "${GUFO_MODELS:-}" && -d "${GUFO_MODELS}" ]] \
-        || die "set GUFO_MODELS (host dir mounted at /models)"
-      : "${GUFO_MODEL:=/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf}"
-      log "gufo up GUFO_MODEL=$GUFO_MODEL"
+      : "${GUFO_MODELS:=${MODELS_DIR}}"
+      [[ -d "${GUFO_MODELS}" ]] \
+        || die "set GUFO_MODELS (host gguf root mounted at /models); got: ${GUFO_MODELS:-unset}"
+      : "${GUFO_MODEL:=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf}"
+      : "${GUFO_CONTEXT:=262144}"
+      : "${GUFO_EXTRA_ARGS:=--context ${GUFO_CONTEXT}}"
+      log "gufo up GUFO_MODEL=$GUFO_MODEL GUFO_EXTRA_ARGS=$GUFO_EXTRA_ARGS"
       local -a envf=()
       [[ -f "$ROOT/.env" ]] && envf=(--env-file "$ROOT/.env")
       (cd "$ENGINE_GUFO_DIR" && \
         GUFO_MODELS="$GUFO_MODELS" GUFO_MODEL="$GUFO_MODEL" \
-        docker compose "${envf[@]}" -f compose.yaml up -d)
+        GUFO_EXTRA_ARGS="$GUFO_EXTRA_ARGS" \
+        GUFO_SPECULATIVE="${GUFO_SPECULATIVE:-}" \
+        GUFO_DFLASH_MODEL="${GUFO_DFLASH_MODEL:-}" \
+        docker compose "${envf[@]}" -f compose.yaml up -d --force-recreate)
       ;;
     piper|tts)
       log "piper up TTS_MODELS=$TTS_MODELS"
@@ -274,7 +281,7 @@ resolve_engines() {
   if [[ -n "$arg" ]]; then
     list="$(normalize_list "$arg")"
   else
-    list="$(normalize_list "${STACK_ENGINES:-halogen,llama,piper,whisper}")"
+    list="$(normalize_list "${STACK_ENGINES:-gufo,llama,piper,whisper}")"
   fi
   [[ -n "$list" ]] || die "no engines (set STACK_ENGINES or pass llama,piper,…)"
   printf '%s' "$list"
@@ -306,12 +313,22 @@ cmd_defaults() {
   local choice root_models
   ensure_env_file
   choice="$(pick 'Default stack preset (writes .env):' \
-    'Home: Halogen + embeddings + TTS + STT (no sticky/coder)' \
+    'Home: Gufo Flash-Next Q4 @ 262k + embeddings + TTS + STT' \
+    'Lab: Halogen + embeddings + TTS + STT' \
     'Llama sticky + coder only' \
     'Llama sticky+coder + TTS + STT' \
     'Cancel')"
   case "$choice" in
-    Home*|*'Halogen'*)
+    Home*|*'Gufo'*)
+      env_set STACK_ENGINES "gufo,llama,piper,whisper"
+      env_set LLAMA_SERVICES "llama-embeddings"
+      env_set LLAMA_DAILY_SERVICES "llama-embeddings"
+      env_set SMOKE_ENGINES "gufo,piper,whisper"
+      env_set GUFO_MODEL "/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf"
+      env_set GUFO_CONTEXT "262144"
+      env_set GUFO_EXTRA_ARGS "--context 262144"
+      ;;
+    Lab*|*'Halogen'*)
       env_set STACK_ENGINES "halogen,llama,piper,whisper"
       env_set LLAMA_SERVICES "llama-embeddings"
       env_set LLAMA_DAILY_SERVICES "llama-embeddings"
@@ -337,6 +354,7 @@ cmd_defaults() {
     root_models="${HOME}/data/models"
     env_set MODELS_ROOT "$root_models"
     env_set MODELS_DIR "$root_models/gguf"
+    env_set GUFO_MODELS "$root_models/gguf"
     env_set TTS_MODELS "$root_models/tts"
     env_set STT_MODELS "$root_models/stt"
     env_set HALOGEN_MODELS "$root_models/hgn/qwen38flash"

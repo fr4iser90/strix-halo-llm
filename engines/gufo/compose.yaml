@@ -57,7 +57,7 @@ services:
       # Hub layout: GUFO_MODELS → host gguf/ mounted at /models
       #   → files live at /models/chat/large/….gguf (not upstream Qwen3.8-27B-GGUF/)
       # Override in .env. Clear GUFO_SPECULATIVE + GUFO_DFLASH_MODEL for plain AR.
-      GUFO_MODEL: ${GUFO_MODEL:-/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf}
+      GUFO_MODEL: ${GUFO_MODEL:-/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf}
       # Optional DFlash2 — set both in .env when draft GGUF is present:
       #   GUFO_SPECULATIVE=dflash2
       #   GUFO_DFLASH_MODEL=/models/chat/large/Qwen3.8-27B-DFlash2-Q4_K_M.gguf

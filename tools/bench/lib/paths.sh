@@ -30,10 +30,14 @@ HALOGEN_MODELS="${HALOGEN_MODELS:-$MODELS_ROOT/hgn/qwen38flash}"
 # Gufo mounts gguf root
 GUFO_MODELS="${GUFO_MODELS:-$MODELS_DIR}"
 
-# Home-stack defaults without .env (Halogen + embeddings + voice — no sticky chat/coder)
-: "${STACK_ENGINES:=halogen,llama,piper,whisper}"
+# Home-stack defaults without .env (Gufo Flash-Next Q4 + embeddings + voice — no sticky)
+: "${STACK_ENGINES:=gufo,llama,piper,whisper}"
 : "${LLAMA_SERVICES:=llama-embeddings}"
-: "${SMOKE_ENGINES:=halogen,piper,whisper}"
+: "${SMOKE_ENGINES:=gufo,piper,whisper}"
+: "${GUFO_MODEL:=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf}"
+: "${GUFO_CONTEXT:=262144}"
+: "${GUFO_EXTRA_ARGS:=--context ${GUFO_CONTEXT}}"
+export GUFO_MODEL GUFO_CONTEXT GUFO_EXTRA_ARGS
 # LLAMA_DAILY_SERVICES: optional override only — restore prefers live snapshot from stop_daily
 
 # Live llama.ini presets next to compose (templates: engines/llama-cpp/presets/ini/)

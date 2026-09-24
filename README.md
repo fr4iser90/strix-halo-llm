@@ -19,11 +19,12 @@ AMD Strix Halo hub ([`HARDWARE.md`](HARDWARE.md)): Vulkan default, optional ROCm
 | llama sticky / coder | 11535 / 11538 | `./stack up llama` |
 | llama lab / rag | 11537 / 11536+11539 | `LLAMA_PROFILES=lab,rag ./stack up llama` |
 | llama bench-a/b | 11601 / 11602 | `compose.yaml` profile `bench` |
-| Halogen Flash | 8731 | `./stack up halogen` |
-| Gufo | 8080 | `./stack up gufo` |
+| Gufo | 8080 | `./stack up gufo` (**daily default**: Flash-Next Q4 @ 262k) |
+| Halogen Flash | 8731 | `./stack up halogen` (optional Lab) |
 | Whisper STT | 9000 | `./stack up whisper` |
 | Piper TTS | 9001 | `./stack up piper` |
 
+Default `STACK_ENGINES=gufo,llama,piper,whisper` (`LLAMA_SERVICES=llama-embeddings` only — no sticky/coder).
 **`dual_llm` / `coexist_capacity`:** only two **llama** LLM routers under KV/GTT load — **not** piper+whisper+halogen. Multi-engine health = `./bench smoke`.
 
 ## Weights layout

@@ -80,7 +80,7 @@ engine_gufo_export_compose_env() {
     return 1
   }
   export GUFO_MODELS="$models_dir"
-  : "${GUFO_MODEL:=/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf}"
+  : "${GUFO_MODEL:=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf}"
   : "${GUFO_CONTEXT:=262144}"
   # Capacity ladder needs server context ≥ max c. Never leave EXTRA_ARGS empty.
   if [[ -z "${GUFO_EXTRA_ARGS:-}" ]]; then
@@ -113,7 +113,7 @@ engine_gufo_compose() {
 # Map container /models/… → host file under GUFO_MODELS; fail early if missing.
 engine_gufo_assert_weights() {
   local models_dir="${1:?}"
-  local cpath="${GUFO_MODEL:-/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf}"
+  local cpath="${GUFO_MODEL:-/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf}"
   local rel host
   rel="${cpath#/models/}"
   rel="${rel#/}"
@@ -124,7 +124,7 @@ engine_gufo_assert_weights() {
     printf '  container: %s\n' "$cpath" >&2
     printf '  expected:  %s\n' "$host" >&2
     printf '  GUFO_MODELS=%s (must be the gguf/ root)\n' "$models_dir" >&2
-    printf 'hint: ./model-dl.sh download Qwen3.8-27B-UD-Q8  →  gguf/chat/large/\n' >&2
+    printf 'hint: ./model-dl.sh download Qwen3.8-Flash-Next-UD-Q4_K_XL  →  gguf/chat/large/\n' >&2
     printf 'hint: or set GUFO_MODEL=/models/chat/large/<file>.gguf in .env\n' >&2
     return 1
   fi
