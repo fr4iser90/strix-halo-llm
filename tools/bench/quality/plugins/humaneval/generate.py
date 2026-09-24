@@ -6,9 +6,10 @@ prompt. Gufo/chat models often:
   - omit the leading 4-space indent on the first body line → IndentationError
   - wrap code in markdown fences or <think> blocks
   - put the answer in reasoning_content while content is empty
-  - ignore server-side stop sequences
+  - reject HTTP ``stop`` / unknown fields with 400 (Gufo does not ignore them)
 
-This module normalizes those cases before writing samples.jsonl.
+Stops are applied client-side. Thinking is disabled via Gufo-safe kwargs.
+This module normalizes completions before writing samples.jsonl.
 """
 from __future__ import annotations
 
@@ -165,6 +166,21 @@ def message_text(choice: dict) -> str:
     return str(content or "")
 
 
+def http_error_detail(exc: urllib.error.HTTPError) -> str:
+    """Best-effort OpenAI error.message from a failed response body."""
+    try:
+        raw = exc.read().decode("utf-8", errors="replace")
+        obj = json.loads(raw)
+        err = obj.get("error") if isinstance(obj, dict) else None
+        if isinstance(err, dict) and err.get("message"):
+            return str(err["message"])
+        if isinstance(err, str) and err.strip():
+            return err
+        return raw[:300] if raw else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def post_json(url: str, body: dict, timeout: float) -> dict:
     data = json.dumps(body).encode()
     req = urllib.request.Request(
@@ -173,8 +189,21 @@ def post_json(url: str, body: dict, timeout: float) -> dict:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        detail = http_error_detail(e)
+        if detail:
+            raise urllib.error.HTTPError(
+                e.url, e.code, f"{e.reason}: {detail}", e.headers, None
+            ) from None
+        raise
+
+
+def _completion_from_payload(payload: dict, prompt: str) -> str:
+    text = message_text(payload["choices"][0])
+    return sanitize_completion(text or "", prompt)
 
 
 def chat_completion(
@@ -186,49 +215,75 @@ def chat_completion(
     temperature: float,
     timeout: float,
 ) -> str:
-    """Prefer /v1/completions (raw prompt); fall back to chat with thinking off."""
+    """Prefer /v1/completions; fall back to chat.
+
+    Gufo rejects unsupported fields with HTTP 400 (does not ignore them):
+    no ``stop``, no bare ``enable_thinking`` / ``thinking: false``.
+    Thinking off = ``chat_template_kwargs.enable_thinking=false`` (or
+    ``thinking: {type: disabled}``). Stop strings are applied client-side.
+    llama.cpp may accept ``stop``; we try it first, then Gufo-safe bodies.
+    """
     url_comp = api.rstrip("/") + "/completions"
-    body = {
+    base_comp = {
         "model": model,
         "prompt": prompt,
         "max_tokens": max_tokens,
         "temperature": temperature,
-        "stop": STOP_STRINGS,
     }
-    try:
-        payload = post_json(url_comp, body, timeout)
-        text = message_text(payload["choices"][0])
-        return sanitize_completion(text or "", prompt)
-    except urllib.error.HTTPError as e:
-        if e.code not in (404, 400, 405):
-            raise
-    except Exception:
-        pass
+    last_err: BaseException | None = None
+    for body in (
+        {**base_comp, "stop": STOP_STRINGS},
+        base_comp,
+    ):
+        try:
+            return _completion_from_payload(post_json(url_comp, body, timeout), prompt)
+        except urllib.error.HTTPError as e:
+            last_err = e
+            if e.code not in (400, 404, 405):
+                raise
+        except Exception as e:  # noqa: BLE001
+            last_err = e
 
     url_chat = api.rstrip("/") + "/chat/completions"
-    body_c = {
+    messages = [
+        {
+            "role": "user",
+            "content": (
+                "Complete the following Python function. "
+                "Output ONLY the function body continuation "
+                "(preserve indentation, no markdown, no explanation).\n\n"
+                + prompt
+            ),
+        }
+    ]
+    base_chat = {
         "model": model,
-        "messages": [
-            {
-                "role": "user",
-                "content": (
-                    "Complete the following Python function. "
-                    "Output ONLY the function body continuation "
-                    "(preserve indentation, no markdown, no explanation).\n\n"
-                    + prompt
-                ),
-            }
-        ],
+        "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
-        "stop": STOP_STRINGS,
-        "chat_template_kwargs": {"enable_thinking": False},
-        "enable_thinking": False,
-        "thinking": False,
     }
-    payload = post_json(url_chat, body_c, timeout)
-    text = message_text(payload["choices"][0])
-    return sanitize_completion(text or "", prompt)
+    # Order: llama-friendly (stop) → Gufo/Qwen thinking-off → Pi shape → minimal.
+    # Do not combine conflicting reasoning controls (Gufo → invalid_reasoning).
+    chat_bodies = (
+        {**base_chat, "stop": STOP_STRINGS},
+        {**base_chat, "chat_template_kwargs": {"enable_thinking": False}},
+        {**base_chat, "thinking": {"type": "disabled"}},
+        {**base_chat, "reasoning_effort": "off"},
+        base_chat,
+    )
+    for body in chat_bodies:
+        try:
+            return _completion_from_payload(post_json(url_chat, body, timeout), prompt)
+        except urllib.error.HTTPError as e:
+            last_err = e
+            if e.code not in (400, 404, 405):
+                raise
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+
+    if last_err is not None:
+        raise last_err
+    raise RuntimeError("chat_completion: no request body succeeded")
 
 
 def main() -> None:
