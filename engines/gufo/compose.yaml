@@ -63,9 +63,8 @@ services:
       #   GUFO_DFLASH_MODEL=/models/chat/large/Qwen3.8-27B-DFlash2-Q4_K_M.gguf
       GUFO_SPECULATIVE: ${GUFO_SPECULATIVE:-}
       GUFO_DFLASH_MODEL: ${GUFO_DFLASH_MODEL:-}
-      #
-      # Extra flags appended as-is (e.g. "--context 32768 --verbose").
-      # GUFO_EXTRA_ARGS: "--context 32768"
+      # Context window (tokens). Capacity ladder needs this ≥ max CAPACITY_C_LIST.
+      GUFO_EXTRA_ARGS: ${GUFO_EXTRA_ARGS:---context 262144}
     volumes:
       - ${GUFO_MODELS:?set GUFO_MODELS to the gguf root (…/gguf) mounted at /models}:/models:ro
     ports:

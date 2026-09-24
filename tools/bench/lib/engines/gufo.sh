@@ -130,6 +130,8 @@ engine_gufo_prepare() {
   }
   export GUFO_MODELS="$models_dir"
   : "${GUFO_MODEL:=/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf}"
+  : "${GUFO_CONTEXT:=262144}"
+  : "${GUFO_EXTRA_ARGS:=--context ${GUFO_CONTEXT}}"
   engine_gufo_assert_weights "$models_dir" || return 1
   compose="$(engine_gufo_compose_cmd)" || return 1
   compose_dir="$(dirname "$compose")"
@@ -139,7 +141,7 @@ engine_gufo_prepare() {
   fi
   bench_engine_guard_start "gufo" 1 || return 1
 
-  bench_lifecycle_log "gufo compose up (file=$compose GUFO_MODELS=$models_dir GUFO_MODEL=$GUFO_MODEL)"
+  bench_lifecycle_log "gufo compose up (GUFO_MODEL=$GUFO_MODEL GUFO_EXTRA_ARGS=$GUFO_EXTRA_ARGS)"
   local envf=()
   [[ -f "${PROJECT_ROOT}/.env" ]] && envf=(--env-file "${PROJECT_ROOT}/.env")
   (cd "$compose_dir" && \
@@ -147,7 +149,8 @@ engine_gufo_prepare() {
     GUFO_MODEL="$GUFO_MODEL" \
     GUFO_SPECULATIVE="${GUFO_SPECULATIVE:-}" \
     GUFO_DFLASH_MODEL="${GUFO_DFLASH_MODEL:-}" \
-    docker compose "${envf[@]}" -f "$(basename "$compose")" up -d) || {
+    GUFO_EXTRA_ARGS="$GUFO_EXTRA_ARGS" \
+    docker compose "${envf[@]}" -f "$(basename "$compose")" up -d --force-recreate) || {
     printf 'error: docker compose up failed for %s\n' "$compose" >&2
     printf 'hint: set GUFO_MODEL / GUFO_MODELS; Docker needs group_add video/render (not keep-groups)\n' >&2
     return 1

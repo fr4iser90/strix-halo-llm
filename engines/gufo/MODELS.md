@@ -18,13 +18,15 @@ Weights download: root [`models.catalog.tsv`](../../models.catalog.tsv) section
 | **Qwen-Image-2.1** | image gen/edit | Qwen pipeline BF16 | `hgn/…` N/A — separate tree (in progress upstream) |
 | **MiniMax H3** | video/audio | FL2VA pipeline | separate tree (in progress upstream) |
 
-Default hub smoke (compose / `.env.example`):
+Default hub smoke / bench:
 
 ```bash
 GUFO_MODELS=$MODELS_ROOT/gguf
 GUFO_MODEL=/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf
-GUFO_SPECULATIVE=dflash2
-GUFO_DFLASH_MODEL=/models/chat/large/Qwen3.8-27B-DFlash2-Q4_K_M.gguf
+# Capacity needs a large window (compose default --context 262144):
+# GUFO_CONTEXT=262144
+# GUFO_EXTRA_ARGS=--context 262144
+# optional DFlash2 / MTP via GUFO_SPECULATIVE + draft path
 ```
 
 Do **not** point Gufo at random llama sticky GGUFs (Qwen3.6 MTP sticky, Nemotron, …) — unsupported here even if the file is GGUF.

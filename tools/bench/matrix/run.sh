@@ -431,7 +431,7 @@ run_quality() {
 
 print_plan() {
   local models_line="${MATRIX_MODELS:-all}"
-  local dual_line
+  local dual_line eng="${BENCH_ENGINE:-llama.cpp}"
   [[ "${MATRIX_NO_VL:-0}" == "1" ]] && models_line+=" (--no-vl)"
   if [[ "${CAP_DUAL_ENABLED:-0}" != "1" ]]; then
     dual_line="off (profile)"
@@ -445,9 +445,23 @@ print_plan() {
       dual_line+="; auto-skip if RAM<${CAP_DUAL_SKIP_BELOW_RAM} or GTT<${CAP_DUAL_SKIP_BELOW_GTT} GiB"
     fi
   fi
-  cat <<EOF
+  case "$eng" in
+    halogen-flash|gufo)
+      # HTTP engines: no KV/INI sweeps; capacity fills to ~90% of each c; sched is solo+interleave only.
+      cat <<EOF
 Profile: $PROFILE_PATH
-  engine:        ${BENCH_ENGINE:-llama.cpp}
+  engine:        $eng (OpenAI HTTP — not llama.cpp)
+  models:        $models_line (from /v1/models or --model / GUFO_MODEL)
+  capacity:      enabled=$SUITE_CAPACITY_ENABLED  c=$CAP_C  kv=native  fill≈90%  (no dual / no KV types)
+  sched:         enabled=$SUITE_SCHED_ENABLED  scenarios=01_baseline_solo,03_interleave_np2  (no ub/np INI)
+  throughput:    enabled=$SUITE_THROUGHPUT_ENABLED  PP/TG via streaming chat
+  quality:       enabled=$SUITE_QUALITY_ENABLED $QUAL_SUITE n=$QUAL_N limit=$QUAL_LIMIT
+EOF
+      ;;
+    *)
+      cat <<EOF
+Profile: $PROFILE_PATH
+  engine:        $eng
   sync_from:     $SYNC_FROM
   models:        $models_line
   capacity:      enabled=$SUITE_CAPACITY_ENABLED kv=$CAP_KV c=$CAP_C dual=$dual_line
@@ -455,6 +469,8 @@ Profile: $PROFILE_PATH
   throughput:    enabled=$SUITE_THROUGHPUT_ENABLED $THR_SCOPE $THR_BACKENDS
   quality:       enabled=$SUITE_QUALITY_ENABLED $QUAL_SUITE n=$QUAL_N limit=$QUAL_LIMIT (HumanEval auto-setup+eval)
 EOF
+      ;;
+  esac
 }
 
 run_matrix() {
@@ -477,8 +493,26 @@ run_matrix() {
     halogen-flash|gufo)
       log "engine=$BENCH_ENGINE → LLM HTTP backends @ $(bench_engine_default_url "$BENCH_ENGINE")"
       print_plan
+      # Honor profile enabled + --only/--skip-suite (HTTP path used to ignore these).
+      local -a http_suites=()
+      if [[ "${SUITE_CAPACITY_ENABLED:-0}" == "1" ]] && suite_wanted capacity; then
+        http_suites+=(capacity)
+      fi
+      if [[ "${SUITE_SCHED_ENABLED:-0}" == "1" ]] && suite_wanted sched; then
+        http_suites+=(sched)
+      fi
+      if [[ "${SUITE_THROUGHPUT_ENABLED:-0}" == "1" ]] && suite_wanted throughput; then
+        http_suites+=(throughput)
+      fi
+      if [[ "${SUITE_QUALITY_ENABLED:-0}" == "1" ]] && suite_wanted quality; then
+        http_suites+=(quality)
+      fi
+      if [[ ${#http_suites[@]} -eq 0 ]]; then
+        log "no HTTP suites enabled (profile / --only / --skip-suite) — nothing to run"
+        return 0
+      fi
       if [[ "$DRY" == "1" ]]; then
-        log "dry-run — would run capacity/sched/throughput/quality HTTP backends"
+        log "dry-run — would run HTTP suites: ${http_suites[*]}"
         return 0
       fi
       mkdir -p "$OUT"
@@ -487,7 +521,7 @@ run_matrix() {
         export CAPACITY_C_LIST="$CAP_C" HALOGEN_C_LIST="$CAP_C"
       fi
       chmod +x "$ROOT"/tools/bench/{capacity,throughput,scheduling}/backends/*.sh 2>/dev/null || true
-      matrix_http_run_full "$BENCH_ENGINE"
+      matrix_http_run_full "$BENCH_ENGINE" "${http_suites[@]}"
       write_progress "done" "$PROFILE_NAME"
       log "matrix done ($BENCH_ENGINE) — ./bench publish to update Pages"
       return 0

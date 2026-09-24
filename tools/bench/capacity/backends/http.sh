@@ -110,9 +110,39 @@ for MODEL in "${MODELS[@]}"; do
     bench_http_write_fill_prompt "$cell_dir/fill.txt" "$fill_tok"
     ok=1
     phase="ok"
-    if ! bench_http_stream_once "$MODEL" "cap" "$cell_dir/fill.txt" "$cell_dir/stream.jsonl" "$MAX_TOKENS"; then
+    stream_err=""
+    if ! stream_err="$(bench_http_stream_once "$MODEL" "cap" "$cell_dir/fill.txt" "$cell_dir/stream.jsonl" "$MAX_TOKENS" 2>&1)"; then
       ok=0
       phase="stream"
+      printf '%s\n' "$stream_err" >&2
+      # Gufo / VL engines: oversized fill → context_length_exceeded ("image prompt…")
+      if printf '%s' "$stream_err" | grep -qiE 'context_length_exceeded|exceeds model context|image prompt exceeds'; then
+        phase="ctx_exceeded"
+        bench_http_log "context exceeded at c=$c — stop ladder for $MODEL"
+        BENCH_ENGINE="$ENGINE" bench_python - "$cell_dir" "$key" "$MODEL" "$c" "$ok" "$phase" "$fill_tok" \
+          "$CAPACITY_RUN_DIR/matrix.jsonl" "$CELLS_LEDGER" <<'PY'
+import json, os, sys
+cell_dir, key, model, c, ok, phase, fill_tok, matrix_path, ledger_path = sys.argv[1:10]
+fill_n = int(fill_tok) if str(fill_tok).isdigit() else 0
+row = {
+    "key": key, "mode": "solo", "engine": os.environ.get("BENCH_ENGINE", ""),
+    "backend": "http", "model": model, "kv": "native", "c": int(c),
+    "fill_tokens": fill_n, "ok": False, "phase": phase, "skipped": False,
+    "server_version": os.environ.get("CAPACITY_SERVER_VERSION", ""),
+    "image_id": os.environ.get("CAPACITY_IMAGE_ID", ""),
+    "image_name": os.environ.get("CAPACITY_IMAGE_NAME", ""),
+}
+line = json.dumps(row, ensure_ascii=False)
+with open(os.path.join(cell_dir, "summary.json"), "w", encoding="utf-8") as f:
+    f.write(line + "\n")
+for path in (matrix_path, ledger_path):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+print(f"done  {key} ok=False phase={phase}")
+PY
+        break
+      fi
     fi
     bench_http_summarize_stream "$cell_dir/stream.jsonl" "$cell_dir/stream_summary.json" >/dev/null || true
 

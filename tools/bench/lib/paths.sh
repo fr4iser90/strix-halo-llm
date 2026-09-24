@@ -30,6 +30,12 @@ HALOGEN_MODELS="${HALOGEN_MODELS:-$MODELS_ROOT/hgn/qwen38flash}"
 # Gufo mounts gguf root
 GUFO_MODELS="${GUFO_MODELS:-$MODELS_DIR}"
 
+# Home-stack defaults without .env (Halogen + embeddings + voice — no sticky chat/coder)
+: "${STACK_ENGINES:=halogen,llama,piper,whisper}"
+: "${LLAMA_SERVICES:=llama-embeddings}"
+: "${SMOKE_ENGINES:=halogen,piper,whisper}"
+# LLAMA_DAILY_SERVICES: optional override only — restore prefers live snapshot from stop_daily
+
 # Live llama.ini presets next to compose (templates: engines/llama-cpp/presets/ini/)
 LLAMA_INI_DIR="${LLAMA_INI_DIR:-$ENGINE_LLAMA_DIR}"
 
@@ -81,6 +87,7 @@ export PROJECT_ROOT ENGINE_LLAMA_DIR ENGINE_HALOGEN_DIR ENGINE_GUFO_DIR
 export ENGINE_PIPER_DIR ENGINE_WHISPER_DIR
 export MODELS_ROOT MODELS_DIR TTS_MODELS STT_MODELS LLAMA_INI_DIR
 export HALOGEN_MODELS GUFO_MODELS
+export STACK_ENGINES LLAMA_SERVICES SMOKE_ENGINES
 export VK_COMPOSE ROCM_COMPOSE BENCH_COMPOSE
 export HALOGEN_COMPOSE GUFO_COMPOSE
 export CAPACITY_INI_A CAPACITY_INI_B

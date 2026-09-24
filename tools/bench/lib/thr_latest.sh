@@ -43,9 +43,16 @@ bench_thr_publish_engine_latest() {
     printf '[bench thr] error: missing compare.md %s\n' "$cmp_src" >&2
     return 1
   }
-  cp -f "$cmp_src" "$eng_dir/compare.md"
+  # HTTP backend already writes into eng_dir/compare.md — skip same-file cp.
+  if [[ "$(cd "$(dirname "$cmp_src")" && pwd)/$(basename "$cmp_src")" != \
+        "$(cd "$eng_dir" && pwd)/compare.md" ]]; then
+    cp -f "$cmp_src" "$eng_dir/compare.md"
+  fi
   if [[ -f "$meta_src" ]]; then
-    cp -f "$meta_src" "$eng_dir/meta.json"
+    if [[ "$(cd "$(dirname "$meta_src")" && pwd)/$(basename "$meta_src")" != \
+          "$(cd "$eng_dir" && pwd)/meta.json" ]]; then
+      cp -f "$meta_src" "$eng_dir/meta.json"
+    fi
   else
     printf '{"engine":"%s"}\n' "$eng" >"$eng_dir/meta.json"
   fi

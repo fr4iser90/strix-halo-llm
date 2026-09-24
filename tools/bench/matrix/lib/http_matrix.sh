@@ -82,6 +82,8 @@ matrix_http_run_quality() {
 }
 
 # matrix_http_run_full <engine> [capacity|sched|throughput|quality…]
+# Suite list is required from the caller (profile enabled + --only/--skip-suite).
+# Empty list = error (do not silently run everything).
 matrix_http_run_full() {
   local eng
   eng="$(bench_engine_normalize "${1:?}")"
@@ -91,8 +93,9 @@ matrix_http_run_full() {
     MATRIX_ONLY+=("$1")
     shift
   done
+  [[ ${#MATRIX_ONLY[@]} -gt 0 ]] || matrix_http_die "matrix_http_run_full: pass at least one suite"
   export BENCH_ENGINE="$eng"
-  matrix_http_log "HTTP matrix engine=$eng @ $(bench_engine_default_url "$eng")"
+  matrix_http_log "HTTP matrix engine=$eng suites=${MATRIX_ONLY[*]} @ $(bench_engine_default_url "$eng")"
   matrix_http_lifecycle_begin "$eng"
   if [[ -x "$PROJECT_ROOT/tools/bench/probe-host.sh" ]]; then
     BENCH_ENGINE="$eng" "$PROJECT_ROOT/tools/bench/probe-host.sh" || true
@@ -109,7 +112,11 @@ matrix_http_run_full() {
     matrix_http_log "=== throughput (http backend) ==="
     bash "$PROJECT_ROOT/tools/bench/throughput/backends/http.sh"
   fi
-  matrix_http_run_quality "$eng"
+  if matrix_http_suite_ok quality; then
+    matrix_http_run_quality "$eng"
+  else
+    matrix_http_log "skip quality"
+  fi
   [[ -x "$BUILD_INDEX" ]] && "$BUILD_INDEX" || true
   matrix_http_lifecycle_end "$eng"
   matrix_http_log "HTTP matrix done — ./bench index / ./bench publish"

@@ -172,30 +172,38 @@ engine_compose_up() {
       [[ -n "${HALOGEN_MODELS:-}" && -d "${HALOGEN_MODELS}" ]] \
         || die "set HALOGEN_MODELS to hgn pack dir (*.hgn + tokenizer/) — ./stack setup or edit .env"
       log "halogen up HALOGEN_MODELS=$HALOGEN_MODELS"
+      local -a envf=()
+      [[ -f "$ROOT/.env" ]] && envf=(--env-file "$ROOT/.env")
       (cd "$ENGINE_HALOGEN_DIR" && \
         HALOGEN_MODELS="$HALOGEN_MODELS" \
-        docker compose --env-file "$ROOT/.env" -f compose.yaml up -d)
+        docker compose "${envf[@]}" -f compose.yaml up -d)
       ;;
     gufo)
       [[ -n "${GUFO_MODELS:-}" && -d "${GUFO_MODELS}" ]] \
         || die "set GUFO_MODELS (host dir mounted at /models)"
-      [[ -n "${GUFO_MODEL:-}" ]] || die "set GUFO_MODEL (/models/… path inside container)"
-      log "gufo up"
+      : "${GUFO_MODEL:=/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf}"
+      log "gufo up GUFO_MODEL=$GUFO_MODEL"
+      local -a envf=()
+      [[ -f "$ROOT/.env" ]] && envf=(--env-file "$ROOT/.env")
       (cd "$ENGINE_GUFO_DIR" && \
         GUFO_MODELS="$GUFO_MODELS" GUFO_MODEL="$GUFO_MODEL" \
-        docker compose --env-file "$ROOT/.env" -f compose.yaml up -d)
+        docker compose "${envf[@]}" -f compose.yaml up -d)
       ;;
     piper|tts)
       log "piper up TTS_MODELS=$TTS_MODELS"
+      local -a envf=()
+      [[ -f "$ROOT/.env" ]] && envf=(--env-file "$ROOT/.env")
       (cd "$ENGINE_PIPER_DIR" && \
         TTS_MODELS="$TTS_MODELS" \
-        docker compose --env-file "$ROOT/.env" -f compose.yaml up -d --build)
+        docker compose "${envf[@]}" -f compose.yaml up -d --build)
       ;;
     whisper|stt|whisper-cpp)
       log "whisper up STT_MODELS=$STT_MODELS"
+      local -a envf=()
+      [[ -f "$ROOT/.env" ]] && envf=(--env-file "$ROOT/.env")
       (cd "$ENGINE_WHISPER_DIR" && \
         STT_MODELS="$STT_MODELS" \
-        docker compose --env-file "$ROOT/.env" -f compose.yaml up -d --build)
+        docker compose "${envf[@]}" -f compose.yaml up -d --build)
       ;;
     *) die "unknown engine: $eng (llama|halogen|gufo|piper|whisper)" ;;
   esac
