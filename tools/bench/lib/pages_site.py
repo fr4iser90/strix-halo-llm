@@ -171,6 +171,9 @@ def engine_switch_script() -> str:
         try { c.resize(); } catch (e) {}
       });
     }
+    if (id === "__compare__") {
+      try { window.dispatchEvent(new Event("bench-compare-show")); } catch (e) {}
+    }
   }
   tabs.forEach((btn) => btn.addEventListener("click", () => activate(btn.getAttribute("data-engine"))));
   let initial = tabs[0].getAttribute("data-engine");
@@ -184,24 +187,57 @@ def engine_switch_script() -> str:
 """
 
 
+def split_fill_model(name: str | None) -> tuple[str, int | None]:
+    """Split 'model @4096' → ('model', 4096)."""
+    s = str(name or "").strip()
+    if not s:
+        return "", None
+    m = re.search(r"\s+@(\d+)\s*$", s)
+    if not m:
+        return s, None
+    return s[: m.start()].strip(), int(m.group(1))
+
+
+def join_model_key(name: str | None, engine: str | None = None) -> str:
+    """Canonical base model for merging thr @fill + quality + capacity rows."""
+    base, _ = split_fill_model(name)
+    return canonicalize_model(base, engine) or base
+
+
+def _preferred_fill(fills: dict[int, dict]) -> int | None:
+    """Pick representative fill for summary metrics (prefer 4096, else largest)."""
+    if not fills:
+        return None
+    if 4096 in fills:
+        return 4096
+    return max(fills.keys())
+
+
 def _compare_catalog(by_engine: dict[str, dict], engines: list[str]) -> list[dict]:
-    """Flatten per-engine metrics into picker entries (one row per engine+model)."""
-    # key: (engine, model) -> metrics
+    """Flatten per-engine metrics into picker entries (joined by canonical base model)."""
     bucket: dict[tuple[str, str], dict] = {}
 
-    def slot(eng: str, model: str) -> dict:
-        k = (eng, model)
+    def slot(eng: str, raw_name: str) -> dict:
+        key = join_model_key(raw_name, eng)
+        k = (eng, key)
         if k not in bucket:
             bucket[k] = {
-                "id": f"{eng}::{model}",
+                "id": f"{eng}::{key}",
                 "engine": eng,
                 "engine_label": engine_label(eng),
-                "model": model,
-                "label": f"{engine_label(eng)} · {display_name(model, 42, engine=eng)}",
+                "model": key,
+                "label": f"{engine_label(eng)} · {display_name(key, 42, engine=eng)}",
                 "pass_at_1": None,
                 "pass_at_10": None,
                 "n": None,
                 "max_c": None,
+                "prefill_tok_s": None,
+                "decode_tok_s": None,
+                "ttft_cold_ms": None,
+                "ttft_warm_ms": None,
+                "itl_p50_ms": None,
+                "thr_fill": None,
+                "fills": {},  # fill_tokens -> thr metrics (for charts)
             }
         return bucket[k]
 
@@ -212,11 +248,19 @@ def _compare_catalog(by_engine: dict[str, dict], engines: list[str]) -> list[dic
             if not name:
                 continue
             e = slot(eng, name)
-            e["prefill_tok_s"] = parse_float(m.get("prefill_tok_s"))
-            e["decode_tok_s"] = parse_float(m.get("decode_tok_s"))
-            e["ttft_cold_ms"] = parse_float(m.get("ttft_cold_ms"))
-            e["ttft_warm_ms"] = parse_float(m.get("ttft_warm_ms"))
-            e["itl_p50_ms"] = parse_float(m.get("itl_p50_ms"))
+            _base, fill = split_fill_model(name)
+            fill_n = fill if fill is not None else 0
+            fill_metrics = {
+                "prefill_tok_s": parse_float(m.get("prefill_tok_s")),
+                "decode_tok_s": parse_float(m.get("decode_tok_s")),
+                "ttft_cold_ms": parse_float(m.get("ttft_cold_ms")),
+                "ttft_warm_ms": parse_float(m.get("ttft_warm_ms")),
+                "itl_p50_ms": parse_float(m.get("itl_p50_ms")),
+            }
+            if fill_n > 0:
+                e["fills"][fill_n] = fill_metrics
+            # Stash until all fills known; apply preferred below
+            e["_thr_pending"] = True
         for r in payload.get("qual_rows") or []:
             name = (r.get("model") or "").strip()
             if not name:
@@ -225,7 +269,6 @@ def _compare_catalog(by_engine: dict[str, dict], engines: list[str]) -> list[dic
             p1 = parse_float(r.get("pass_at_1"))
             p10 = parse_float(r.get("pass_at_10"))
             n = r.get("n")
-            # Prefer higher-n run when multiple quality rows collide
             prev_n = int(e["n"] or 0)
             cur_n = int(n or 0) if n not in (None, "") else 0
             if e["pass_at_1"] is None or cur_n >= prev_n:
@@ -246,13 +289,33 @@ def _compare_catalog(by_engine: dict[str, dict], engines: list[str]) -> list[dic
             if e["max_c"] is None or c > int(e["max_c"] or 0):
                 e["max_c"] = c
 
+    # Apply preferred-fill thr metrics onto each entry
+    for e in bucket.values():
+        fills = e.get("fills") or {}
+        # JSON keys must be strings for the browser catalog
+        e["fills"] = {str(k): v for k, v in sorted(fills.items())}
+        pref = _preferred_fill(fills)
+        if pref is not None:
+            fm = fills[pref]
+            e["thr_fill"] = pref
+            e["prefill_tok_s"] = fm.get("prefill_tok_s")
+            e["decode_tok_s"] = fm.get("decode_tok_s")
+            e["ttft_cold_ms"] = fm.get("ttft_cold_ms")
+            e["ttft_warm_ms"] = fm.get("ttft_warm_ms")
+            e["itl_p50_ms"] = fm.get("itl_p50_ms")
+            e["label"] = (
+                f"{e['engine_label']} · {display_name(e['model'], 36, engine=e['engine'])}"
+                f" @{pref}"
+            )
+        e.pop("_thr_pending", None)
+
     entries = list(bucket.values())
     entries.sort(key=lambda x: (x["engine_label"].lower(), display_name(x["model"], 80).lower()))
     return entries
 
 
 def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
-    """Interactive model pair picker (any engine × model) + optional same-name overlaps."""
+    """Interactive model pair picker (any engine × model) + charts + same-name overlaps."""
     if len(engines) < 2:
         return ""
 
@@ -271,7 +334,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
         )
     opts_html = "\n".join(options)
 
-    # Default: first entry of eng0 vs first of eng1 (or second overall)
+    # Default: first of eng0 vs first of a different engine (prefer Flash-Next pair)
     default_a = catalog[0]["id"]
     default_b = catalog[0]["id"]
     eng0 = engines[0]
@@ -282,31 +345,59 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
     else:
         if len(catalog) > 1:
             default_b = catalog[1]["id"]
+    # Prefer same canonical family across engines when possible
+    for a in catalog:
+        if a["engine"] != eng0:
+            continue
+        for b in catalog:
+            if b["engine"] == a["engine"]:
+                continue
+            if a["model"] == b["model"] or (
+                "flash-next" in a["model"].lower() and "flash-next" in b["model"].lower()
+            ):
+                default_a, default_b = a["id"], b["id"]
+                break
+        else:
+            continue
+        break
 
-    # Same-name auto rows (kept as secondary section)
+    # Same-name auto rows (joined by canonical key)
     thr_by: dict[str, dict[str, dict]] = {}
     qual_by: dict[str, dict[str, dict]] = {}
     ctx_by: dict[str, dict[str, dict]] = {}
     for eng in engines:
         payload = by_engine.get(eng) or {}
+        # Merge thr fills → preferred row per join key
+        thr_fills: dict[str, dict[int, dict]] = {}
         for m in payload.get("thr_models") or []:
             name = m.get("model") or ""
-            if name:
-                thr_by.setdefault(name, {})[eng] = m
+            if not name:
+                continue
+            jk = join_model_key(name, eng)
+            _b, fill = split_fill_model(name)
+            fill_n = fill if fill is not None else 0
+            thr_fills.setdefault(jk, {})[fill_n] = m
+        for jk, fills in thr_fills.items():
+            pref = _preferred_fill({k: v for k, v in fills.items() if k > 0}) or (
+                max(fills.keys()) if fills else None
+            )
+            if pref is not None and pref in fills:
+                thr_by.setdefault(jk, {})[eng] = fills[pref]
         for r in payload.get("qual_rows") or []:
             name = r.get("model") or ""
             if name:
-                qual_by.setdefault(name, {})[eng] = r
+                qual_by.setdefault(join_model_key(name, eng), {})[eng] = r
         for r in (payload.get("cap_latest") or {}).values():
             if r.get("mode") != "solo" or r.get("skipped") or not r.get("ok"):
                 continue
             name = r.get("model") or ""
             if not name:
                 continue
-            prev = ctx_by.setdefault(name, {}).get(eng)
+            jk = join_model_key(name, eng)
+            prev = ctx_by.setdefault(jk, {}).get(eng)
             c = int(r.get("c") or 0)
             if prev is None or c > int(prev.get("c") or 0):
-                ctx_by[name][eng] = r
+                ctx_by[jk][eng] = r
 
     def delta_pct(a, b) -> str:
         af, bf = parse_float(a), parse_float(b)
@@ -365,7 +456,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
 
     if overlap_rows:
         overlap_html = (
-            '<h3 class="compare-sub">Same name on both engines</h3>'
+            '<h3 class="compare-sub">Same model on both engines</h3>'
             "<table><thead><tr>"
             "<th>Model</th><th>Metric</th>"
             f'<th class="n">{esc(engine_label(eng_a))}</th>'
@@ -377,8 +468,8 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
         )
     else:
         overlap_html = (
-            '<p class="meta compare-sub">No identical model names across engines yet '
-            "(use the pickers above for Flash vs Tiel, etc.).</p>"
+            '<p class="meta compare-sub">No overlapping models across engines yet '
+            "(use the pickers above).</p>"
         )
 
     catalog_json = json.dumps(catalog, ensure_ascii=False).replace("<", "\\u003c")
@@ -394,6 +485,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
     <select id="compare-b" aria-label="Model B">{opts_html}</select>
   </label>
 </div>
+<p class="meta" id="compare-fill-note"></p>
 <table class="compare-pair"><thead><tr>
   <th>Metric</th>
   <th class="n" id="compare-head-a">A</th>
@@ -403,6 +495,16 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
 <tbody id="compare-pair-body">
   <tr><td colspan="4" class="meta">Pick two models.</td></tr>
 </tbody></table>
+<div class="charts two compare-charts">
+  <div class="chart-box"><h3>Prefill &amp; Decode</h3>
+    <div class="chart-wrap"><canvas id="compare-chart-speed"></canvas></div></div>
+  <div class="chart-box"><h3>TTFT &amp; ITL</h3>
+    <div class="chart-wrap"><canvas id="compare-chart-latency"></canvas></div></div>
+</div>
+<div class="chart-box compare-fill-chart" id="compare-fill-box" hidden>
+  <h3>TTFT cold by fill size</h3>
+  <div class="chart-wrap"><canvas id="compare-chart-fill"></canvas></div>
+</div>
 <script type="application/json" id="compare-catalog">{catalog_json}</script>
 <script>
 (function () {{
@@ -412,12 +514,29 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
   const body = document.getElementById("compare-pair-body");
   const headA = document.getElementById("compare-head-a");
   const headB = document.getElementById("compare-head-b");
+  const fillNote = document.getElementById("compare-fill-note");
+  const fillBox = document.getElementById("compare-fill-box");
   if (!catEl || !selA || !selB || !body) return;
   const catalog = JSON.parse(catEl.textContent || "[]");
   const byId = Object.fromEntries(catalog.map((e) => [e.id, e]));
   selA.value = {json.dumps(default_a)};
   selB.value = {json.dumps(default_b)};
 
+  let chartSpeed = null, chartLat = null, chartFill = null;
+  const tick = {{ color: "#9aa0a6" }};
+  const grid = {{ color: "#2a2e37" }};
+  const common = {{
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {{ legend: {{ labels: {{ color: "#c4c7cc" }} }} }},
+  }};
+  const colA = "#5b8def";
+  const colB = "#7ddea5";
+
+  function destroy(ch) {{
+    if (ch) try {{ ch.destroy(); }} catch (_) {{}}
+    return null;
+  }}
   function fmtNum(v) {{
     if (v === null || v === undefined || v === "") return "—";
     const n = Number(v);
@@ -444,7 +563,110 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
   function shortLabel(e) {{
     if (!e) return "—";
     const m = (e.model || "").replace(/-UD-Q[\\w.]+$/i, "").replace(/-MTP/g, "");
-    return (e.engine_label || e.engine) + " · " + (m.length > 28 ? m.slice(0, 27) + "…" : m);
+    let s = (e.engine_label || e.engine) + " · " + (m.length > 28 ? m.slice(0, 27) + "…" : m);
+    if (e.thr_fill) s += " @" + e.thr_fill;
+    return s;
+  }}
+  function numOrNull(v) {{
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }}
+  function updateCharts(a, b) {{
+    if (typeof Chart === "undefined") return;
+    const la = shortLabel(a), lb = shortLabel(b);
+    chartSpeed = destroy(chartSpeed);
+    chartLat = destroy(chartLat);
+    chartFill = destroy(chartFill);
+    const cSpeed = document.getElementById("compare-chart-speed");
+    const cLat = document.getElementById("compare-chart-latency");
+    const cFill = document.getElementById("compare-chart-fill");
+    if (cSpeed) {{
+      chartSpeed = new Chart(cSpeed, {{
+        type: "bar",
+        data: {{
+          labels: ["Prefill tok/s", "Decode tok/s"],
+          datasets: [
+            {{ label: la, data: [numOrNull(a.prefill_tok_s), numOrNull(a.decode_tok_s)], backgroundColor: colA }},
+            {{ label: lb, data: [numOrNull(b.prefill_tok_s), numOrNull(b.decode_tok_s)], backgroundColor: colB }},
+          ],
+        }},
+        options: {{
+          ...common,
+          scales: {{
+            x: {{ ticks: tick, grid }},
+            y: {{ ticks: tick, grid, title: {{ display: true, text: "tokens / s", color: "#9aa0a6" }} }},
+          }},
+        }},
+      }});
+    }}
+    if (cLat) {{
+      chartLat = new Chart(cLat, {{
+        type: "bar",
+        data: {{
+          labels: ["TTFT cold", "TTFT warm", "ITL p50"],
+          datasets: [
+            {{ label: la, data: [numOrNull(a.ttft_cold_ms), numOrNull(a.ttft_warm_ms), numOrNull(a.itl_p50_ms)], backgroundColor: colA }},
+            {{ label: lb, data: [numOrNull(b.ttft_cold_ms), numOrNull(b.ttft_warm_ms), numOrNull(b.itl_p50_ms)], backgroundColor: colB }},
+          ],
+        }},
+        options: {{
+          ...common,
+          scales: {{
+            x: {{ ticks: tick, grid }},
+            y: {{ ticks: tick, grid, title: {{ display: true, text: "milliseconds", color: "#9aa0a6" }} }},
+          }},
+        }},
+      }});
+    }}
+    const fillsA = a.fills || {{}}, fillsB = b.fills || {{}};
+    const keys = Array.from(new Set([
+      ...Object.keys(fillsA).map(Number),
+      ...Object.keys(fillsB).map(Number),
+    ].filter((n) => n > 0))).sort((x, y) => x - y);
+    if (fillBox && cFill && keys.length >= 2) {{
+      fillBox.hidden = false;
+      chartFill = new Chart(cFill, {{
+        type: "line",
+        data: {{
+          labels: keys.map((k) => String(k)),
+          datasets: [
+            {{
+              label: (a.engine_label || a.engine) + " TTFT cold",
+              data: keys.map((k) => numOrNull((fillsA[String(k)] || {{}}).ttft_cold_ms)),
+              borderColor: colA, backgroundColor: colA, tension: 0.2,
+            }},
+            {{
+              label: (b.engine_label || b.engine) + " TTFT cold",
+              data: keys.map((k) => numOrNull((fillsB[String(k)] || {{}}).ttft_cold_ms)),
+              borderColor: colB, backgroundColor: colB, tension: 0.2,
+            }},
+            {{
+              label: (a.engine_label || a.engine) + " Prefill",
+              data: keys.map((k) => numOrNull((fillsA[String(k)] || {{}}).prefill_tok_s)),
+              borderColor: "#8ab4f8", backgroundColor: "#8ab4f8",
+              borderDash: [4, 4], tension: 0.2, yAxisID: "y1",
+            }},
+            {{
+              label: (b.engine_label || b.engine) + " Prefill",
+              data: keys.map((k) => numOrNull((fillsB[String(k)] || {{}}).prefill_tok_s)),
+              borderColor: "#a8e6c5", backgroundColor: "#a8e6c5",
+              borderDash: [4, 4], tension: 0.2, yAxisID: "y1",
+            }},
+          ],
+        }},
+        options: {{
+          ...common,
+          scales: {{
+            x: {{ ticks: tick, grid, title: {{ display: true, text: "fill tokens", color: "#9aa0a6" }} }},
+            y: {{ ticks: tick, grid, position: "left", title: {{ display: true, text: "TTFT cold (ms)", color: "#9aa0a6" }} }},
+            y1: {{ ticks: tick, grid: {{ drawOnChartArea: false }}, position: "right",
+              title: {{ display: true, text: "Prefill tok/s", color: "#9aa0a6" }} }},
+          }},
+        }},
+      }});
+    }} else if (fillBox) {{
+      fillBox.hidden = true;
+    }}
   }}
   function render() {{
     const a = byId[selA.value];
@@ -453,6 +675,14 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
     headB.textContent = shortLabel(b);
     headA.title = a ? (a.engine + " / " + a.model) : "";
     headB.title = b ? (b.engine + " / " + b.model) : "";
+    if (fillNote) {{
+      const bits = [];
+      if (a && a.thr_fill) bits.push("A thr @" + a.thr_fill);
+      if (b && b.thr_fill) bits.push("B thr @" + b.thr_fill);
+      fillNote.textContent = bits.length
+        ? ("Table/charts use preferred fill (" + bits.join(", ") + "); line chart shows full ladder.")
+        : "";
+    }}
     if (!a || !b) {{
       body.innerHTML = '<tr><td colspan="4" class="meta">Pick two models.</td></tr>';
       return;
@@ -471,6 +701,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
       "<tr><td>" + m + '</td><td class="n">' + av + '</td><td class="n">' + bv +
       '</td><td class="n">' + d + "</td></tr>"
     ).join("");
+    updateCharts(a, b);
     try {{
       localStorage.setItem("bench-compare-a", selA.value);
       localStorage.setItem("bench-compare-b", selB.value);
@@ -484,7 +715,13 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
   }} catch (_) {{}}
   selA.addEventListener("change", render);
   selB.addEventListener("change", render);
-  render();
+  window.addEventListener("bench-compare-show", render);
+  // Defer charts until Chart.js + panel may be visible
+  if (document.readyState === "loading") {{
+    document.addEventListener("DOMContentLoaded", render);
+  }} else {{
+    render();
+  }}
 }})();
 </script>
 """
@@ -493,7 +730,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
         '<div class="engine-panel" data-engine="__compare__" hidden>'
         '<div class="card"><h2>Compare models</h2>'
         '<p class="meta">Pick any two measured models (any engine). '
-        "Δ is B relative to A.</p>"
+        "Δ is B relative to A. Throughput rows join across fill sizes (@512/@4k/@16k).</p>"
         f"{picker}"
         f"{overlap_html}"
         "</div></div>"
@@ -564,6 +801,8 @@ summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
 }
 .chart-wrap { position: relative; height: 280px; }
 .chart-wrap.tall { height: 320px; }
+.compare-fill-chart { margin-top: 1rem; }
+.compare-fill-chart .chart-wrap { height: 300px; }
 .btn { display: inline-block; margin: .3rem .4rem .3rem 0; padding: .45rem .85rem;
   background: #2a3444; color: #e8eaed; border: none; border-radius: 6px; cursor: pointer;
   font: inherit; }
