@@ -71,13 +71,14 @@ matrix_http_run_quality() {
   fi
   local models=() m qargs=(--n "$n_samples" --no-bench --eval --base-url "$QUALITY_BASE_URL")
   [[ "$limit" -gt 0 ]] && qargs+=(--limit "$limit")
-  mapfile -t models < <(bench_http_resolve_models) || matrix_http_die "no models from /v1/models"
+  bench_http_load_models models || matrix_http_die "no models from /v1/models"
   [[ ${#models[@]} -gt 0 ]] || matrix_http_die "no models from /v1/models"
   local failed=0
   for m in "${models[@]}"; do
     [[ -n "$m" ]] || continue
     matrix_http_log "=== quality humaneval $m ==="
-    if ! BENCH_ENGINE="$eng" QUALITY_MODEL="$m" QUALITY_SKIP_BENCH=1 HUMAN_EVAL_EXECUTE=1 \
+    if ! BENCH_ENGINE="$eng" QUALITY_MODEL="$m" QUALITY_API_MODEL="${BENCH_HTTP_API_MODEL:-}" \
+      QUALITY_SKIP_BENCH=1 HUMAN_EVAL_EXECUTE=1 \
       "$QUALITY_RUN" humaneval --model "$m" "${qargs[@]}"; then
       matrix_http_log "quality FAILED for $m"
       failed=1

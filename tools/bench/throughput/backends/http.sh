@@ -32,7 +32,7 @@ bench_http_require_up
 bench_http_fingerprint
 
 MODELS=()
-if ! mapfile -t MODELS < <(bench_http_resolve_models); then
+if ! bench_http_load_models MODELS; then
   bench_http_die "no models (set --model / MATRIX_MODELS or check /v1/models)"
 fi
 [[ ${#MODELS[@]} -gt 0 ]] || bench_http_die "no models (set --model / MATRIX_MODELS or check /v1/models)"
