@@ -208,12 +208,19 @@ engine_compose_up() {
         docker compose "${envf[@]}" -f compose.yaml up -d --build)
       ;;
     whisper|stt|whisper-cpp)
-      log "whisper up STT_MODELS=$STT_MODELS"
+      : "${WHISPER_MODEL:=ggml-large-v3.bin}"
+      [[ -d "${STT_MODELS:-}" ]] \
+        || die "STT_MODELS missing or not a dir: ${STT_MODELS:-unset}"
+      # Absolute path — relative compose defaults can bake an empty bind forever.
+      STT_MODELS="$(cd "$STT_MODELS" && pwd)"
+      [[ -f "${STT_MODELS}/${WHISPER_MODEL}" ]] \
+        || die "whisper weights missing: ${STT_MODELS}/${WHISPER_MODEL} (./model-dl.sh download ggml-large-v3.bin)"
+      log "whisper up STT_MODELS=$STT_MODELS model=$WHISPER_MODEL"
       local -a envf=()
       [[ -f "$ROOT/.env" ]] && envf=(--env-file "$ROOT/.env")
       (cd "$ENGINE_WHISPER_DIR" && \
-        STT_MODELS="$STT_MODELS" \
-        docker compose "${envf[@]}" -f compose.yaml up -d --build)
+        STT_MODELS="$STT_MODELS" WHISPER_MODEL="$WHISPER_MODEL" \
+        docker compose "${envf[@]}" -f compose.yaml up -d --build --force-recreate)
       ;;
     *) die "unknown engine: $eng (llama|halogen|gufo|piper|whisper)" ;;
   esac

@@ -51,13 +51,21 @@ engine_whisper_prepare() {
     printf 'error: set STT_MODELS (whisper model dir)\n' >&2
     return 1
   }
+  STT_MODELS="$(cd "$STT_MODELS" && pwd)"
+  : "${WHISPER_MODEL:=ggml-large-v3.bin}"
+  [[ -f "${STT_MODELS}/${WHISPER_MODEL}" ]] || {
+    printf 'error: whisper weights missing: %s/%s\n' "$STT_MODELS" "$WHISPER_MODEL" >&2
+    return 1
+  }
 
   compose="$(engine_whisper_compose_cmd)" || return 1
   compose_dir="$(dirname "$compose")"
-  bench_lifecycle_log "whisper compose up STT_MODELS=$STT_MODELS"
+  bench_lifecycle_log "whisper compose up STT_MODELS=$STT_MODELS model=$WHISPER_MODEL"
   local envf=()
   [[ -f "${PROJECT_ROOT}/.env" ]] && envf=(--env-file "${PROJECT_ROOT}/.env")
-  (cd "$compose_dir" && STT_MODELS="$STT_MODELS" docker compose "${envf[@]}" -f "$(basename "$compose")" up -d --build) || return 1
+  (cd "$compose_dir" && \
+    STT_MODELS="$STT_MODELS" WHISPER_MODEL="$WHISPER_MODEL" \
+    docker compose "${envf[@]}" -f "$(basename "$compose")" up -d --build --force-recreate) || return 1
   export BENCH_ENGINE_BORROWED=0
 
   local i=0

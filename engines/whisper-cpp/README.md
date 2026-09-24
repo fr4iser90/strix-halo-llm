@@ -3,11 +3,9 @@
 HTTP transcription server on port **9000**.
 
 ```bash
-./model-dl.sh init-dirs
-# place ggml-*.bin under STT_MODELS (default ../../models/stt)
-
-cd engines/whisper-cpp
-docker compose --env-file ../../.env up -d --build
+# weights: MODELS_ROOT/stt/ggml-large-v3.bin  (./model-dl.sh)
+./stack up whisper
 ```
 
-Env: `STT_MODELS`, `WHISPER_MODEL` (filename under that dir), `WHISPER_PUBLISH_PORT`.
+`STT_MODELS` must be the **host** dir that contains `WHISPER_MODEL` (default `ggml-large-v3.bin`).
+`./stack` resolves it absolute and `--force-recreate`s so bind mounts stick.

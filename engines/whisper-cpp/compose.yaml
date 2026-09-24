@@ -3,7 +3,8 @@
 #   cd engines/whisper-cpp
 #   docker compose --env-file ../../.env up -d --build
 #
-# Models: STT_MODELS (default ../../models/stt). Jarvis: ~/data/models/stt
+# Models: STT_MODELS host dir → /models (must contain WHISPER_MODEL).
+# Default relative path is only a fallback; ./stack always passes absolute STT_MODELS.
 services:
   whisper:
     build: .
@@ -12,7 +13,7 @@ services:
     ports:
       - "${WHISPER_PUBLISH_PORT:-9000}:8080"
     volumes:
-      - ${STT_MODELS:-../../models/stt}:/models:ro
+      - ${STT_MODELS:?set STT_MODELS to host stt dir}:/models:ro
     command: >
       ./build/bin/whisper-server
       --host 0.0.0.0
