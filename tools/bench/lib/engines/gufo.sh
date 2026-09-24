@@ -82,7 +82,7 @@ engine_gufo_export_compose_env() {
   export GUFO_MODELS="$models_dir"
   : "${GUFO_MODEL:=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf}"
   : "${GUFO_CONTEXT:=262144}"
-  : "${GUFO_SESSIONS:=4}"
+  : "${GUFO_SESSIONS:=1}"
   # Capacity ladder needs server context ≥ max c. Never leave EXTRA_ARGS empty.
   if [[ -z "${GUFO_EXTRA_ARGS:-}" ]]; then
     GUFO_EXTRA_ARGS="--context ${GUFO_CONTEXT}"
@@ -105,7 +105,7 @@ engine_gufo_compose() {
   (cd "$compose_dir" && \
     GUFO_MODELS="$GUFO_MODELS" \
     GUFO_MODEL="$GUFO_MODEL" \
-    GUFO_SESSIONS="${GUFO_SESSIONS:-4}" \
+    GUFO_SESSIONS="${GUFO_SESSIONS:-1}" \
     GUFO_SPECULATIVE="${GUFO_SPECULATIVE:-}" \
     GUFO_DFLASH_MODEL="${GUFO_DFLASH_MODEL:-}" \
     GUFO_EXTRA_ARGS="$GUFO_EXTRA_ARGS" \

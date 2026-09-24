@@ -24,10 +24,13 @@ Default hub smoke / daily stack:
 GUFO_MODELS=$MODELS_ROOT/gguf
 GUFO_MODEL=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
 GUFO_CONTEXT=262144
-GUFO_SESSIONS=4
+GUFO_SESSIONS=1
 GUFO_EXTRA_ARGS=--context 262144
 # optional MTP via GUFO_SPECULATIVE + mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf
 ```
+
+Gufo allocates KV **per session** (not a shared pool). Daily default = **1 session @ 262k**.
+For concurrency like Halogen’s 4 slots you’d need e.g. `GUFO_SESSIONS=4` with a much smaller `--context` (or accept OOM / `state capacity` errors).
 
 Lab alternate (27B Q8 + DFlash2):
 
