@@ -41,6 +41,11 @@ def env(name: str, default: str | None = None) -> str:
     return v
 
 
+def api_model_id() -> str:
+    """Served /v1/models id (Gufo marketing name) — may differ from record QUALITY_MODEL."""
+    return (os.environ.get("QUALITY_API_MODEL") or os.environ.get("QUALITY_MODEL") or "").strip()
+
+
 def body_indent(prompt: str) -> str:
     """Indentation expected for the first line of the function body."""
     for line in reversed(prompt.splitlines()):
@@ -288,7 +293,8 @@ def chat_completion(
 
 def main() -> None:
     api = env("QUALITY_API")
-    model = env("QUALITY_MODEL")
+    model = env("QUALITY_MODEL")  # record / display id (weight + quant when set)
+    http_model = api_model_id() or model
     n = int(env("QUALITY_N", "1"))
     limit = int(env("QUALITY_LIMIT", "0"))
     max_tokens = int(env("QUALITY_MAX_TOKENS", "512"))
@@ -307,6 +313,8 @@ def main() -> None:
     empty = 0
     t0 = time.time()
     print(f"→ Generating {total} completions ({len(task_ids)} tasks × {n})…")
+    if http_model != model:
+        print(f"  api model: {http_model}  (record: {model})")
 
     for task_id in task_ids:
         prompt = problems[task_id]["prompt"]
@@ -314,7 +322,7 @@ def main() -> None:
             try:
                 completion = chat_completion(
                     api,
-                    model,
+                    http_model,
                     prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -336,6 +344,7 @@ def main() -> None:
     meta = {
         "api": api,
         "model": model,
+        "api_model": http_model,
         "n_samples_per_task": n,
         "n_tasks": len(task_ids),
         "empty_completions": empty,

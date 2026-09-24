@@ -51,21 +51,35 @@ def parse_float(x: Any) -> float | None:
         return None
 
 
-def display_name(name: str | None, n: int = 28) -> str:
-    """Short label for UI; full name stays in title=."""
+def canonicalize_model(name: str | None, engine: str | None = None) -> str:
+    """Map engine served/marketing ids to weight labels that include quant.
+
+    Gufo /v1/models returns e.g. "Qwen3.8 Flash Next" with no UD-Q* — hub default
+    weight is Flash-Next UD-Q4_K_XL. Halogen served id lacks w4b pack stem.
+    """
     s = str(name or "").strip()
     if not s:
-        return "—"
-    # Drop common GGUF-ish suffixes for readability
-    short = s
-    for pat in (
-        r"-UD-Q[\w.]+$",
-        r"-Q\d+_K(_[A-Z]+)?$",
-        r"-Q\d+_K_XL$",
-        r"-GGUF$",
+        return ""
+    eng = normalize_engine(engine) if engine else ""
+    # Already has a weight-style quant / pack tag → keep
+    if re.search(r"(?i)(UD-Q\d|Q\d+_K|w4b|w8|IQ\d)", s):
+        return s
+    compact = re.sub(r"[\s_]+", "-", s)
+    if eng in ("gufo", "") and re.search(r"(?i)qwen3\.?8.*flash.*next", compact):
+        return "Qwen3.8-Flash-Next-UD-Q4_K_XL"
+    if eng in ("halogen-flash", "") and re.search(
+        r"(?i)halogen.*qwen3\.?8.*flash.*next|^qwen38-flash-next$", compact
     ):
-        short = re.sub(pat, "", short, flags=re.I)
-    short = short.replace("-MTP", "").replace("_", "-")
+        return "qwen38-flash-next-w4b"
+    return s
+
+
+def display_name(name: str | None, n: int = 28, *, engine: str | None = None) -> str:
+    """Short label for UI — keeps weight quant (UD-Q4_K_XL / w4b). Full name in title=."""
+    s = canonicalize_model(name, engine)
+    if not s:
+        return "—"
+    short = s.replace("_", "-")
     if len(short) > n:
         short = short[: n - 1] + "…"
     return short or s[:n]
@@ -93,6 +107,7 @@ def engine_label(engine: str) -> str:
     return {
         "llama.cpp": "llama.cpp",
         "halogen-flash": "Halogen Flash",
+        "gufo": "gufo",
     }.get(eng, eng)
 
 
@@ -182,7 +197,7 @@ def _compare_catalog(by_engine: dict[str, dict], engines: list[str]) -> list[dic
                 "engine": eng,
                 "engine_label": engine_label(eng),
                 "model": model,
-                "label": f"{engine_label(eng)} · {display_name(model, 42)}",
+                "label": f"{engine_label(eng)} · {display_name(model, 42, engine=eng)}",
                 "pp": None,
                 "tg": None,
                 "pass_at_1": None,
@@ -647,14 +662,15 @@ def verdict_cards(thr_models: list, qual_rows: list, cap_latest: dict) -> str:
         if p1 is None:
             continue
         if best_q is None or p1 > best_q[0]:
-            best_q = (p1, r.get("model") or "—")
+            best_q = (p1, r.get("model") or "—", row_engine(r))
     if best_q:
-        full = best_q[1]
+        full, eng = best_q[1], best_q[2]
+        shown = canonicalize_model(full, eng)
         cards.append(
             '<div class="verdict-card">'
             f'<div class="verdict-label">{tip("Code quality", "HumanEval: share of Python problems solved on the first try. Code correctness only — not chat or speed.")}</div>'
             f'<div class="verdict-value">{fmt_pct(best_q[0])}</div>'
-            f'<div class="verdict-sub" title="{esc(full)}">{esc(display_name(full))}</div>'
+            f'<div class="verdict-sub" title="{esc(shown)}">{esc(display_name(full, 56, engine=eng))}</div>'
             "</div>"
         )
     else:
@@ -669,14 +685,15 @@ def verdict_cards(thr_models: list, qual_rows: list, cap_latest: dict) -> str:
         if tg is None:
             continue
         if best_tg is None or tg > best_tg[0]:
-            best_tg = (tg, m.get("model") or "—")
+            best_tg = (tg, m.get("model") or "—", normalize_engine(m.get("engine")))
     if best_tg:
-        full = best_tg[1]
+        full, eng = best_tg[1], best_tg[2]
+        shown = canonicalize_model(full, eng)
         cards.append(
             '<div class="verdict-card">'
             f'<div class="verdict-label">{tip("Generation", "Tokens/s while writing the reply (alone on the server). Higher is better.")}</div>'
             f'<div class="verdict-value">{fmt_num(best_tg[0])} <span class="unit">tok/s</span></div>'
-            f'<div class="verdict-sub" title="{esc(full)}">{esc(display_name(full))}</div>'
+            f'<div class="verdict-sub" title="{esc(shown)}">{esc(display_name(full, 56, engine=eng))}</div>'
             "</div>"
         )
     else:
@@ -691,14 +708,15 @@ def verdict_cards(thr_models: list, qual_rows: list, cap_latest: dict) -> str:
         if pp is None:
             continue
         if best_pp is None or pp > best_pp[0]:
-            best_pp = (pp, m.get("model") or "—")
+            best_pp = (pp, m.get("model") or "—", normalize_engine(m.get("engine")))
     if best_pp:
-        full = best_pp[1]
+        full, eng = best_pp[1], best_pp[2]
+        shown = canonicalize_model(full, eng)
         cards.append(
             '<div class="verdict-card">'
             f'<div class="verdict-label">{tip("Prompt", "Tokens/s while reading the prompt (alone). Higher is better.")}</div>'
             f'<div class="verdict-value">{fmt_num(best_pp[0])} <span class="unit">tok/s</span></div>'
-            f'<div class="verdict-sub" title="{esc(full)}">{esc(display_name(full))}</div>'
+            f'<div class="verdict-sub" title="{esc(shown)}">{esc(display_name(full, 56, engine=eng))}</div>'
             "</div>"
         )
     else:
@@ -714,9 +732,10 @@ def verdict_cards(thr_models: list, qual_rows: list, cap_latest: dict) -> str:
             continue
         c = int(r.get("c") or 0)
         if max_c is None or c > max_c[0]:
-            max_c = (c, r.get("model") or "—", r.get("kv") or "—")
+            max_c = (c, r.get("model") or "—", r.get("kv") or "—", row_engine(r))
     if max_c:
-        full = max_c[1]
+        full, eng = max_c[1], max_c[3]
+        shown = canonicalize_model(full, eng)
         # Prefer 256k style label when exact power of two-ish
         c_label = f"{max_c[0]:,}"
         if max_c[0] == 262144:
@@ -729,7 +748,7 @@ def verdict_cards(thr_models: list, qual_rows: list, cap_latest: dict) -> str:
             '<div class="verdict-card">'
             f'<div class="verdict-label">{tip("Max context", "Largest context length that loaded and ran successfully.")}</div>'
             f'<div class="verdict-value">{esc(c_label)}</div>'
-            f'<div class="verdict-sub" title="{esc(full)}">{esc(display_name(full))} · KV {esc(max_c[2])}</div>'
+            f'<div class="verdict-sub" title="{esc(shown)}">{esc(display_name(full, 56, engine=eng))} · KV {esc(max_c[2])}</div>'
             "</div>"
         )
     else:
@@ -752,8 +771,10 @@ def thr_table_html(thr_models: list) -> str:
     if thr_models:
         for m in thr_models:
             full = m.get("model") or "—"
+            eng = normalize_engine(m.get("engine"))
+            shown = canonicalize_model(full, eng)
             rows.append(
-                f'<tr><td title="{esc(full)}">{esc(display_name(full, 40))}</td>'
+                f'<tr><td title="{esc(shown)}">{esc(display_name(full, 40, engine=eng))}</td>'
                 f'<td class="n">{esc(m.get("pp") or "—")}</td>'
                 f'<td class="n">{esc(m.get("tg") or "—")}</td></tr>'
             )
@@ -854,22 +875,24 @@ def qual_table_html(qual_rows: list, *, fmt_stamp) -> str:
             suite = r.get("suite") or "—"
             suite_label = "HumanEval" if "humaneval" in str(suite).lower() else suite
             full = r.get("model") or "—"
+            eng = row_engine(r)
+            shown = canonicalize_model(full, eng)
             pks = qual_pass_ks(r)
             p1 = parse_float(pks.get("pass@1"))
             row_best = best_p1 is not None and p1 is not None and abs(p1 - best_p1) < 1e-9
             cells = []
             for k in all_ks:
                 val = pks.get(k)
-                shown = fmt_pct(val) if parse_float(val) is not None else "—"
+                shown_pct = fmt_pct(val) if parse_float(val) is not None else "—"
                 cls = "n best" if (row_best and k == "pass@1") else "n"
-                cells.append(f'<td class="{cls}">{shown}</td>')
+                cells.append(f'<td class="{cls}">{shown_pct}</td>')
             n_s = r.get("n_samples")
             n_label = esc(str(n_s)) if n_s is not None else "—"
             dur = fmt_dur(r.get("elapsed_s") if r.get("elapsed_s") is not None else r.get("generate_s"))
             dur_tip = dur_explain(r)
             rows.append(
                 f"<tr><td>{esc(suite_label)}</td>"
-                f'<td title="{esc(full)}">{esc(display_name(full, 40))}</td>'
+                f'<td title="{esc(shown)}">{esc(display_name(full, 40, engine=eng))}</td>'
                 + "".join(cells)
                 + f'<td class="n meta">{n_label}</td>'
                 f'<td class="n meta">{tip(dur, dur_tip)}</td>'

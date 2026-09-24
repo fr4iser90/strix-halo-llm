@@ -307,8 +307,39 @@ if [[ "$SKIP_GENERATE" -eq 0 ]]; then
   RUN_DIR="$OUT_ROOT/$SUITE/$STAMP"
   mkdir -p "$RUN_DIR"
 
+  export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
+  export QUALITY_API="$API"
+  # Record id (tables) vs served API id (Gufo: weight+quant vs "Qwen3.8 Flash Next")
+  if [[ -z "${QUALITY_API_MODEL:-}" && -n "${BENCH_HTTP_API_MODEL:-}" ]]; then
+    QUALITY_API_MODEL="$BENCH_HTTP_API_MODEL"
+  fi
+  # shellcheck source=../../../lib/http_openai.sh
+  if [[ -f "$ROOT/tools/bench/lib/http_openai.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "$ROOT/tools/bench/lib/http_openai.sh" 2>/dev/null || true
+    if [[ "$(bench_engine_normalize "${BENCH_ENGINE:-}" 2>/dev/null || echo "")" == "gufo" ]]; then
+      _wl="$(bench_http_gufo_weight_label 2>/dev/null || true)"
+      if [[ -n "$_wl" ]]; then
+        [[ -z "${QUALITY_API_MODEL:-}" ]] && QUALITY_API_MODEL="$MODEL"
+        MODEL="$_wl"
+      fi
+    elif [[ "$(bench_engine_normalize "${BENCH_ENGINE:-}" 2>/dev/null || echo "")" == "halogen-flash" ]]; then
+      _wl="$(bench_http_halogen_weight_label 2>/dev/null || true)"
+      if [[ -n "$_wl" ]]; then
+        [[ -z "${QUALITY_API_MODEL:-}" ]] && QUALITY_API_MODEL="$MODEL"
+        MODEL="$_wl"
+      fi
+    fi
+  fi
+  : "${QUALITY_API_MODEL:=$MODEL}"
+  export QUALITY_MODEL="$MODEL"
+  export QUALITY_API_MODEL
+
   echo "=== HumanEval ==="
   echo "  model:    $MODEL"
+  if [[ "${QUALITY_API_MODEL}" != "$MODEL" ]]; then
+    echo "  api_model: $QUALITY_API_MODEL"
+  fi
   echo "  api:      $API"
   echo "  n:        $N_SAMPLES"
   echo "  limit:    ${LIMIT:-all}"
@@ -316,9 +347,6 @@ if [[ "$SKIP_GENERATE" -eq 0 ]]; then
   echo "  out:      $RUN_DIR"
   echo ""
 
-  export PYTHONPATH="${VENDOR}${PYTHONPATH:+:$PYTHONPATH}"
-  export QUALITY_API="$API"
-  export QUALITY_MODEL="$MODEL"
   export QUALITY_N="$N_SAMPLES"
   export QUALITY_LIMIT="$LIMIT"
   export QUALITY_MAX_TOKENS="$MAX_TOKENS"
@@ -533,6 +561,7 @@ elif generate_s is not None:
 summary = {
     "suite": suite,
     "model": model,
+    "api_model": os.environ.get("QUALITY_API_MODEL") or model,
     "engine": os.environ.get("BENCH_ENGINE", "llama.cpp"),
     "base_url": api,
     "stamp": stamp,

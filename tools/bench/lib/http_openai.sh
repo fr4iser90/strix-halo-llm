@@ -66,10 +66,62 @@ for m in data.get("data") or []:
 PY
 }
 
+# GGUF path /models/…/Name-UD-Q4_K_XL-00001-of-00004.gguf → Name-UD-Q4_K_XL
+bench_http_gufo_weight_label() {
+  local p="${GUFO_MODEL:-}" base
+  [[ -n "$p" ]] || return 1
+  base="${p##*/}"
+  base="${base%.gguf}"
+  base="${base%.GGUF}"
+  # multi-shard Unsloth: -00001-of-00004
+  if [[ "$base" =~ ^(.*)-[0-9]{5}-of-[0-9]{5}$ ]]; then
+    base="${BASH_REMATCH[1]}"
+  fi
+  printf '%s\n' "$base"
+}
+
+# Halogen pack dir → qwen38-flash-next-w4b (prefer *-w4b.hgn stem)
+bench_http_halogen_weight_label() {
+  local dir="${HALOGEN_MODELS:-}" f base
+  [[ -n "$dir" && -d "$dir" ]] || return 1
+  f="$(find "$dir" -maxdepth 1 -type f -name '*-w4b.hgn' 2>/dev/null | head -n1 || true)"
+  if [[ -z "$f" ]]; then
+    f="$(find "$dir" -maxdepth 1 -type f -name '*.hgn' ! -name '*mtp*' ! -name '*vision*' ! -name '*overlay*' 2>/dev/null | head -n1 || true)"
+  fi
+  [[ -n "$f" ]] || return 1
+  base="${f##*/}"
+  base="${base%.hgn}"
+  printf '%s\n' "$base"
+}
+
+# Record label for tables/index (includes quant). API id may differ (Gufo marketing name).
+bench_http_record_model_label() {
+  local eng api_id="${1:-}" label=""
+  eng="$(bench_engine_normalize "${BENCH_ENGINE:-}")"
+  case "$eng" in
+    gufo)
+      label="$(bench_http_gufo_weight_label 2>/dev/null || true)"
+      ;;
+    halogen-flash)
+      label="$(bench_http_halogen_weight_label 2>/dev/null || true)"
+      ;;
+  esac
+  if [[ -n "$label" ]]; then
+    printf '%s\n' "$label"
+  else
+    printf '%s\n' "$api_id"
+  fi
+}
+
 # Priority: MATRIX_MODELS / HALOGEN_MODEL / QUALITY_MODEL / CAPACITY_MODELS → else /v1/models
+# For gufo/halogen: emit weight labels (quant in name). Sets BENCH_HTTP_API_MODEL to the
+# served /v1/models id used for HTTP bodies (marketing name ≠ GGUF basename).
 bench_http_resolve_models() {
   local csv="${MATRIX_MODELS:-${HALOGEN_MODEL:-${QUALITY_MODEL:-${CAPACITY_MODELS:-}}}}"
-  local -a out=()
+  local -a out=() api_ids=()
+  local eng label
+  eng="$(bench_engine_normalize "${BENCH_ENGINE:-halogen-flash}")"
+
   if [[ -n "$csv" ]]; then
     local IFS=',' p
     for p in $csv; do
@@ -90,6 +142,32 @@ bench_http_resolve_models() {
     printf '[bench http] error: no models (set --model / MATRIX_MODELS or check /v1/models)\n' >&2
     return 1
   fi
+
+  # Capture served id(s) for HTTP; replace display/record ids with weight labels.
+  unset BENCH_HTTP_API_MODEL || true
+  case "$eng" in
+    gufo|halogen-flash)
+      mapfile -t api_ids < <(bench_http_list_models 2>/dev/null || true)
+      if [[ ${#api_ids[@]} -gt 0 && -n "${api_ids[0]:-}" ]]; then
+        export BENCH_HTTP_API_MODEL="${api_ids[0]}"
+      elif [[ -z "$csv" ]]; then
+        export BENCH_HTTP_API_MODEL="${out[0]}"
+      fi
+      # If caller passed explicit MATRIX_MODELS that already looks like a weight id
+      # (has quant), keep it; else rewrite from GUFO_MODEL / HALOGEN_MODELS.
+      if [[ -z "$csv" ]] || [[ "${out[0]}" == *" "* ]] || [[ "${out[0]}" == "Qwen3.8 Flash Next" ]] \
+        || [[ "${out[0]}" == halogen-qwen* ]]; then
+        label="$(bench_http_record_model_label "${BENCH_HTTP_API_MODEL:-${out[0]}}")"
+        if [[ -n "$label" ]]; then
+          out=("$label")
+        fi
+      fi
+      if [[ -n "${BENCH_HTTP_API_MODEL:-}" ]]; then
+        bench_http_log "record model=${out[0]}  api model=${BENCH_HTTP_API_MODEL}"
+      fi
+      ;;
+  esac
+
   printf '%s\n' "${out[@]}"
 }
 
@@ -157,11 +235,13 @@ bench_http_write_short_prompt() {
 
 bench_http_stream_once() {
   local model="$1" label="$2" prompt_file="$3" out_jsonl="$4" max_tokens="$5"
-  local url
+  local url api_model
   url="$(bench_http_base_url)"
+  # Record/table id may be GGUF weight label; HTTP needs served /v1/models id.
+  api_model="${BENCH_HTTP_API_MODEL:-$model}"
   bench_python "$STREAM_CLIENT" \
     --url "${url}/v1/chat/completions" \
-    --model "$model" \
+    --model "$api_model" \
     --label "$label" \
     --prompt-file "$prompt_file" \
     --max-tokens "$max_tokens" \
