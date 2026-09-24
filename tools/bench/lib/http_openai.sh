@@ -4,7 +4,7 @@
 #
 # Expects: PROJECT_ROOT, bench_python, bench_engine_* (via lifecycle/engine).
 # Env:
-#   BENCH_HTTP_BASE_URL / HALOGEN_BASE_URL — API root (no trailing /v1)
+#   BENCH_HTTP_BASE_URL — optional BYO override (else active engine base URL)
 #   MATRIX_MODELS / HALOGEN_MODEL / QUALITY_MODEL / CAPACITY_MODELS — model ids
 #
 # shellcheck shell=bash
@@ -25,25 +25,34 @@ bench_http_log() { printf '[bench http] %s\n' "$*" >&2; }
 bench_http_die() { printf '[bench http] error: %s\n' "$*" >&2; exit 1; }
 
 # Resolve OpenAI base URL for the active engine.
+# Never reuse HALOGEN_BASE_URL for gufo (or vice versa) — .env often sets halogen's port.
 bench_http_base_url() {
-  local url
-  url="${BENCH_HTTP_BASE_URL:-${HALOGEN_BASE_URL:-}}"
-  if [[ -z "$url" ]]; then
-    url="$(bench_engine_base_url "${BENCH_ENGINE:-halogen-flash}")"
+  local eng url
+  eng="$(bench_engine_normalize "${BENCH_ENGINE:-halogen-flash}")"
+  if [[ -n "${BENCH_HTTP_BASE_URL:-}" ]]; then
+    printf '%s\n' "${BENCH_HTTP_BASE_URL%/}"
+    return 0
   fi
+  url="$(bench_engine_base_url "$eng")"
   printf '%s\n' "${url%/}"
 }
 
 bench_http_require_up() {
-  local eng
+  local eng url
   eng="$(bench_engine_normalize "${BENCH_ENGINE:-halogen-flash}")"
   export BENCH_ENGINE="$eng"
   bench_engine_prepare "$eng" || bench_http_die "$eng prepare failed"
-  BENCH_HTTP_BASE_URL="$(bench_http_base_url)"
+  # Always bind to this engine's port (ignore stale HALOGEN_BASE_URL from .env / prior suite).
+  unset BENCH_HTTP_BASE_URL
+  url="$(bench_engine_base_url "$eng")"
+  BENCH_HTTP_BASE_URL="${url%/}"
   export BENCH_HTTP_BASE_URL
-  export HALOGEN_BASE_URL="$BENCH_HTTP_BASE_URL"
-  export QUALITY_BASE_URL="${QUALITY_BASE_URL:-$BENCH_HTTP_BASE_URL}"
-  export SCHED_BASE_URL="${SCHED_BASE_URL:-$BENCH_HTTP_BASE_URL}"
+  export QUALITY_BASE_URL="$BENCH_HTTP_BASE_URL"
+  export SCHED_BASE_URL="$BENCH_HTTP_BASE_URL"
+  case "$eng" in
+    halogen-flash) export HALOGEN_BASE_URL="$BENCH_HTTP_BASE_URL" ;;
+    gufo) export GUFO_BASE_URL="$BENCH_HTTP_BASE_URL" ;;
+  esac
   # Standalone suite backends must tear down + restore peers on exit.
   # Matrix may also trap cleanup — second call is a no-op once OWNED=0.
   if [[ "${BENCH_HTTP_LIFECYCLE_TRAP:-0}" != "1" ]]; then

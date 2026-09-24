@@ -36,7 +36,11 @@ matrix_http_lifecycle_begin() {
   local eng="${1:?}"
   bench_engine_prepare "$eng" || matrix_http_die "$eng prepare failed"
   BENCH_HTTP_BASE_URL="$(bench_engine_base_url "$eng")"
-  export BENCH_HTTP_BASE_URL HALOGEN_BASE_URL="$BENCH_HTTP_BASE_URL"
+  export BENCH_HTTP_BASE_URL
+  case "$eng" in
+    halogen-flash) export HALOGEN_BASE_URL="$BENCH_HTTP_BASE_URL" ;;
+    gufo) export GUFO_BASE_URL="$BENCH_HTTP_BASE_URL" ;;
+  esac
   export QUALITY_BASE_URL="$BENCH_HTTP_BASE_URL" SCHED_BASE_URL="$BENCH_HTTP_BASE_URL"
   # shellcheck disable=SC2064
   trap "bench_engine_cleanup '$eng'" EXIT
