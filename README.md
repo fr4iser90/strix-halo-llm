@@ -283,7 +283,7 @@ curl http://localhost:11535/v1/chat/completions \
 ```bash
 curl http://localhost:11536/v1/embeddings \
   -H "Content-Type: application/json" \
-  -d '{"model": "bge-m3-Q4_K_M", "input": "Hello world"}'
+  -d '{"model": "Qwen3-Embedding-4B-Q4_K_M", "input": "Hello world"}'
 ```
 
 ### Extractor (Agents-K1)

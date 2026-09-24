@@ -25,6 +25,7 @@ Qwen3-8B-UD-Q4_K_XL.gguf	gguf/chat/medium	unsloth/Qwen3-8B-GGUF
 Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf	gguf/chat/small	unsloth/Qwen3-4B-Instruct-2507-GGUF
 bge-m3-Q4_K_M.gguf	gguf/embeddings	gpustack/bge-m3-GGUF
 nomic-embed-text-v1.5.Q4_K_M.gguf	gguf/embeddings	nomic-ai/nomic-embed-text-v1.5-GGUF
+Qwen3-Embedding-4B-Q4_K_M.gguf	gguf/embeddings	Qwen/Qwen3-Embedding-4B-GGUF
 # Agents-K1 Q4_K_M — local/manual (no stable public Q4 GGUF repo); file already under models/extractor/
 Agents-K1-Q4_K_M.gguf	gguf/extractor		
 #
