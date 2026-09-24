@@ -29,7 +29,7 @@ services:
     <<: *llama-gpu
     container_name: llama-rocm
     volumes:
-      - ./models:/models
+      - ${MODELS_DIR:-../../models/gguf}:/models
       - ./models.ini:/etc/llama-cpp/models.ini:ro
       - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:
@@ -47,7 +47,7 @@ services:
     profiles: ["lab"]
     container_name: llama-rocm-lab
     volumes:
-      - ./models:/models
+      - ${MODELS_DIR:-../../models/gguf}:/models
       - ./models-heavy.ini:/etc/llama-cpp/models.ini:ro
       - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:
@@ -65,7 +65,7 @@ services:
     container_name: llama-embeddings-rocm
     shm_size: "2gb"
     volumes:
-      - ./models:/models
+      - ${MODELS_DIR:-../../models/gguf}:/models
       - ./models-embeddings.ini:/etc/llama-cpp/models-embeddings.ini:ro
       - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:
@@ -83,7 +83,7 @@ services:
     container_name: llama-extractor-rocm
     shm_size: "2gb"
     volumes:
-      - ./models:/models
+      - ${MODELS_DIR:-../../models/gguf}:/models
       - ./models-extractor.ini:/etc/llama-cpp/models-extractor.ini:ro
       - ./scripts/docker-entrypoint.sh:/entrypoint.sh:ro
     ports:

@@ -9,15 +9,16 @@ CAPACITY_SYNC_SOURCES="${CAPACITY_SYNC_SOURCES:-coder,chat}"
 
 sync_bench_inis() {
   local sources="${1:-$CAPACITY_SYNC_SOURCES}"
-  local models_root="${PROJECT_ROOT}/models"
-  local out_a="${CAPACITY_INI_A:-$PROJECT_ROOT/models-bench.ini}"
-  local out_b="${CAPACITY_INI_B:-$PROJECT_ROOT/models-bench-b.ini}"
+  local models_root="${MODELS_DIR:-$PROJECT_ROOT/models}"
+  local out_a="${CAPACITY_INI_A:-${LLAMA_INI_DIR:-$PROJECT_ROOT/engines/llama-cpp}/models-bench.ini}"
+  local out_b="${CAPACITY_INI_B:-${LLAMA_INI_DIR:-$PROJECT_ROOT/engines/llama-cpp}/models-bench-b.ini}"
+  local ini_dir="${LLAMA_INI_DIR:-$PROJECT_ROOT/engines/llama-cpp}"
 
-  bench_python - "$PROJECT_ROOT" "$sources" "$out_a" "$out_b" "$models_root" <<'PY'
+  bench_python - "$ini_dir" "$sources" "$out_a" "$out_b" "$models_root" <<'PY'
 import os, sys
 from pathlib import Path
 
-root, sources_csv, out_a, out_b, models_root = sys.argv[1:6]
+ini_dir, sources_csv, out_a, out_b, models_root = sys.argv[1:6]
 src_map = {
     "coder": "models-coder.ini",
     "chat": "models.ini",
@@ -77,9 +78,9 @@ for key in [s.strip() for s in sources_csv.split(",") if s.strip()]:
     if not fname:
         print(f"[bench capacity] warn: unknown sync source '{key}' (use coder,chat,lab)", file=sys.stderr)
         continue
-    path = Path(root) / fname
+    path = Path(ini_dir) / fname
     if not path.is_file():
-        print(f"[bench capacity] warn: missing {fname}", file=sys.stderr)
+        print(f"[bench capacity] warn: missing {path}", file=sys.stderr)
         continue
     order, sections = parse_ini(path)
     for name in order:

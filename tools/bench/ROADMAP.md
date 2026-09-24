@@ -37,7 +37,7 @@ setup” decisions. Items below are polish — track here so they are not forgot
 
 ## Docs / forks
 
-- [x] Live INIs gitignored; templates in `examples/ini/`
+- [x] Live INIs gitignored; templates in `engines/llama-cpp/presets/ini/`
 - [x] Engine dimension (`BENCH_ENGINE` / Halogen Flash) — tagged results + Pages engine tabs / Compare
 - [x] Halogen full matrix (`full-halogen` / `./bench halogen matrix`) — HTTP capacity+sched+throughput+quality
 - [x] Generic engine lifecycle (`lib/lifecycle.sh` + `lib/engines/*.sh`) — prepare/cleanup per engine; Halogen compose+stickys

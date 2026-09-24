@@ -3,7 +3,7 @@
 #
 # Cont-batching is a process CLI flag (--no-cont-batching), not an INI key.
 # Scenario 07 toggles it only for the A/B run via a scratch overlay matching the
-# Nix-image command style in compose.yaml / compose.bench.yaml.
+# Nix-image command style in compose.yaml (profile bench).
 #
 # Usage (after PROJECT_ROOT is set):
 #   source tools/bench/lib/compose_overlay.sh

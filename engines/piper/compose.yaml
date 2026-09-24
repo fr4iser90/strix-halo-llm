@@ -1,0 +1,18 @@
+# Piper TTS — OpenAI-compatible /audio/speech on :9001
+#
+#   cd engines/piper
+#   docker compose --env-file ../../.env up -d --build
+#
+# Voices: TTS_MODELS (default ../../models/tts). Jarvis: ~/data/models/tts
+services:
+  piper:
+    build: .
+    container_name: piper
+    restart: unless-stopped
+    ports:
+      - "${PIPER_PUBLISH_PORT:-9001}:8080"
+    volumes:
+      - ${TTS_MODELS:-../../models/tts}:/voices:ro
+    environment:
+      PIPER_VOICES_DIR: /voices
+      PIPER_DEFAULT_VOICE: ${PIPER_DEFAULT_VOICE:-de_DE-thorsten-high}

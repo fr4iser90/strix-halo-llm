@@ -2,7 +2,7 @@
 
 Hardware notes and **RAM / context budgets** for Sticky vs Lab on **this** host.
 
-For **NVIDIA / other AMD / forks** (CUDA compose, capacity expectations, Pages): see [`HARDWARE.md`](HARDWARE.md).
+For **other AMD / forks** (ROCm compose, capacity expectations, Pages): see [`HARDWARE.md`](HARDWARE.md).
 
 ## Hardware (live from Jarvis)
 
@@ -21,7 +21,7 @@ With Sticky loaded (Qwen3.6 Q5 VL, `c=262144`, `np=4`): ~57 GiB used / ~67 G
 
 | Router | Port | INI | Behavior |
 |---|---|---|---|
-| **Sticky chat** (`llama-router`) | `:11535` | `models.ini` (local; template `examples/ini/`) | Chat VL, `load-on-startup`, always warm |
+| **Sticky chat** (`llama-router`) | `:11535` | `models.ini` (local; template `engines/llama-cpp/presets/ini/`) | Chat VL, `load-on-startup`, always warm |
 | **Sticky coder** (`llama-router-coder`) | `:11538` | `models-coder.ini` (local) | Coder/Tiel, always warm |
 | **Lab** (`llama-router-lab`) | `:11537` | `models-lab.ini` ← `./bench sync-models` | Swap pool / experiments (+ VL twins) |
 | **Bench A/B** (`llama-bench-a/b`) | `:11601` / `:11602` | `models-bench.ini` ← capacity sync | Capacity sweeps — stickys untouched |
@@ -30,7 +30,7 @@ With Sticky loaded (Qwen3.6 Q5 VL, `c=262144`, `np=4`): ~57 GiB used / ~67 G
 
 Capacity:
 ```bash
-docker compose -f compose.yaml -f compose.bench.yaml --profile bench up -d llama-bench-a
+docker compose --profile bench up -d llama-bench-a
 ./bench capacity kv-ctx
 ./bench capacity dual --kv q5_0,q4_0
 ```

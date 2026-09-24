@@ -5,6 +5,9 @@ set -euo pipefail
 SCHED_BENCH_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_ROOT="$(cd "$SCHED_BENCH_ROOT/../../.." && pwd)"
 
+# shellcheck source=../../lib/paths.sh
+source "$PROJECT_ROOT/tools/bench/lib/paths.sh"
+
 SCHED_BASE_URL="${SCHED_BASE_URL:-http://127.0.0.1:11601}"
 SCHED_MODEL="${SCHED_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q4_K_M-VL}"
 SCHED_OUT="${SCHED_OUT:-$PROJECT_ROOT/output/bench/scheduling}"
@@ -12,10 +15,8 @@ SCHED_NP="${SCHED_NP:-}"
 SCHED_UB="${SCHED_UB:-}"
 SCHED_B="${SCHED_B:-64}"
 SCHED_UB_LIST="${SCHED_UB_LIST:-32,64,128,256}"
-# Patches go to models-bench.ini (bench-a).
-SCHED_BENCH_INI="${SCHED_BENCH_INI:-$PROJECT_ROOT/models-bench.ini}"
-VK_COMPOSE="${VK_COMPOSE:-$PROJECT_ROOT/compose.yaml}"
-ROCM_COMPOSE="${ROCM_COMPOSE:-$PROJECT_ROOT/compose.rocm.yaml}"
+# Patches go to models-bench.ini (bench-a) under engines/llama-cpp/
+SCHED_BENCH_INI="${SCHED_BENCH_INI:-$CAPACITY_INI_A}"
 
 STREAM_CLIENT="${SCHED_BENCH_ROOT}/lib/stream_client.py"
 

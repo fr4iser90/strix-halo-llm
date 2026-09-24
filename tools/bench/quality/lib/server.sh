@@ -30,8 +30,8 @@ quality_log() { printf '[bench quality] %s\n' "$*"; }
 # (lab = lookup only, not a full sync source).
 quality_ensure_model_section() {
   local model="$1"
-  local ini_a="${CAPACITY_INI_A:-$PROJECT_ROOT/models-bench.ini}"
-  local ini_b="${CAPACITY_INI_B:-$PROJECT_ROOT/models-bench-b.ini}"
+  local ini_a="${CAPACITY_INI_A:-${LLAMA_INI_DIR:-$PROJECT_ROOT/engines/llama-cpp}/models-bench.ini}"
+  local ini_b="${CAPACITY_INI_B:-${LLAMA_INI_DIR:-$PROJECT_ROOT/engines/llama-cpp}/models-bench-b.ini}"
   bench_python - "$PROJECT_ROOT" "$model" "$ini_a" "$ini_b" <<'PY'
 import sys
 from pathlib import Path

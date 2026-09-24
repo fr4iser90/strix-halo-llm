@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-# 11: Dual-model capacity — chat (sticky) + coder (lab) under filled KV + stress.
-# Sweeps c × (np_chat:np_coder), monitors GTT / MemAvailable, recommends max safe cell.
+# 11: Dual-LLM capacity (aliases: dual_llm, coexist_capacity, coexist)
+#
+# THIS IS NOT multi-engine stack coexist (piper+whisper+halogen).
+# It only loads TWO llama.cpp routers at once: sticky chat (:11535) + lab (:11537),
+# fills KV, watches GTT/RAM, recommends a safe (c × np) cell.
+#
+# For multi-engine health:  ./stack up llama,piper,whisper && ./bench smoke
 #
 # Env:
-#   COEXIST_CHAT_MODEL COEXIST_CODER_MODEL
+#   COEXIST_CHAT_MODEL COEXIST_CODER_MODEL   (required — which INI sections)
 #   COEXIST_CHAT_URL (default :11535) COEXIST_CODER_URL (default :11537)
-#   COEXIST_C_LIST          default 262144  (native model max; >256k needs YaRN/rope — not default)
+#   COEXIST_C_LIST          default 262144
 #   COEXIST_NP_PAIRS        default 4:4
-#   COEXIST_FILL_RATIO      default 0.85 of (c/np) tokens per slot
+#   COEXIST_FILL_RATIO      default 0.85
 #   COEXIST_GTT_LIMIT_PCT   default 92
 #   COEXIST_MEM_FLOOR_MB    default 8192
 #   COEXIST_STRESS_TOKENS   default 64
 #
-# Next production validation (embeddings must stay up via prepare_coexist_gpu):
-#   COEXIST_C_LIST=262144 COEXIST_NP_PAIRS=4:4 ./bench sched --scenario coexist_capacity
-# Higher-c sweep only if rope/YaRN configured: COEXIST_C_LIST=262144,327680,393216
+#   COEXIST_CHAT_MODEL=Qwen3.6-… COEXIST_CODER_MODEL=Tiel-Coder-… \
+#     ./bench sched --scenario dual_llm
 set -euo pipefail
 SCENARIO="11_coexist_capacity"
 source "$SCHED_BENCH_ROOT/lib/common.sh"
@@ -25,8 +29,8 @@ source "$SCHED_BENCH_ROOT/lib/coexist.sh"
 sdir="$(scenario_dir "$SCENARIO")"
 mkdir -p "$sdir"
 
-CHAT_INI="${COEXIST_CHAT_INI:-$PROJECT_ROOT/models.ini}"
-CODER_INI="${COEXIST_CODER_INI:-$PROJECT_ROOT/models-lab.ini}"
+CHAT_INI="${COEXIST_CHAT_INI:-${LLAMA_INI_DIR:-$PROJECT_ROOT/engines/llama-cpp}/models.ini}"
+CODER_INI="${COEXIST_CODER_INI:-${LLAMA_INI_DIR:-$PROJECT_ROOT/engines/llama-cpp}/models-lab.ini}"
 CHAT_MODEL="${COEXIST_CHAT_MODEL}"
 CODER_MODEL="${COEXIST_CODER_MODEL}"
 export COEXIST_CHAT_MODEL COEXIST_CODER_MODEL

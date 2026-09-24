@@ -11,11 +11,12 @@ set -euo pipefail
 
 : "${PROJECT_ROOT:?PROJECT_ROOT required}"
 
+# shellcheck source=../../lib/paths.sh
+source "$PROJECT_ROOT/tools/bench/lib/paths.sh"
+
 THROUGHPUT_SYNC_SOURCES="${THROUGHPUT_SYNC_SOURCES:-coder,chat,lab}"
 THROUGHPUT_BENCH_OWNED="${THROUGHPUT_BENCH_OWNED:-0}"
 THROUGHPUT_BENCH_READY="${THROUGHPUT_BENCH_READY:-0}"
-VK_COMPOSE="${VK_COMPOSE:-$PROJECT_ROOT/compose.yaml}"
-ROCM_COMPOSE="${ROCM_COMPOSE:-$PROJECT_ROOT/compose.rocm.yaml}"
 
 throughput_log() { printf '[bench throughput] %s\n' "$*"; }
 
@@ -23,8 +24,6 @@ throughput_sync_bench_ini() {
   # shellcheck source=../../lib/python.sh
   source "$PROJECT_ROOT/tools/bench/lib/python.sh"
   # shellcheck source=../../capacity/lib/sync_ini.sh
-  CAPACITY_INI_A="${CAPACITY_INI_A:-$PROJECT_ROOT/models-bench.ini}"
-  CAPACITY_INI_B="${CAPACITY_INI_B:-$PROJECT_ROOT/models-bench-b.ini}"
   source "$PROJECT_ROOT/tools/bench/capacity/lib/sync_ini.sh"
   throughput_log "sync models-bench.ini from: $THROUGHPUT_SYNC_SOURCES"
   sync_bench_inis "$THROUGHPUT_SYNC_SOURCES"
@@ -48,10 +47,9 @@ throughput_bench_prepare() {
     return 0
   fi
   throughput_log "stop sticky routers so llama-bench owns the GPU (lab untouched)"
-  (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
-  if [[ -f "$ROCM_COMPOSE" ]]; then
-    (cd "$PROJECT_ROOT" && docker compose -f "$ROCM_COMPOSE" stop llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
-  fi
+  # shellcheck source=../../lib/lifecycle.sh
+  source "$PROJECT_ROOT/tools/bench/lib/lifecycle.sh"
+  bench_engine_stop_stickys llama.cpp
   THROUGHPUT_BENCH_READY=1
   export THROUGHPUT_BENCH_READY
 }

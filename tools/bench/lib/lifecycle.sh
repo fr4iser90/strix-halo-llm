@@ -2,9 +2,13 @@
 # Generic inference-engine lifecycle for benches.
 #
 # Each engine adapter lives in tools/bench/lib/engines/<name>.sh and defines:
-#   engine_<prefix>_prepare    # start server, free GPU, wait ready
-#   engine_<prefix>_cleanup    # stop server, restore stickys
-#   engine_<prefix>_base_url   # echo base URL (optional; falls back to engine.sh)
+#   engine_<prefix>_prepare         # start server, free GPU, wait ready
+#   engine_<prefix>_cleanup         # stop server, restore stickys
+#   engine_<prefix>_base_url        # echo base URL
+#   engine_<prefix>_max_instances   # optional; default via overload.sh
+#   engine_<prefix>_stop_daily      # optional; free GPU / stop warm routers
+#   engine_<prefix>_restore_daily   # optional; bring warm routers back
+#   engine_<prefix>_start_bench N   # optional; llama multi-instance bench
 #
 # prefix = engine id with '.' and '-' → '_'  (halogen-flash → halogen_flash)
 #
@@ -12,22 +16,31 @@
 #   bench_engine_prepare [engine]
 #   bench_engine_cleanup [engine]
 #   bench_engine_base_url [engine]
-#   bench_engine_with_lifecycle <engine> -- <command…>   # prepare; trap cleanup; run
+#   bench_engine_stop_stickys / bench_engine_restore_stickys  # → adapters
+#   bench_engine_with_lifecycle <engine> -- <command…>
 #
 # Env:
 #   BENCH_ENGINE_SKIP_LIFECYCLE=1  — never start/stop (BYO server)
 #   BENCH_ENGINE_KEEP=1            — leave engine containers up after cleanup
 #   BENCH_NO_RESTORE=1             — do not restore sticky routers
+#   ENGINE_FORCE_OVERLOAD=1        — skip MemAvailable / solo peer checks
+#   LLAMA_DAILY_SERVICES=llama,llama-coder  — which stickys to restore
 #
 # shellcheck shell=bash
 
+[[ -n "${_BENCH_LIFECYCLE_LOADED:-}" ]] && return 0
+_BENCH_LIFECYCLE_LOADED=1
+
 _BENCH_LIFECYCLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${PROJECT_ROOT:=$(cd "$_BENCH_LIFECYCLE_DIR/../../.." && pwd)}"
+# shellcheck source=paths.sh
+source "$_BENCH_LIFECYCLE_DIR/paths.sh"
 # shellcheck source=engine.sh
 source "$_BENCH_LIFECYCLE_DIR/engine.sh"
 # shellcheck source=python.sh
 source "$_BENCH_LIFECYCLE_DIR/python.sh"
-
-: "${PROJECT_ROOT:=$(cd "$_BENCH_LIFECYCLE_DIR/../../.." && pwd)}"
+# shellcheck source=overload.sh
+source "$_BENCH_LIFECYCLE_DIR/overload.sh"
 
 BENCH_ENGINE_READY="${BENCH_ENGINE_READY:-0}"
 BENCH_ENGINE_OWNED="${BENCH_ENGINE_OWNED:-0}"
@@ -49,8 +62,10 @@ bench_engine_adapter_file() {
   case "$eng" in
     llama.cpp) printf '%s\n' "$_BENCH_LIFECYCLE_DIR/engines/llama_cpp.sh" ;;
     halogen-flash) printf '%s\n' "$_BENCH_LIFECYCLE_DIR/engines/halogen.sh" ;;
+    gufo) printf '%s\n' "$_BENCH_LIFECYCLE_DIR/engines/gufo.sh" ;;
+    piper) printf '%s\n' "$_BENCH_LIFECYCLE_DIR/engines/piper.sh" ;;
+    whisper) printf '%s\n' "$_BENCH_LIFECYCLE_DIR/engines/whisper.sh" ;;
     *)
-      # Convention: engines/<id-with-dashes>.sh
       printf '%s\n' "$_BENCH_LIFECYCLE_DIR/engines/${eng}.sh"
       ;;
   esac
@@ -83,21 +98,23 @@ bench_engine_call() {
   fi
 }
 
-# Shared: free GPU by stopping sticky routers (configs untouched).
+# Free GPU: prefer active/target engine adapter, else llama.cpp (warm stickys).
 bench_engine_stop_stickys() {
-  local vk="${VK_COMPOSE:-$PROJECT_ROOT/compose.yaml}"
+  local eng="${1:-${BENCH_ENGINE_ACTIVE:-llama.cpp}}"
   command -v docker >/dev/null 2>&1 || return 0
-  [[ -f "$vk" ]] || return 0
-  bench_lifecycle_log "stop sticky routers for clean GPU (lab untouched)"
-  (cd "$PROJECT_ROOT" && docker compose -f "$vk" stop llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
-  # Also stop llama-bench if leftover from a prior suite
-  if [[ -f "${BENCH_COMPOSE:-$PROJECT_ROOT/compose.bench.yaml}" ]]; then
-    (cd "$PROJECT_ROOT" && docker compose -f "$vk" -f "${BENCH_COMPOSE:-$PROJECT_ROOT/compose.bench.yaml}" --profile bench stop llama-bench-a llama-bench-b 2>/dev/null) || true
+  if bench_engine_call "$eng" stop_daily 2>/dev/null; then
+    return 0
   fi
+  # Fallback: llama daily routers
+  bench_engine_call "llama.cpp" stop_daily 2>/dev/null || true
 }
 
 bench_engine_restore_stickys() {
   [[ "${BENCH_NO_RESTORE:-0}" == "1" ]] && return 0
+  local eng="${1:-llama.cpp}"
+  if bench_engine_call "$eng" restore_daily 2>/dev/null; then
+    return 0
+  fi
   # shellcheck source=routers.sh
   source "$_BENCH_LIFECYCLE_DIR/routers.sh"
   bench_restore_daily || true

@@ -6,6 +6,8 @@ set -euo pipefail
 CAPACITY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_ROOT="$(cd "$CAPACITY_ROOT/../../.." && pwd)"
 
+# shellcheck source=../../lib/paths.sh
+source "$PROJECT_ROOT/tools/bench/lib/paths.sh"
 # shellcheck source=../../lib/python.sh
 source "$PROJECT_ROOT/tools/bench/lib/python.sh"
 # shellcheck source=../../lib/host_mem.sh
@@ -20,8 +22,7 @@ source "$CAPACITY_ROOT/lib/ini.sh"
 source "$CAPACITY_ROOT/lib/sync_ini.sh"
 
 CAPACITY_OUT="${CAPACITY_OUT:-$PROJECT_ROOT/output/bench/capacity}"
-CAPACITY_INI_A="${CAPACITY_INI_A:-$PROJECT_ROOT/models-bench.ini}"
-CAPACITY_INI_B="${CAPACITY_INI_B:-$PROJECT_ROOT/models-bench-b.ini}"
+# CAPACITY_INI_* / VK_COMPOSE / BENCH_COMPOSE come from paths.sh (engines/llama-cpp/)
 CAPACITY_URL_A="${CAPACITY_URL_A:-http://localhost:11601}"
 CAPACITY_URL_B="${CAPACITY_URL_B:-http://localhost:11602}"
 # Empty → all models in models-bench.ini (after auto-sync)
@@ -51,8 +52,6 @@ CAPACITY_IMAGE_NAME="${CAPACITY_IMAGE_NAME:-llama-cpp-vulkan-nix}"
 CAPACITY_HAD_CODER=0
 CAPACITY_HAD_DAILY=0
 
-VK_COMPOSE="${VK_COMPOSE:-$PROJECT_ROOT/compose.yaml}"
-BENCH_COMPOSE="${BENCH_COMPOSE:-$PROJECT_ROOT/compose.bench.yaml}"
 STREAM_CLIENT="${STREAM_CLIENT:-$PROJECT_ROOT/tools/bench/scheduling/lib/stream_client.py}"
 CELLS_LEDGER="${CAPACITY_OUT}/cells.jsonl"
 
@@ -241,14 +240,20 @@ for m in data.get('data') or data.get('models') or []:
 # CAPACITY_NOCB=1 → ephemeral --no-cont-batching overlay (same helper as sched 07).
 compose_bench() {
   local overlay="" overlay_b=""
-  local -a files=(-f "$VK_COMPOSE" -f "$BENCH_COMPOSE")
+  local -a extra=()
   if [[ "${CAPACITY_NOCB:-0}" == "1" ]]; then
     overlay="$(bench_write_nocb_overlay llama-bench-a 900)"
     overlay_b="$(bench_write_nocb_overlay llama-bench-b 900)"
-    files+=(-f "$overlay" -f "$overlay_b")
+    extra+=(-f "$overlay" -f "$overlay_b")
   fi
   local rc=0
-  (cd "$PROJECT_ROOT" && docker compose "${files[@]}" --profile bench "$@") || rc=$?
+  # Bench routers live in compose.yaml (profile bench). Extra -f only if BENCH_COMPOSE differs.
+  if [[ "$BENCH_COMPOSE" == "$VK_COMPOSE" ]] \
+    || [[ "$(basename "$BENCH_COMPOSE")" == "$(basename "$VK_COMPOSE")" ]]; then
+    bench_docker_compose "$VK_COMPOSE" "${extra[@]}" --profile bench "$@" || rc=$?
+  else
+    bench_docker_compose "$VK_COMPOSE" -f "$BENCH_COMPOSE" "${extra[@]}" --profile bench "$@" || rc=$?
+  fi
   bench_rm_overlay "$overlay"
   bench_rm_overlay "$overlay_b"
   return "$rc"
@@ -265,9 +270,12 @@ prepare_capacity_gpu() {
     log "KEEP_STICKY=1 — leaving sticky routers running"
   else
     log "stop sticky routers for clean capacity curve (configs untouched; lab untouched)"
-    (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama llama-coder 2>/dev/null) || true
+    # shellcheck source=../../lib/lifecycle.sh
+    source "$PROJECT_ROOT/tools/bench/lib/lifecycle.sh"
+    bench_engine_stop_stickys llama.cpp
     if [[ "$CAPACITY_STOP_EMB" == "1" ]]; then
-      (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" stop llama-embeddings llama-extractor 2>/dev/null) || true
+      # stop_daily already includes emb/extractor; keep explicit for clarity
+      :
     fi
   fi
 }
@@ -287,12 +295,28 @@ restore_after_capacity() {
 }
 
 start_bench_a() {
-  compose_bench up -d llama-bench-a
+  # shellcheck source=../../lib/lifecycle.sh
+  source "$PROJECT_ROOT/tools/bench/lib/lifecycle.sh"
+  local rc=0
+  bench_engine_call llama.cpp start_bench 1 || rc=$?
+  if [[ "$rc" -eq 2 ]]; then
+    compose_bench up -d llama-bench-a || die "bench-a compose up failed"
+  elif [[ "$rc" -ne 0 ]]; then
+    die "llama.cpp start_bench failed (rc=$rc; check overload / MemAvailable)"
+  fi
   wait_for_url "$CAPACITY_URL_A" 120 || die "bench-a not reachable at $CAPACITY_URL_A"
 }
 
 start_bench_ab() {
-  compose_bench up -d llama-bench-a llama-bench-b
+  # shellcheck source=../../lib/lifecycle.sh
+  source "$PROJECT_ROOT/tools/bench/lib/lifecycle.sh"
+  local rc=0
+  bench_engine_call llama.cpp start_bench 2 || rc=$?
+  if [[ "$rc" -eq 2 ]]; then
+    compose_bench up -d llama-bench-a llama-bench-b || die "bench a/b compose up failed"
+  elif [[ "$rc" -ne 0 ]]; then
+    die "llama.cpp start_bench 2 failed (rc=$rc; check overload / MemAvailable)"
+  fi
   wait_for_url "$CAPACITY_URL_A" 120 || die "bench-a not reachable"
   wait_for_url "$CAPACITY_URL_B" 120 || die "bench-b not reachable"
 }

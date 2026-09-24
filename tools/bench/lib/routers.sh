@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Unload models / restore routers after benches.
+# Daily sticky restore is owned by the llama.cpp adapter (LLAMA_DAILY_SERVICES).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# tools/bench/lib → repo root
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# shellcheck source=paths.sh
+source "$SCRIPT_DIR/paths.sh"
 # shellcheck source=python.sh
 source "$SCRIPT_DIR/python.sh"
 
@@ -53,41 +55,21 @@ for m in data.get('data') or data.get('models') or []:
 " <<< "$models_json")
 }
 
-# Restore sticky stack. Default: Vulkan only — and stop any ROCm leftovers.
-# Set BENCH_RESTORE_BACKEND=rocm|both only when you intentionally use ROCm.
+# Restore sticky stack via llama.cpp adapter (LLAMA_DAILY_SERVICES).
 bench_restore_daily() {
-  local root="${PROJECT_ROOT:?}"
-  local vk="${VK_COMPOSE:-$root/compose.yaml}"
-  local rocm="${ROCM_COMPOSE:-$root/compose.rocm.yaml}"
-  local backend="${BENCH_RESTORE_BACKEND:-${CAPACITY_BACKEND:-vulkan}}"
-
+  # Prefer adapter (handles ROCm leftovers + LLAMA_DAILY_SERVICES)
+  if [[ -f "$SCRIPT_DIR/lifecycle.sh" ]]; then
+    # shellcheck source=lifecycle.sh
+    source "$SCRIPT_DIR/lifecycle.sh"
+    if bench_engine_call llama.cpp restore_daily 2>/dev/null; then
+      return 0
+    fi
+  fi
+  # Minimal fallback if adapter missing
+  local vk="${VK_COMPOSE:-$ENGINE_LLAMA_DIR/compose.yaml}"
   command -v docker >/dev/null 2>&1 || return 0
-
-  case "$backend" in
-    rocm)
-      bench_router_log "restore ROCm sticky chat + coder + embeddings + extractor"
-      [[ -f "$rocm" ]] || { bench_router_log "missing $rocm"; return 0; }
-      # Stop Vulkan stickys so they do not fight for the GPU
-      (cd "$root" && docker compose -f "$vk" stop llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
-      (cd "$root" && docker compose -f "$rocm" up -d llama llama-coder llama-embeddings llama-extractor) || true
-      ;;
-    both|all)
-      bench_router_log "restore Vulkan + ROCm sticky stacks"
-      (cd "$root" && docker compose -f "$vk" up -d llama llama-coder llama-embeddings llama-extractor) || true
-      if [[ -f "$rocm" ]]; then
-        (cd "$root" && docker compose -f "$rocm" up -d llama llama-coder llama-embeddings llama-extractor 2>/dev/null) || true
-      fi
-      ;;
-    *)
-      # vulkan (default) — never start ROCm; stop ROCm if still running
-      bench_router_log "restore Vulkan sticky chat + coder + embeddings + extractor"
-      if [[ -f "$rocm" ]]; then
-        bench_router_log "stop ROCm leftovers (if any)"
-        (cd "$root" && docker compose -f "$rocm" stop 2>/dev/null) || true
-      fi
-      (cd "$root" && docker compose -f "$vk" up -d llama llama-coder llama-embeddings llama-extractor) || true
-      ;;
-  esac
+  bench_router_log "restore Vulkan sticky chat + coder (fallback)"
+  bench_docker_compose "$vk" up -d llama llama-coder || true
 }
 
 bench_restore_after_throughput() {

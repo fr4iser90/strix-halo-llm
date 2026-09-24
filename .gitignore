@@ -12,7 +12,7 @@ result-*
 !.env.example
 !**/*.env.example
 
-# Live model presets (machine-local). Templates: examples/ini/
+# Live model presets (machine-local). Templates: engines/llama-cpp/presets/ini/
 # Regenerated: ./bench sync-models  +  ./bench capacity sync
 /models.ini
 /models-coder.ini
@@ -21,6 +21,14 @@ result-*
 /models-extractor.ini
 /models-bench.ini
 /models-bench-b.ini
+engines/llama-cpp/models.ini
+engines/llama-cpp/models-coder.ini
+engines/llama-cpp/models-lab.ini
+engines/llama-cpp/models-embeddings.ini
+engines/llama-cpp/models-extractor.ini
+engines/llama-cpp/models-bench.ini
+engines/llama-cpp/models-bench-b.ini
+engines/llama-cpp/models*.ini.bak.*
 
 # Python / tooling
 __pycache__/

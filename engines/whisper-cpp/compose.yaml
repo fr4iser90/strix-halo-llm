@@ -1,0 +1,20 @@
+# whisper.cpp STT server on :9000
+#
+#   cd engines/whisper-cpp
+#   docker compose --env-file ../../.env up -d --build
+#
+# Models: STT_MODELS (default ../../models/stt). Jarvis: ~/data/models/stt
+services:
+  whisper:
+    build: .
+    container_name: whisper-cpp
+    restart: unless-stopped
+    ports:
+      - "${WHISPER_PUBLISH_PORT:-9000}:8080"
+    volumes:
+      - ${STT_MODELS:-../../models/stt}:/models:ro
+    command: >
+      ./build/bin/whisper-server
+      --host 0.0.0.0
+      --port 8080
+      --model /models/${WHISPER_MODEL:-ggml-large-v3.bin}

@@ -54,7 +54,8 @@ Examples:
   SCHED_RESTART_BENCH=1 ./bench sched --scenario np_sweep
   SCHED_RESTART_BENCH=1 ./bench sched --scenario b_sweep
   SCHED_MODEL=Qwen3.8-27B-Q4_K_M-MTP ./bench sched --scenario mtp_sweep
-  COEXIST_CODER_MODEL=Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL ./bench sched --scenario coexist_capacity
+  COEXIST_CHAT_MODEL=… COEXIST_CODER_MODEL=… ./bench sched --scenario dual_llm
+      # two llama routers only — see scenario header (alias: coexist_capacity)
 
 EOF
 }
@@ -191,11 +192,11 @@ fi
 
 [[ ${#SCENARIOS[@]} -gt 0 ]] || { usage; exit 1; }
 
-# Coexist capacity keeps sticky + lab both loaded.
+# Dual-LLM capacity keeps sticky + lab both loaded (NOT piper/whisper/halogen).
 COEXIST=0
 for name in "${SCENARIOS[@]}"; do
   case "$name" in
-    *coexist*|11_coexist_capacity) COEXIST=1 ;;
+    *coexist*|dual_llm|11_coexist_capacity|*dual*llm*) COEXIST=1 ;;
   esac
 done
 

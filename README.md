@@ -1,74 +1,72 @@
-# llama-cpp
+# strix-halo-llm
 
-Docker setup for [llama.cpp](https://github.com/ggml-org/llama.cpp) in **router mode**: switch multiple GGUF models via API, separate services for chat, embeddings, and knowledge extraction.
+**Multi-engine hub for Strix Halo:** download weights → start any engine mix → smoke-check → benchmark → publish Pages.
 
-## Overview
+| Piece | Role |
+|-------|------|
+| [`engines/`](engines/README.md) | llama.cpp · Halogen · Gufo · Piper · Whisper |
+| [`./stack`](stack) | Start/stop/status **any** engine combo (`STACK_ENGINES`) |
+| [`model-dl.sh`](model-dl.sh) | Fetch into `MODELS_ROOT/{gguf,hgn,stt,tts}` |
+| [`./bench`](bench) | Smoke · matrix (`--engine`) · llama suites · Pages |
+| [`docs/`](docs/) | GitHub Pages snapshot |
 
-| Service | Port | Config | Purpose |
-|---|---|---|---|
-| `llama-router` | `11535` | `models.ini` (chat sticky) | Chat LLMs (`/v1/chat/completions`) |
-| `llama-router-coder` | `11538` | `models-coder.ini` (coder sticky) | Coder LLM, always warm |
-| `llama-router-lab` | `11537` | `models-lab.ini` | Lab / experiment pool (compose profile `lab`) |
-| `llama-embeddings` | `11536` | `models-embeddings.ini` | Embeddings (`/v1/embeddings`) |
-| `llama-extractor` | `11539` | `models-extractor.ini` | Schema extractor Agents-K1 (`/v1/chat/completions`) |
+AMD Strix Halo hub ([`HARDWARE.md`](HARDWARE.md)): Vulkan default, optional ROCm — **no NVIDIA**.
 
-They share `./models` but run as **separate containers** — sticky chat stays loaded while embeddings and the extractor run in parallel for RAG / knowledge build.
+## Engines & ports
 
-Hardware / GTT / Sticky vs Lab budgets: see [`setup.md`](setup.md).  
-**Other GPUs (NVIDIA CUDA, ROCm, forks):** see [`HARDWARE.md`](HARDWARE.md) — same bench/Pages pipeline, different compose file.
+| Engine | Port | Start |
+|--------|------|--------|
+| llama sticky / coder | 11535 / 11538 | `./stack up llama` |
+| llama lab / rag | 11537 / 11536+11539 | `LLAMA_PROFILES=lab,rag ./stack up llama` |
+| llama bench-a/b | 11601 / 11602 | `compose.yaml` profile `bench` |
+| Halogen Flash | 8731 | `./stack up halogen` |
+| Gufo | 8080 | `./stack up gufo` |
+| Whisper STT | 9000 | `./stack up whisper` |
+| Piper TTS | 9001 | `./stack up piper` |
 
-## Model folders
+**`dual_llm` / `coexist_capacity`:** only two **llama** LLM routers under KV/GTT load — **not** piper+whisper+halogen. Multi-engine health = `./bench smoke`.
+
+## Weights layout
 
 ```
-models/
-├── chat/
-│   ├── large/       # large GGUFs — MoE 30–35B, 27B dense, Flash-Next, …
-│   ├── medium/      # mid-size (e.g. Qwen3-8B)
-│   └── small/       # ≤4B nanos
-├── embeddings/
-├── extractor/       # Agents-K1 schema extraction GGUF
-└── multimodal/      # VLM: base .gguf + mmproj in the same subfolder
+$MODELS_ROOT/              # default ./models · Jarvis ~/data/models
+├── gguf/                  # MODELS_DIR — llama / gufo → /models
+│   ├── chat/{large,medium,small}/
+│   ├── embeddings/
+│   ├── extractor/
+│   └── multimodal/
+├── hgn/<pack>/            # HALOGEN_MODELS (*.hgn + tokenizer/)
+├── stt/                   # whisper
+└── tts/                   # piper
 ```
 
-**Folder = file size tier, not speed tier.** Gateway tags (`fast` / `medium` / `slow`) come from the bench — e.g. Coder-30B lives under `large/` but may tag `fast`; Qwen3-8B under `medium/` may tag `slow`. Do not rename folders: all paths in `models*.ini` point at `chat/large|medium|small`.
-
-The API model name is the INI section name (filename without `.gguf`).
-
-## Quick start
+## Quick start (clone → usable)
 
 ```bash
-# 1. Dirs + models (optional)
-./model-dl.sh init-dirs
-cp examples/ini/models.ini examples/ini/models-coder.ini .   # sticky (gitignored live)
-# edit paths to match your GGUFs, then:
-./bench sync-models             # lab/emb/extractor from ./models/ (+ *-VL if mmproj)
-./model-dl.sh download          # missing models referenced by models.ini
-
-# Optional API-only (no Web UI): cp .env.example .env && set LLAMA_WEBUI=false
-
-# 2. Start (Vulkan / AMD Mesa)
-docker compose up -d --build
-
-# 3. Check
-curl http://localhost:11535/v1/models
-curl http://localhost:11536/v1/models
-curl http://localhost:11539/v1/models
-
-# Lab router (no load-on-startup) — own port, same models/ tree:
-docker compose --profile lab up -d
-curl http://localhost:11537/v1/models
+git clone <this-repo> && cd strix-halo-llm
+./stack                  # menu → Setup wizard (.env, models download/skip, up, smoke)
+# or non-interactive:
+# cp .env.example .env && ./stack setup
 ```
+
+Weights: `./model-dl.sh list|download`. Defaults: edit `.env` or `./stack` → Change preset.
+
+More: [`engines/README.md`](engines/README.md) · [`tools/bench/README.md`](tools/bench/README.md) · GTT budgets [`setup.md`](setup.md).
 
 ## Benchmarks (`./bench`)
 
 Single entrypoint — code under `tools/bench/`, results under `output/bench/`, **GitHub Pages** from `docs/` via `./bench publish`.
 
-| Subcommand | Measures | GPU |
+| Subcommand | Measures | Engines |
 |---|---|---|
-| `./bench throughput` | PP/TG (`llama-bench`) | stops **all** routers |
-| `./bench sched` | Decode latency under concurrent prefill | stops daily/embeddings/extractor, starts **lab**, restores after |
-| `./bench quality` | Task correctness (pluggable; [HumanEval](https://github.com/openai/human-eval), …) | uses running router (default coder `:11538`) |
-| `./bench publish` | Copy curated HTML/summaries → `docs/` | none |
+| `./bench smoke` | HTTP up? | **all** |
+| `./bench audio` | TTS latency / STT RTF | piper · whisper |
+| `./bench throughput` | PP/TG | llama native · halogen/gufo HTTP |
+| `./bench sched` | latency under load | llama · `dual_llm` optional |
+| `./bench quality` | HumanEval | llama · halogen/gufo HTTP |
+| `./bench capacity` | KV×ctx fit | llama · halogen/gufo HTTP |
+| `./bench matrix` | full path per engine | **all five** (`--engine`) |
+| `./bench publish` | → `docs/` | — |
 
 ```bash
 # Throughput
@@ -116,56 +114,50 @@ Dashboard includes **Hardware** (`host.json`: RAM, GTT, GPU, llama.cpp pin, imag
 Canonical path (Strix Halo / gfx1151):
 
 ```bash
-./scripts/fetch-llama.sh      # pins fork until upstream has needed MTP/model support
-./build-nix-image.sh          # llama-cpp-vulkan-nix:latest
-docker compose up -d
+./scripts/fetch-llama.sh                    # pins fork until upstream has needed MTP/model support
+engines/llama-cpp/build-nix-image.sh        # llama-cpp-vulkan-nix:latest
+cd engines/llama-cpp && docker compose --env-file ../../.env up -d
 ```
 
-NVIDIA / CUDA hosts: see [`HARDWARE.md`](HARDWARE.md) (`Dockerfile.cuda`, `compose.cuda.yaml`).  
-AMD ROCm alternate stack: `compose.rocm.yaml` + `Dockerfile.rocm`.
+AMD ROCm alternate stack: `engines/llama-cpp/compose.rocm.yaml` + `Dockerfile.rocm`.
 
 Pin file: [`docs/llama-pin.md`](docs/llama-pin.md) (rewritten by fetch). When [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp) catches up:
 
 ```bash
 LLAMA_REPO=https://github.com/ggml-org/llama.cpp.git LLAMA_REF=master ./scripts/fetch-llama.sh
-./build-nix-image.sh
+engines/llama-cpp/build-nix-image.sh
 ```
 
 Legacy Ubuntu `Dockerfile` is **deprecated** (Mesa/glibc mismatch on this host). ROCm remains `compose.rocm.yaml` / `Dockerfile.rocm`.
 
 Budgets: [`setup.md`](setup.md).
 
-## Backend: Vulkan vs ROCm vs CUDA
+## Backend: Vulkan vs ROCm
 
-Pick **one** stack at a time (same ports).
+Pick **one** stack at a time (same ports). **No CUDA** — this host is AMD Strix Halo.
 
-| | Vulkan (default / Halo) | ROCm | CUDA (NVIDIA) |
-|---|---|---|---|
-| Compose | `compose.yaml` | `compose.rocm.yaml` | `compose.cuda.yaml` |
-| Image | `llama-cpp-vulkan-nix` | `Dockerfile.rocm` | `Dockerfile.cuda` |
-| GPU | `/dev/dri` (RADV) | `/dev/kfd` + `/dev/dri` | NVIDIA runtime |
-| Guide | [`setup.md`](setup.md) | below | [`HARDWARE.md`](HARDWARE.md) |
+| | Vulkan (default / Halo) | ROCm |
+|---|---|---|
+| Compose | `engines/llama-cpp/compose.yaml` | `compose.rocm.yaml` |
+| Image | `llama-cpp-vulkan-nix` | `Dockerfile.rocm` |
+| GPU | `/dev/dri` (RADV) | `/dev/kfd` + `/dev/dri` |
+| Guide | [`setup.md`](setup.md) | [`HARDWARE.md`](HARDWARE.md) |
 
 ```bash
 # Vulkan (default / Strix Halo)
-./scripts/fetch-llama.sh && ./build-nix-image.sh
-docker compose up -d
+./scripts/fetch-llama.sh && engines/llama-cpp/build-nix-image.sh
+cd engines/llama-cpp && docker compose --env-file ../../.env up -d
 
 # ROCm (alternative AMD)
-docker compose down
-docker compose -f compose.rocm.yaml up -d --build
-
-# NVIDIA CUDA — see HARDWARE.md
-# docker compose down
-# docker build -f Dockerfile.cuda -t llama-cpp-cuda:latest .
-# docker compose -f compose.cuda.yaml up -d
+docker compose --env-file ../../.env -f compose.rocm.yaml down
+docker compose --env-file ../../.env -f compose.rocm.yaml up -d --build
 ```
 
-`models.ini` / sticky INIs are the same across backends; only the compose/image changes.
+`models.ini` / sticky INIs under `engines/llama-cpp/` are the same across backends; only the compose/image changes.
 
 ## Download models
 
-`model-dl.sh` fetches GGUFs from Hugging Face into the folder layout above. Weight / GTT sizes: [`setup.md`](setup.md).
+`model-dl.sh` fetches weights (GGUF / Piper / whisper) into `MODELS_ROOT` (`gguf/` · `tts/` · `stt/`). Weight / GTT sizes: [`setup.md`](setup.md).
 
 ```bash
 ./model-dl.sh list                  # status (present / missing)
@@ -317,11 +309,11 @@ curl -X POST http://localhost:11535/models/unload \
 ## Add a new model
 
 1. Place the GGUF in the matching folder (e.g. `models/chat/small/`)
-2. Run `./bench sync-models` — adds lab (+ `*-VL` if a matching mmproj exists). Sticky: edit `models.ini` / `models-coder.ini` yourself (templates in `examples/ini/`).
+2. Run `./bench sync-models` — adds lab (+ `*-VL` if a matching mmproj exists). Sticky: edit `models.ini` / `models-coder.ini` yourself (templates in `engines/llama-cpp/presets/ini/`).
 3. Optional: catalog row in `models.catalog.tsv` for HF download
 4. `docker compose up -d` (INI remounted)
 
-Example sticky `models.ini` (also under `examples/ini/`):
+Example sticky `models.ini` (also under `engines/llama-cpp/presets/ini/`):
 
 ```ini
 [My-Model-Q4_K_M]
@@ -366,20 +358,18 @@ Startup model: `load-on-startup = true` in the desired sticky INI section
 |---|---|
 | `./bench` | **Only** bench CLI (throughput + sched + quality + publish) |
 | `tools/bench/` | Bench implementation |
+| `engines/` | Compose glue per engine (llama-cpp, halogen-flash, gufo) |
+| `engines/llama-cpp/` | Vulkan/ROCm compose, live `models*.ini`, image build |
 | `tools/bench/quality/plugins/` | Pluggable quality suites (HumanEval, …) |
 | `output/bench/` | Local results (`throughput/`, `scheduling/`, `quality/`) |
 | `docs/` | GitHub Pages publish set (`./bench publish`) |
 | `scripts/fetch-llama.sh` | Pin / fetch llama.cpp fork or upstream |
 | `setup.md` | Hardware, GTT, Sticky vs Lab budgets |
-| `compose.yaml` | Vulkan stack (router + embeddings + extractor) |
-| `compose.rocm.yaml` | ROCm stack |
-| `build-nix-image.sh` | Canonical Vulkan image build |
-| `Dockerfile*` | Legacy / ROCm — see comments in file |
-| `examples/ini/` | Committed sticky templates (copy → root) |
-| `models.ini` | Daily sticky chat — **local / gitignored** |
-| `models-lab.ini` | Lab — **local**; `./bench sync-models` from disk |
-| `models-coder.ini` | Sticky coder — **local / gitignored** |
-| `models-embeddings.ini` | Embeddings — **local**; sync-models |
+| `engines/llama-cpp/presets/ini/` | Sticky INI templates (copy → `engines/llama-cpp/`) |
+| `engines/llama-cpp/models.ini` | Daily sticky chat — **local / gitignored** |
+| `engines/llama-cpp/models-lab.ini` | Lab — **local**; `./bench sync-models` from disk |
+| `engines/llama-cpp/models-coder.ini` | Sticky coder — **local / gitignored** |
+| `engines/llama-cpp/models-embeddings.ini` | Embeddings — **local**; sync-models |
 | `models-extractor.ini` | Extractor — **local**; sync-models |
 | `models-bench.ini` (+ `-b`) | Capacity — **local**; `./bench capacity sync` |
 | `models.catalog.tsv` | HF download sources |

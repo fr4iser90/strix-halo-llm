@@ -7,7 +7,8 @@ export LC_ALL=C LANG=C
 # When sourced from run.sh, PROJECT_ROOT is already set.
 THROUGHPUT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$THROUGHPUT_ROOT/../../.." && pwd)}"
-MODELS_DIR="${MODELS_DIR:-$PROJECT_ROOT/models}"
+# shellcheck source=../../lib/paths.sh
+source "$PROJECT_ROOT/tools/bench/lib/paths.sh"
 OUT_DIR="${BENCH_OUT:-$PROJECT_ROOT/output/bench/throughput}"
 SERVICE="${BENCH_SERVICE:-llama}"
 
@@ -18,8 +19,6 @@ NGL_CPU="${BENCH_NGL_CPU:-0}"
 
 VK_BIN="${BENCH_VK_BIN:-/bin/llama-bench}"
 ROCM_BIN="${BENCH_ROCM_BIN:-/app/llama-bench}"
-VK_COMPOSE="${PROJECT_ROOT}/compose.yaml"
-ROCM_COMPOSE="${PROJECT_ROOT}/compose.rocm.yaml"
 
 # shellcheck source=server.sh
 source "$THROUGHPUT_ROOT/lib/server.sh"
@@ -190,17 +189,17 @@ is_skip() {
 }
 
 lab_ini() {
-  if [[ -f "$PROJECT_ROOT/models-lab.ini" ]]; then
-    printf '%s\n' "$PROJECT_ROOT/models-lab.ini"
-  elif [[ -f "$PROJECT_ROOT/models-heavy.ini" ]]; then
-    printf '%s\n' "$PROJECT_ROOT/models-heavy.ini"
+  if [[ -f "$LLAMA_INI_DIR/models-lab.ini" ]]; then
+    printf '%s\n' "$LLAMA_INI_DIR/models-lab.ini"
+  elif [[ -f "$LLAMA_INI_DIR/models-heavy.ini" ]]; then
+    printf '%s\n' "$LLAMA_INI_DIR/models-heavy.ini"
   else
-    die "missing models-lab.ini"
+    die "missing models-lab.ini under $LLAMA_INI_DIR"
   fi
 }
 
 bench_ini() {
-  local ini="${THROUGHPUT_BENCH_INI:-$PROJECT_ROOT/models-bench.ini}"
+  local ini="${THROUGHPUT_BENCH_INI:-$CAPACITY_INI_A}"
   [[ -f "$ini" ]] || die "missing $ini — run: ./bench capacity sync --from coder,chat,lab"
   printf '%s\n' "$ini"
 }
@@ -271,7 +270,7 @@ mapfile -t CANDIDATES < <(
     collect_all
   else
     [[ "$BENCH" -eq 1 ]] && { ensure_bench_ini; collect_ini "$(bench_ini)"; }
-    [[ "$DAILY" -eq 1 ]] && collect_ini "$PROJECT_ROOT/models.ini"
+    [[ "$DAILY" -eq 1 ]] && collect_ini "$LLAMA_INI_DIR/models.ini"
     [[ "$LAB" -eq 1 ]] && collect_ini "$(lab_ini)"
   fi
 )
@@ -326,7 +325,7 @@ preflight_vulkan() {
   setup_vk_docker_opts
   log "vulkan preflight llama-bench=$VK_BIN (nix image has no vulkaninfo)"
   local summary rc=0
-  summary="$(cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" run --rm --no-deps --quiet-pull \
+  summary="$(bench_docker_compose "$VK_COMPOSE" run --rm --no-deps --quiet-pull \
     "${VK_DOCKER_OPTS[@]}" \
     --entrypoint "$VK_BIN" "$SERVICE" --help 2>&1)" || rc=$?
   printf '%s\n' "$summary" | tee -a "$LOG"
@@ -345,10 +344,10 @@ compose_run() {
   if [[ "$compose" == "$VK_COMPOSE" ]]; then
     extra=("${VK_DOCKER_OPTS[@]}")
   fi
-  (cd "$PROJECT_ROOT" && docker compose -f "$compose" run --rm --no-deps --quiet-pull \
+  bench_docker_compose "$compose" run --rm --no-deps --quiet-pull \
     "${extra[@]}" \
     --entrypoint "$bin" "$SERVICE" \
-    -m "$ctn_gguf" -ngl "$ngl" -fa 1 -p "$PP" -n "$TG" -o csv "$@")
+    -m "$ctn_gguf" -ngl "$ngl" -fa 1 -p "$PP" -n "$TG" -o csv "$@"
 }
 
 run_one() {

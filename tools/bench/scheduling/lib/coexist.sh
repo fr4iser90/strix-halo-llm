@@ -6,8 +6,8 @@ COEXIST_CHAT_URL="${COEXIST_CHAT_URL:-http://localhost:11535}"
 COEXIST_CODER_URL="${COEXIST_CODER_URL:-http://localhost:11537}"
 COEXIST_CHAT_MODEL="${COEXIST_CHAT_MODEL:-Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL}"
 COEXIST_CODER_MODEL="${COEXIST_CODER_MODEL:-Qwen3-Coder-30B-A3B-Instruct-UD-Q5_K_XL}"
-COEXIST_CHAT_INI="${COEXIST_CHAT_INI:-$PROJECT_ROOT/models.ini}"
-COEXIST_CODER_INI="${COEXIST_CODER_INI:-$PROJECT_ROOT/models-lab.ini}"
+COEXIST_CHAT_INI="${COEXIST_CHAT_INI:-$LLAMA_INI_DIR/models.ini}"
+COEXIST_CODER_INI="${COEXIST_CODER_INI:-$LLAMA_INI_DIR/models-lab.ini}"
 COEXIST_GTT_LIMIT_PCT="${COEXIST_GTT_LIMIT_PCT:-92}"
 COEXIST_MEM_FLOOR_MB="${COEXIST_MEM_FLOOR_MB:-8192}"
 COEXIST_FILL_RATIO="${COEXIST_FILL_RATIO:-0.85}"
@@ -233,10 +233,12 @@ stream_chat_url_bg() {
 
 prepare_coexist_gpu() {
   need_cmd docker
-  log "coexist mode — sticky + lab + embeddings + extractor all up"
-  # Keep embeddings/extractor running in production dual-warm; benches must not reclaim GTT by stopping them.
-  (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" up -d llama llama-embeddings llama-extractor)
-  (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" --profile lab up -d llama-lab)
+  log "coexist mode — sticky + lab (+ rag if already profiled)"
+  bench_docker_compose "$VK_COMPOSE" up -d llama llama-coder
+  bench_docker_compose "$VK_COMPOSE" --profile lab up -d llama-lab
+  if [[ "${COEXIST_WITH_RAG:-0}" == "1" ]]; then
+    bench_docker_compose "$VK_COMPOSE" --profile rag up -d llama-embeddings llama-extractor
+  fi
   SCHED_STARTED_LAB=1
   sleep 3
   wait_for_url "$COEXIST_CHAT_URL" 90 || die "sticky not reachable at $COEXIST_CHAT_URL"
@@ -244,7 +246,7 @@ prepare_coexist_gpu() {
 }
 
 restart_sticky() {
-  (cd "$PROJECT_ROOT" && docker compose -f "$VK_COMPOSE" up -d --force-recreate llama)
+  bench_docker_compose "$VK_COMPOSE" up -d --force-recreate llama
   sleep 5
   wait_for_url "$COEXIST_CHAT_URL" 90 || die "sticky restart failed"
 }
@@ -260,18 +262,14 @@ restart_lab_server() {
   esac
   # shellcheck source=../../lib/compose_overlay.sh
   source "$PROJECT_ROOT/tools/bench/lib/compose_overlay.sh"
-  local base="${VK_COMPOSE:-$PROJECT_ROOT/compose.yaml}"
   local overlay=""
-  local -a args=(-f "$base")
+  local -a extra=()
   if [[ "$nocb" == "1" ]]; then
     overlay="$(bench_write_nocb_overlay llama-lab 900)"
-    args+=(-f "$overlay")
+    extra+=(-f "$overlay")
   fi
   log "lab restart cont-batching=$([[ "$nocb" == "1" ]] && echo off || echo on)"
-  (
-    cd "$PROJECT_ROOT" || exit 1
-    docker compose "${args[@]}" --profile lab up -d --force-recreate llama-lab
-  )
+  bench_docker_compose "$VK_COMPOSE" "${extra[@]}" --profile lab up -d --force-recreate llama-lab
   bench_rm_overlay "$overlay"
   sleep 5
   wait_for_url "$COEXIST_CODER_URL" 90 || die "lab not reachable after restart"

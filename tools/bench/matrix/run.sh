@@ -45,7 +45,7 @@ Commands:
 
 Options:
   --profile NAME|FILE      default | full | path/to.json  (default: default)
-  --engine NAME            llama.cpp (default) | halogen-flash
+  --engine NAME            llama.cpp | halogen-flash | gufo | piper | whisper
   --from LIST              override sync_from (coder,chat,lab)
   --model NAME[,NAME…]     only these models (exact or unique substring; repeatable)
   --no-vl                  drop *-VL twins (capacity/sched/quality)
@@ -474,8 +474,8 @@ run_matrix() {
   export MATRIX_MODELS MATRIX_NO_VL MATRIX_SKIP_DUAL MATRIX_FORCE_DUAL
 
   case "$BENCH_ENGINE" in
-    halogen-flash)
-      log "engine=halogen-flash → suite HTTP backends @ ${HALOGEN_BASE_URL:-http://127.0.0.1:8731}"
+    halogen-flash|gufo)
+      log "engine=$BENCH_ENGINE → LLM HTTP backends @ $(bench_engine_default_url "$BENCH_ENGINE")"
       print_plan
       if [[ "$DRY" == "1" ]]; then
         log "dry-run — would run capacity/sched/throughput/quality HTTP backends"
@@ -487,9 +487,24 @@ run_matrix() {
         export CAPACITY_C_LIST="$CAP_C" HALOGEN_C_LIST="$CAP_C"
       fi
       chmod +x "$ROOT"/tools/bench/{capacity,throughput,scheduling}/backends/*.sh 2>/dev/null || true
-      matrix_http_run_full halogen-flash
+      matrix_http_run_full "$BENCH_ENGINE"
       write_progress "done" "$PROFILE_NAME"
-      log "matrix done (halogen-flash) — ./bench publish to update Pages"
+      log "matrix done ($BENCH_ENGINE) — ./bench publish to update Pages"
+      return 0
+      ;;
+    piper|whisper)
+      log "engine=$BENCH_ENGINE → audio suite (latency/RTF)"
+      if [[ "$DRY" == "1" ]]; then
+        log "dry-run — would run ./bench audio --engine $BENCH_ENGINE"
+        return 0
+      fi
+      mkdir -p "$OUT"
+      write_progress "start" "$PROFILE_NAME"
+      chmod +x "$ROOT/tools/bench/audio/run.sh" 2>/dev/null || true
+      BENCH_ENGINE="$BENCH_ENGINE" "$ROOT/tools/bench/audio/run.sh" --engine "$BENCH_ENGINE" \
+        || die "audio matrix failed for $BENCH_ENGINE"
+      write_progress "done" "$PROFILE_NAME"
+      log "matrix done ($BENCH_ENGINE audio) — see output/bench/audio/"
       return 0
       ;;
     llama.cpp)

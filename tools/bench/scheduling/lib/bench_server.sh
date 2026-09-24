@@ -34,19 +34,19 @@ restart_bench_server() {
     return 0
   fi
 
-  local base="${VK_COMPOSE:-$PROJECT_ROOT/compose.yaml}"
-  local bench="${BENCH_COMPOSE:-$PROJECT_ROOT/compose.bench.yaml}"
+  local base="${VK_COMPOSE}"
+  local bench="${BENCH_COMPOSE}"
   local overlay=""
-  local -a args=(-f "$base" -f "$bench")
+  local -a extra=()
+  if [[ "$bench" != "$base" ]] && [[ "$(basename "$bench")" != "$(basename "$base")" ]]; then
+    extra+=(-f "$bench")
+  fi
   if [[ "$nocb" == "1" ]]; then
     overlay="$(bench_write_nocb_overlay llama-bench-a 900)"
-    args+=(-f "$overlay")
+    extra+=(-f "$overlay")
   fi
   log "bench-a restart cont-batching=$([[ "$nocb" == "1" ]] && echo off || echo on)"
-  (
-    cd "$PROJECT_ROOT" || exit 1
-    docker compose "${args[@]}" --profile bench up -d --force-recreate llama-bench-a
-  )
+  bench_docker_compose "$base" "${extra[@]}" --profile bench up -d --force-recreate llama-bench-a
   bench_rm_overlay "$overlay"
   sleep 5
   wait_for_server

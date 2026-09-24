@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# Download GGUF models from Hugging Face into the llama-cpp folder layout.
+# Download models from Hugging Face into MODELS_ROOT layout:
+#   gguf/chat|embeddings|extractor  ·  tts/  ·  stt/  ·  hgn/<pack>/
 # Works on NixOS, Debian/Ubuntu, Fedora, Arch, etc. (installs hf CLI if missing).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MODELS_DIR="${MODELS_DIR:-$SCRIPT_DIR/models}"
+# Parent of gguf/hgn/stt/tts. Jarvis: MODELS_ROOT=$HOME/data/models
+MODELS_ROOT="${MODELS_ROOT:-$SCRIPT_DIR/models}"
+# GGUF tree mounted by llama.cpp (also used if MODELS_DIR set alone for compat)
+MODELS_DIR="${MODELS_DIR:-$MODELS_ROOT/gguf}"
 CATALOG="${CATALOG:-$SCRIPT_DIR/models.catalog.tsv}"
-INI_FILES=("$SCRIPT_DIR/models.ini" "$SCRIPT_DIR/models-embeddings.ini" "$SCRIPT_DIR/models-extractor.ini")
+INI_DIR="${LLAMA_INI_DIR:-$SCRIPT_DIR/engines/llama-cpp}"
+INI_FILES=("$INI_DIR/models.ini" "$INI_DIR/models-embeddings.ini" "$INI_DIR/models-extractor.ini")
 
 HF_CMD=""
 USE_NIX_HF=0
@@ -18,18 +23,21 @@ Usage: ./model-dl.sh <command> [options]
 Commands:
   list              Show local status for all catalog + ini models
   download          Missing models referenced by models.ini (+ embeddings/extractor)
-  download <name>   Download by partial filename (also heavy catalog entries)
+  download <name>   Download by partial filename (also heavy catalog / TTS / STT)
   install-cli       Install huggingface-cli only
-  init-dirs         Create models/ subdirectories
+  init-dirs         Create MODELS_ROOT/{gguf,hgn,stt,tts}/…
 
 Environment:
-  MODELS_DIR        Target models root (default: ./models)
+  MODELS_ROOT       Parent tree (default: ./models) — gguf/ hgn/ stt/ tts/
+  MODELS_DIR        GGUF root for llama (default: $MODELS_ROOT/gguf)
+  LLAMA_INI_DIR     Live models*.ini dir (default: ./engines/llama-cpp)
   CATALOG           Catalog TSV path (default: ./models.catalog.tsv)
   HF_TOKEN          Hugging Face token (gated models)
   HF_HUB_ENABLE_HF_TRANSFER=1   Faster downloads (needs hf_transfer)
 
 Catalog format (models.catalog.tsv):
   local_filename<TAB>subdir<TAB>hf_repo<TAB>remote_filename
+  subdir relative to MODELS_ROOT (e.g. gguf/chat/large, tts, stt)
 EOF
 }
 
@@ -170,13 +178,28 @@ ensure_hf_cli() {
 
 init_dirs() {
   mkdir -p \
-    "$MODELS_DIR/chat/large" \
-    "$MODELS_DIR/chat/medium" \
-    "$MODELS_DIR/chat/small" \
-    "$MODELS_DIR/embeddings" \
-    "$MODELS_DIR/extractor" \
-    "$MODELS_DIR/multimodal"
-  log "Directories ready under $MODELS_DIR"
+    "$MODELS_ROOT/gguf/chat/large" \
+    "$MODELS_ROOT/gguf/chat/medium" \
+    "$MODELS_ROOT/gguf/chat/small" \
+    "$MODELS_ROOT/gguf/embeddings" \
+    "$MODELS_ROOT/gguf/extractor" \
+    "$MODELS_ROOT/gguf/multimodal" \
+    "$MODELS_ROOT/hgn" \
+    "$MODELS_ROOT/stt" \
+    "$MODELS_ROOT/tts" \
+    "$MODELS_ROOT/.cache/hf-dl"
+  # Keep MODELS_DIR pointing at gguf tree for callers
+  MODELS_DIR="${MODELS_DIR:-$MODELS_ROOT/gguf}"
+  log "Directories ready under $MODELS_ROOT (gguf → $MODELS_DIR)"
+}
+
+# Normalize catalog subdir to MODELS_ROOT-relative path.
+normalize_subdir() {
+  local sub="$1"
+  case "$sub" in
+    gguf/*|hgn/*|stt/*|tts/*|hgn|stt|tts) printf '%s' "$sub" ;;
+    *) printf 'gguf/%s' "$sub" ;;
+  esac
 }
 
 # --- catalog parsing ---
@@ -205,6 +228,7 @@ load_catalog() {
     remote="${remote#"${remote%%[![:space:]]*}"}"
     remote="${remote%"${remote##*[![:space:]]}"}"
     [[ -n "$local_name" && -n "$subdir" ]] || continue
+    subdir="$(normalize_subdir "$subdir")"
     CAT_SUBDIR["$local_name"]="$subdir"
     CAT_REPO["$local_name"]="${repo:-}"
     CAT_REMOTE["$local_name"]="${remote:-$local_name}"
@@ -234,7 +258,8 @@ model_dest() {
   local name="$1"
   local sub="${CAT_SUBDIR[$name]:-}"
   [[ -n "$sub" ]] || die "No subdir in catalog for: $name"
-  printf '%s/%s/%s' "$MODELS_DIR" "$sub" "$name"
+  sub="$(normalize_subdir "$sub")"
+  printf '%s/%s/%s' "$MODELS_ROOT" "$sub" "$name"
 }
 
 is_present() {
@@ -260,8 +285,9 @@ download_one() {
   init_dirs
   ensure_hf_cli
   subdir="$(dirname "$dest")"
+  mkdir -p "$subdir"
   # Persistent staging dir so interrupted downloads can resume (not mktemp).
-  tmp="$MODELS_DIR/.cache/hf-dl/${name%.gguf}"
+  tmp="$MODELS_ROOT/.cache/hf-dl/${name}"
   mkdir -p "$tmp"
 
   log "download: $repo :: $remote -> $dest (staging $tmp)"

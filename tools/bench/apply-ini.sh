@@ -4,15 +4,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=lib/paths.sh
+source "$SCRIPT_DIR/lib/paths.sh"
 # shellcheck source=lib/python.sh
 source "$SCRIPT_DIR/lib/python.sh"
 
 DRY_RUN=0
 TARGET="lab"
 SUMMARY="${BENCH_APPLY_SUMMARY:-$PROJECT_ROOT/output/bench/scheduling/latest/summary.json}"
-INI_LAB="$PROJECT_ROOT/models-lab.ini"
-INI_DAILY="$PROJECT_ROOT/models.ini"
-INI_CODER="$PROJECT_ROOT/models-coder.ini"
+INI_LAB="$LLAMA_INI_DIR/models-lab.ini"
+INI_DAILY="$LLAMA_INI_DIR/models.ini"
+INI_CODER="$LLAMA_INI_DIR/models-coder.ini"
 BACKUP=1
 PLAN_FILE=""
 

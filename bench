@@ -29,6 +29,8 @@ SYNC_MODELS="$ROOT/tools/bench/sync-models-from-disk.sh"
 APPLY_INI="$ROOT/tools/bench/apply-ini.sh"
 BUILD_INDEX="$ROOT/tools/bench/build-index.sh"
 PUBLISH_DOCS="$ROOT/tools/bench/publish-docs.sh"
+SMOKE="$ROOT/tools/bench/smoke.sh"
+AUDIO="$ROOT/tools/bench/audio/run.sh"
 
 [[ -x "$THROUGHPUT" ]] || chmod +x "$THROUGHPUT" 2>/dev/null || true
 [[ -x "$SCHED" ]] || chmod +x "$SCHED" 2>/dev/null || true
@@ -46,27 +48,30 @@ Usage: ./bench [command] [options]
 Commands:
   (none) | interactive     goal-based menu (best for first runs)
   recipes | goals          print “what to run” cheat sheet
-  throughput | thr | t     PP/TG speed ranking (stops routers)
-  sched | scheduling | s   sticky feel: np/ub under load (bench-a :11601)
-  quality | q              HumanEval / plugins (bench-a :11601)
-  capacity | cap           memory fit KV×ctx + optional dual (bench-a/b)
-  halogen | halo           Halogen Flash full matrix (HTTP :8731 — server must be up)
-  matrix | m               multi-suite (--profile full|default · --engine llama.cpp|halogen-flash)
-  sync-models              scan ./models → lab/emb/extractor INIs
+  smoke                    multi-engine HTTP health (all engines)
+  audio                    Piper latency / Whisper RTF (--engine piper|whisper)
+  throughput | thr | t     PP/TG (llama native or --engine halogen-flash|gufo)
+  sched | scheduling | s   load latency (llama; dual_llm = two llama routers, optional)
+  quality | q              HumanEval (--engine for HTTP LLMs)
+  capacity | cap           memory fit (llama · http for halogen/gufo)
+  halogen | halo           Halogen Flash full matrix (compat → matrix --engine)
+  matrix | m               multi-suite (--engine llama.cpp|halogen-flash|gufo|piper|whisper)
+  sync-models              scan MODELS_DIR → lab/emb/extractor INIs
   list | compare | compare-sched | apply-ini | index | publish | probe-host
   help                     this help
 
-Most people only need throughput (A). Dual capacity is optional (needs RAM for 2 stickys).
+Stack (any engines):
+  ./stack up [llama,halogen,gufo,piper,whisper]
+  ./stack status
 
-Quick recipes (full table: ./bench recipes):
-  ./bench throughput --vulkan -m Qwen3.6 -m Tiel
-  SCHED_MODEL=Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL ./bench sched --auto
-  ./bench capacity kv-ctx --from coder,chat,lab --model Tiel-Coder-35B,Qwen3.6-35B
-  ./bench capacity dual --from coder,chat,lab --model Tiel-Coder-35B   # skip if <~64GiB
-  ./bench quality humaneval --model Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL --limit 20
-  ./bench matrix --profile full --model Tiel-Coder-35B,Cyber-Tiel,Qwen3.6-35B
+Quick recipes:
+  ./stack up llama,piper,whisper && ./bench smoke
+  ./bench audio --engine piper,whisper
+  ./bench matrix --engine halogen-flash
+  ./bench matrix --engine piper
+  ./bench throughput --vulkan -m Qwen3.6
 
-See: tools/bench/README.md
+See: tools/bench/README.md · engines/README.md
 EOF
 }
 
@@ -80,7 +85,14 @@ Bench recipes — pick a goal (you do NOT need every suite)
 
   B. Sticky feel (np / ub under load)  ~1–4 h per model
      SCHED_MODEL=SECTION_NAME ./bench sched --auto
-     (bench-a :11601 — stickys stopped then restored; coexist uses lab :11537)
+     (bench-a :11601 — stickys stopped then restored)
+
+  B2. Two llama LLMs at once (dual_llm / coexist_capacity)
+     ONLY sticky chat + lab/coder under KV/GTT load — NOT piper/whisper/halogen.
+     COEXIST_CHAT_MODEL=… COEXIST_CODER_MODEL=… ./bench sched --scenario dual_llm
+
+  Multi-engine stack health (not a load bench):
+     ./stack up llama,piper,whisper && ./bench smoke
 
   C. Max context solo (does it fit?)   ~1–8 h
      ./bench capacity kv-ctx --from coder,chat,lab --model NAME[,NAME…]
@@ -99,11 +111,12 @@ Bench recipes — pick a goal (you do NOT need every suite)
      Dual separately if needed: ./bench capacity dual …  (or --profile default)
      tmux new -s bench './bench matrix --profile full --model …'
 
-Routers:
-  sticky chat/coder  :11535 / :11538   daily use
-  lab                :11537            experiments / coexist
-  bench-a / bench-b  :11601 / :11602   capacity + quality + sched
-  llama-bench        one-shot          throughput (stickys stopped)
+Routers / engines:
+  llama sticky/coder  :11535 / :11538
+  llama lab           :11537   (dual_llm scenario)
+  llama bench-a/b     :11601 / :11602
+  halogen / gufo      :8731 / :8080
+  whisper / piper     :9000 / :9001
 
 Interactive:  ./bench
 EOF
@@ -327,6 +340,16 @@ case "$cmd" in
     shift
     [[ -x "$SYNC_MODELS" ]] || chmod +x "$SYNC_MODELS" 2>/dev/null || true
     exec "$SYNC_MODELS" "$@"
+    ;;
+  smoke)
+    shift
+    [[ -x "$SMOKE" ]] || chmod +x "$SMOKE" 2>/dev/null || true
+    exec "$SMOKE" "$@"
+    ;;
+  audio|tts|stt)
+    shift
+    [[ -x "$AUDIO" ]] || chmod +x "$AUDIO" 2>/dev/null || true
+    exec "$AUDIO" "$@"
     ;;
   publish)
     [[ -x "$PUBLISH_DOCS" ]] || chmod +x "$PUBLISH_DOCS" 2>/dev/null || true

@@ -1,14 +1,20 @@
-# Sticky chat (:11535) + sticky coder (:11538) + embeddings (:11536) + extractor (:11539).
-# Lab swap pool (:11537):
-#   docker compose up -d
-#   docker compose --profile lab up -d
-# Capacity bench routers (:11601 / :11602) — stickys untouched:
-#   docker compose -f compose.yaml -f compose.bench.yaml --profile bench up -d llama-bench-a
+# Sticky chat (:11535) + sticky coder (:11538) always.
+# Optional profiles:
+#   --profile rag    → embeddings (:11536) + extractor (:11539)
+#   --profile lab    → lab swap pool (:11537)
+#   --profile bench  → capacity routers :11601 / :11602 (stickys untouched)
 #
-# Web UI: LLAMA_WEBUI=false in .env → API-only (see .env.example). Default: true.
+# From engines/llama-cpp/:
+#   docker compose --env-file ../../.env up -d
+#   docker compose --env-file ../../.env --profile rag --profile lab up -d
+#   docker compose --env-file ../../.env --profile bench up -d llama-bench-a
 #
-# Image: llama-cpp-vulkan-nix (Nix-native OCI, kein Ubuntu-Base)
-# Build:  ./build-nix-image.sh
+# Weights: MODELS_DIR (GGUF tree). Default ../../models/gguf
+#   Jarvis: MODELS_DIR=$HOME/data/models/gguf
+# Web UI: LLAMA_WEBUI=false in .env → API-only. Default: true.
+#
+# Image: llama-cpp-vulkan-nix — build: ./build-nix-image.sh
+# Other AMD: compose.rocm.yaml (see HARDWARE.md). No NVIDIA/CUDA in this repo.
 name: llama-cpp-vulkan
 
 x-llama-gpu: &llama-gpu
@@ -36,7 +42,7 @@ services:
     <<: *llama-gpu
     container_name: llama-router
     volumes:
-      - ./models:/models
+      - ${MODELS_DIR:-../../models/gguf}:/models
       - ./models.ini:/etc/llama-cpp/models.ini:ro
       - /dev/dri:/dev/dri
       - *entrypoint-mount
@@ -54,7 +60,7 @@ services:
     <<: *llama-gpu
     container_name: llama-router-coder
     volumes:
-      - ./models:/models
+      - ${MODELS_DIR:-../../models/gguf}:/models
       - ./models-coder.ini:/etc/llama-cpp/models.ini:ro
       - /dev/dri:/dev/dri
       - *entrypoint-mount
@@ -73,7 +79,7 @@ services:
     profiles: ["lab"]
     container_name: llama-router-lab
     volumes:
-      - ./models:/models
+      - ${MODELS_DIR:-../../models/gguf}:/models
       - ./models-lab.ini:/etc/llama-cpp/models.ini:ro
       - /dev/dri:/dev/dri
       - *entrypoint-mount
@@ -90,9 +96,10 @@ services:
 
   llama-embeddings:
     <<: *llama-gpu
+    profiles: ["rag"]
     container_name: llama-embeddings
     volumes:
-      - ./models:/models
+      - ${MODELS_DIR:-../../models/gguf}:/models
       - ./models-embeddings.ini:/etc/llama-cpp/models-embeddings.ini:ro
       - /dev/dri:/dev/dri
       - *entrypoint-mount
@@ -108,9 +115,10 @@ services:
 
   llama-extractor:
     <<: *llama-gpu
+    profiles: ["rag"]
     container_name: llama-extractor
     volumes:
-      - ./models:/models
+      - ${MODELS_DIR:-../../models/gguf}:/models
       - ./models-extractor.ini:/etc/llama-cpp/models-extractor.ini:ro
       - /dev/dri:/dev/dri
       - *entrypoint-mount
@@ -122,4 +130,47 @@ services:
         "--port", "8080",
         "--models-preset", "/etc/llama-cpp/models-extractor.ini",
         "--models-max", "1",
+      ]
+
+  # Capacity / quality / sched isolation (not started with plain `up -d`)
+  llama-bench-a:
+    <<: *llama-gpu
+    profiles: ["bench"]
+    container_name: llama-bench-a
+    restart: "no"
+    volumes:
+      - ${MODELS_DIR:-../../models/gguf}:/models
+      - ./models-bench.ini:/etc/llama-cpp/models.ini:ro
+      - /dev/dri:/dev/dri
+      - *entrypoint-mount
+    ports:
+      - "11601:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+        "--sleep-idle-seconds", "900",
+      ]
+
+  llama-bench-b:
+    <<: *llama-gpu
+    profiles: ["bench"]
+    container_name: llama-bench-b
+    restart: "no"
+    volumes:
+      - ${MODELS_DIR:-../../models/gguf}:/models
+      - ./models-bench-b.ini:/etc/llama-cpp/models.ini:ro
+      - /dev/dri:/dev/dri
+      - *entrypoint-mount
+    ports:
+      - "11602:8080"
+    command:
+      [
+        "--host", "0.0.0.0",
+        "--port", "8080",
+        "--models-preset", "/etc/llama-cpp/models.ini",
+        "--models-max", "1",
+        "--sleep-idle-seconds", "900",
       ]

@@ -1,0 +1,452 @@
+#!/usr/bin/env bash
+# Start / stop / status / setup for any mix of engines.
+#
+#   ./stack                 # interactive menu (recommended)
+#   ./stack setup           # first-boot wizard
+#   ./stack up|down|status|restart [engines]
+#
+# Engines: llama | halogen | gufo | piper | whisper
+# llama: LLAMA_SERVICES=… (subset) OR LLAMA_PROFILES=rag,lab
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
+# shellcheck source=tools/bench/lib/paths.sh
+PROJECT_ROOT="$ROOT"
+source "$ROOT/tools/bench/lib/paths.sh"
+
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+log() { printf '==> %s\n' "$*"; }
+
+usage() {
+  cat <<'EOF'
+Usage: ./stack [<command>] [engine[,engine…]]
+
+  (no args)     interactive menu
+  setup         first-boot: .env → models → image → up → smoke
+  status|st     HTTP probes + paths
+  up|start      start STACK_ENGINES (or listed engines)
+  down|stop     stop
+  restart       down + up
+  defaults      pick a preset stack into .env
+  models        list missing/present weights (model-dl.sh list)
+  help
+
+Engines: llama · halogen · gufo · piper · whisper
+
+Env (edit in .env — template: .env.example):
+  STACK_ENGINES=halogen,llama,piper,whisper
+  LLAMA_SERVICES=llama-embeddings
+  LLAMA_DAILY_SERVICES=llama-embeddings
+  MODELS_ROOT / MODELS_DIR / HALOGEN_MODELS / TTS_MODELS / STT_MODELS
+EOF
+}
+
+read_tty() {
+  local _var="$1" _prompt="$2"
+  if [[ -r /dev/tty ]]; then
+    read -r -p "$_prompt" "$_var" </dev/tty
+  elif [[ -t 0 ]]; then
+    read -r -p "$_prompt" "$_var"
+  else
+    die "needs a terminal (try ./stack help)"
+  fi
+}
+
+pick() {
+  local prompt="$1"; shift
+  local -a opts=("$@")
+  local i choice default=1
+  { echo ""; echo "$prompt"; } >&2
+  for i in "${!opts[@]}"; do
+    printf '  %d) %s\n' "$((i + 1))" "${opts[$i]}" >&2
+  done
+  read_tty choice "Choice [${default}]: "
+  choice="${choice:-$default}"
+  [[ "$choice" =~ ^[0-9]+$ ]] || die "invalid choice: $choice"
+  (( choice >= 1 && choice <= ${#opts[@]} )) || die "invalid choice: $choice"
+  printf '%s\n' "${opts[$((choice - 1))]}"
+}
+
+yn() {
+  local prompt="$1" def="${2:-y}" ans
+  read_tty ans "$prompt [$def]: "
+  ans="${ans:-$def}"
+  case "${ans,,}" in
+    y|yes|j|ja) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+normalize_list() {
+  local raw="${1:-}"
+  raw="${raw// /}"
+  printf '%s' "$raw"
+}
+
+ensure_env_file() {
+  if [[ -f "$ROOT/.env" ]]; then
+    return 0
+  fi
+  log "no .env — copying .env.example"
+  [[ -f "$ROOT/.env.example" ]] || die "missing .env.example"
+  cp "$ROOT/.env.example" "$ROOT/.env"
+  echo "  wrote $ROOT/.env — edit paths if needed (Jarvis: ~/data/models)."
+}
+
+reload_env() {
+  if [[ -f "$ROOT/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$ROOT/.env"
+    set +a
+  fi
+  PROJECT_ROOT="$ROOT"
+  # shellcheck source=tools/bench/lib/paths.sh
+  source "$ROOT/tools/bench/lib/paths.sh"
+}
+
+# Set or replace a KEY=value line in .env (creates file from example if needed).
+env_set() {
+  local key="$1" val="$2"
+  ensure_env_file
+  local tmp
+  tmp="$(mktemp)"
+  if grep -qE "^[# ]*${key}=" "$ROOT/.env" 2>/dev/null; then
+    # shellcheck disable=SC2016
+    awk -v k="$key" -v v="$val" '
+      BEGIN { done=0 }
+      $0 ~ "^[# ]*"k"=" && !done { print k"="v; done=1; next }
+      { print }
+      END { if (!done) print k"="v }
+    ' "$ROOT/.env" >"$tmp"
+  else
+    cat "$ROOT/.env" >"$tmp"
+    printf '%s=%s\n' "$key" "$val" >>"$tmp"
+  fi
+  mv "$tmp" "$ROOT/.env"
+}
+
+engine_compose_up() {
+  local eng="$1"
+  case "$eng" in
+    llama|llama.cpp|llamacpp)
+      local -a profiles=() args=() svc=()
+      local p s
+      if [[ -n "${LLAMA_SERVICES:-}" ]]; then
+        IFS=',' read -r -a svc <<< "${LLAMA_SERVICES}"
+        for s in "${svc[@]}"; do
+          s="${s// /}"
+          [[ -n "$s" ]] || continue
+          args+=("$s")
+          case "$s" in
+            llama-embeddings|llama-extractor) profiles+=(--profile rag) ;;
+            llama-lab) profiles+=(--profile lab) ;;
+            llama-bench-a|llama-bench-b) profiles+=(--profile bench) ;;
+          esac
+        done
+        local -a uniq=()
+        for p in "${profiles[@]}"; do
+          [[ " ${uniq[*]} " == *" $p "* ]] && continue
+          uniq+=("$p")
+        done
+        log "llama up services only: ${args[*]}"
+        bench_docker_compose "$VK_COMPOSE" "${uniq[@]}" up -d "${args[@]}"
+      else
+        IFS=',' read -r -a _profs <<< "${LLAMA_PROFILES:-}"
+        for p in "${_profs[@]}"; do
+          [[ -n "$p" ]] || continue
+          profiles+=(--profile "$p")
+        done
+        log "llama up sticky+coder (profiles: ${LLAMA_PROFILES:-none})"
+        bench_docker_compose "$VK_COMPOSE" "${profiles[@]}" up -d
+      fi
+      ;;
+    halogen|halogen-flash)
+      [[ -n "${HALOGEN_MODELS:-}" && -d "${HALOGEN_MODELS}" ]] \
+        || die "set HALOGEN_MODELS to hgn pack dir (*.hgn + tokenizer/) — ./stack setup or edit .env"
+      log "halogen up HALOGEN_MODELS=$HALOGEN_MODELS"
+      (cd "$ENGINE_HALOGEN_DIR" && \
+        HALOGEN_MODELS="$HALOGEN_MODELS" \
+        docker compose --env-file "$ROOT/.env" -f compose.yaml up -d)
+      ;;
+    gufo)
+      [[ -n "${GUFO_MODELS:-}" && -d "${GUFO_MODELS}" ]] \
+        || die "set GUFO_MODELS (host dir mounted at /models)"
+      [[ -n "${GUFO_MODEL:-}" ]] || die "set GUFO_MODEL (/models/… path inside container)"
+      log "gufo up"
+      (cd "$ENGINE_GUFO_DIR" && \
+        GUFO_MODELS="$GUFO_MODELS" GUFO_MODEL="$GUFO_MODEL" \
+        docker compose --env-file "$ROOT/.env" -f compose.yaml up -d)
+      ;;
+    piper|tts)
+      log "piper up TTS_MODELS=$TTS_MODELS"
+      (cd "$ENGINE_PIPER_DIR" && \
+        TTS_MODELS="$TTS_MODELS" \
+        docker compose --env-file "$ROOT/.env" -f compose.yaml up -d --build)
+      ;;
+    whisper|stt|whisper-cpp)
+      log "whisper up STT_MODELS=$STT_MODELS"
+      (cd "$ENGINE_WHISPER_DIR" && \
+        STT_MODELS="$STT_MODELS" \
+        docker compose --env-file "$ROOT/.env" -f compose.yaml up -d --build)
+      ;;
+    *) die "unknown engine: $eng (llama|halogen|gufo|piper|whisper)" ;;
+  esac
+}
+
+engine_compose_down() {
+  local eng="$1"
+  case "$eng" in
+    llama|llama.cpp|llamacpp)
+      log "llama down"
+      bench_docker_compose "$VK_COMPOSE" --profile rag --profile lab --profile bench down 2>/dev/null \
+        || bench_docker_compose "$VK_COMPOSE" down 2>/dev/null || true
+      ;;
+    halogen|halogen-flash)
+      log "halogen down"
+      (cd "$ENGINE_HALOGEN_DIR" && docker compose -f compose.yaml down 2>/dev/null) || true
+      ;;
+    gufo)
+      log "gufo down"
+      (cd "$ENGINE_GUFO_DIR" && docker compose -f compose.yaml down 2>/dev/null) || true
+      ;;
+    piper|tts)
+      log "piper down"
+      (cd "$ENGINE_PIPER_DIR" && docker compose -f compose.yaml down 2>/dev/null) || true
+      ;;
+    whisper|stt|whisper-cpp)
+      log "whisper down"
+      (cd "$ENGINE_WHISPER_DIR" && docker compose -f compose.yaml down 2>/dev/null) || true
+      ;;
+    *) die "unknown engine: $eng" ;;
+  esac
+}
+
+probe() {
+  local name="$1" url="$2"
+  if curl -sfS --max-time 3 "$url" >/dev/null 2>&1; then
+    printf '  %-12s OK  %s\n' "$name" "$url"
+    return 0
+  fi
+  printf '  %-12s --  %s\n' "$name" "$url"
+  return 1
+}
+
+stack_status() {
+  echo "Engine endpoints (HTTP smoke):"
+  probe "halogen"  "http://127.0.0.1:8731/v1/models" || true
+  probe "embeddings" "http://127.0.0.1:11536/v1/models" || true
+  probe "piper"    "http://127.0.0.1:${PIPER_PUBLISH_PORT:-9001}/" || true
+  probe "whisper"  "http://127.0.0.1:${WHISPER_PUBLISH_PORT:-9000}/" || true
+  probe "llama"    "http://127.0.0.1:11535/v1/models" || true
+  probe "llama-coder" "http://127.0.0.1:11538/v1/models" || true
+  probe "gufo"     "http://127.0.0.1:${GUFO_PUBLISH_PORT:-8080}/ready" || \
+    probe "gufo"   "http://127.0.0.1:${GUFO_PUBLISH_PORT:-8080}/v1/models" || true
+  echo ""
+  echo "STACK_ENGINES=${STACK_ENGINES:-unset}"
+  echo "LLAMA_SERVICES=${LLAMA_SERVICES:-unset}  LLAMA_DAILY_SERVICES=${LLAMA_DAILY_SERVICES-unset}"
+  echo "Weights:"
+  echo "  MODELS_ROOT=${MODELS_ROOT:-?}"
+  echo "  MODELS_DIR=${MODELS_DIR:-?}"
+  echo "  HALOGEN_MODELS=${HALOGEN_MODELS:-unset}"
+  echo "  TTS_MODELS=${TTS_MODELS:-?}  STT_MODELS=${STT_MODELS:-?}"
+  echo "  .env: ${ROOT}/.env$([ -f "$ROOT/.env" ] && echo ' (ok)' || echo ' (missing — ./stack setup)')"
+}
+
+resolve_engines() {
+  local arg="${1:-}"
+  local list
+  if [[ -n "$arg" ]]; then
+    list="$(normalize_list "$arg")"
+  else
+    list="$(normalize_list "${STACK_ENGINES:-halogen,llama,piper,whisper}")"
+  fi
+  [[ -n "$list" ]] || die "no engines (set STACK_ENGINES or pass llama,piper,…)"
+  printf '%s' "$list"
+}
+
+stack_up() {
+  local list engs e
+  list="$(resolve_engines "${1:-}")"
+  IFS=',' read -r -a engs <<< "$list"
+  for e in "${engs[@]}"; do
+    [[ -n "$e" ]] || continue
+    engine_compose_up "$e"
+  done
+  echo ""
+  stack_status
+}
+
+stack_down() {
+  local list engs e
+  list="$(resolve_engines "${1:-}")"
+  IFS=',' read -r -a engs <<< "$list"
+  for e in "${engs[@]}"; do
+    [[ -n "$e" ]] || continue
+    engine_compose_down "$e"
+  done
+}
+
+cmd_defaults() {
+  local choice root_models
+  ensure_env_file
+  choice="$(pick 'Default stack preset (writes .env):' \
+    'Home: Halogen + embeddings + TTS + STT (no sticky/coder)' \
+    'Llama sticky + coder only' \
+    'Llama sticky+coder + TTS + STT' \
+    'Cancel')"
+  case "$choice" in
+    Home*|*'Halogen'*)
+      env_set STACK_ENGINES "halogen,llama,piper,whisper"
+      env_set LLAMA_SERVICES "llama-embeddings"
+      env_set LLAMA_DAILY_SERVICES "llama-embeddings"
+      env_set SMOKE_ENGINES "halogen,piper,whisper"
+      ;;
+    *'sticky + coder only'*)
+      env_set STACK_ENGINES "llama"
+      env_set LLAMA_SERVICES ""
+      env_set LLAMA_DAILY_SERVICES "llama,llama-coder"
+      # clear LLAMA_SERVICES line meaning: remove key so unset
+      sed -i '/^LLAMA_SERVICES=/d' "$ROOT/.env" 2>/dev/null || true
+      env_set SMOKE_ENGINES "llama"
+      ;;
+    *'TTS + STT'*)
+      env_set STACK_ENGINES "llama,piper,whisper"
+      sed -i '/^LLAMA_SERVICES=/d' "$ROOT/.env" 2>/dev/null || true
+      env_set LLAMA_DAILY_SERVICES "llama,llama-coder"
+      env_set SMOKE_ENGINES "llama,piper,whisper"
+      ;;
+    *) echo "cancelled."; return 0 ;;
+  esac
+  if yn "Set MODELS_ROOT to ~/data/models (Jarvis)?" n; then
+    root_models="${HOME}/data/models"
+    env_set MODELS_ROOT "$root_models"
+    env_set MODELS_DIR "$root_models/gguf"
+    env_set TTS_MODELS "$root_models/tts"
+    env_set STT_MODELS "$root_models/stt"
+    env_set HALOGEN_MODELS "$root_models/hgn/qwen38flash"
+  fi
+  reload_env
+  log "updated .env — review: $ROOT/.env"
+  stack_status
+}
+
+cmd_models_interactive() {
+  ensure_env_file
+  reload_env
+  "$ROOT/model-dl.sh" init-dirs
+  echo ""
+  "$ROOT/model-dl.sh" list || true
+  echo ""
+  if yn "Download missing models referenced by live models*.ini?" y; then
+    "$ROOT/model-dl.sh" download || true
+  else
+    log "skip download"
+  fi
+  echo ""
+  echo "Halogen (.hgn packs) are not auto-fetched — place under HALOGEN_MODELS:"
+  echo "  ${HALOGEN_MODELS:-unset}"
+  if [[ -n "${HALOGEN_MODELS:-}" && ! -d "${HALOGEN_MODELS}" ]]; then
+    warn_hgn=1
+    echo "  WARNING: directory missing"
+  fi
+  if yn "Download a catalog entry by name filter (TTS/STT/extra)?" n; then
+    local filt
+    read_tty filt "Partial name (e.g. thorsten, whisper, Qwen): "
+    [[ -n "$filt" ]] && "$ROOT/model-dl.sh" download "$filt"
+  fi
+}
+
+cmd_setup() {
+  echo "=== stack setup (first boot) ==="
+  ensure_env_file
+  reload_env
+
+  if yn "Pick a default stack preset now?" y; then
+    cmd_defaults
+    reload_env
+  fi
+
+  # Live INIs for embeddings if missing
+  if [[ ! -f "$ENGINE_LLAMA_DIR/models-embeddings.ini" ]] \
+    && [[ -f "$ENGINE_LLAMA_DIR/presets/ini/models.ini" ]]; then
+    if yn "No models-embeddings.ini — copy preset stubs into engines/llama-cpp/?" y; then
+      cp -n "$ENGINE_LLAMA_DIR/presets/ini/"models*.ini "$ENGINE_LLAMA_DIR/" 2>/dev/null || true
+      log "copied presets (edit paths to match MODELS_DIR)"
+    fi
+  fi
+
+  cmd_models_interactive
+
+  if ! docker image inspect llama-cpp-vulkan-nix:latest >/dev/null 2>&1 \
+    && ! docker image inspect llama-cpp-vulkan-nix >/dev/null 2>&1; then
+    if yn "llama Vulkan image missing — build now (fetch + nix, slow)?" y; then
+      [[ -x "$ROOT/scripts/fetch-llama.sh" ]] && "$ROOT/scripts/fetch-llama.sh"
+      [[ -x "$ENGINE_LLAMA_DIR/build-nix-image.sh" ]] && "$ENGINE_LLAMA_DIR/build-nix-image.sh"
+    else
+      log "skip image build — embeddings/llama will fail until built"
+    fi
+  else
+    log "llama-cpp-vulkan-nix image present"
+  fi
+
+  if yn "Start stack now (./stack up)?" y; then
+    stack_up
+  fi
+  if yn "Run smoke check?" y; then
+    "$ROOT/bench" smoke || true
+  fi
+  echo ""
+  log "done. Later: ./stack   or   ./stack up|status|down"
+}
+
+interactive() {
+  local kind
+  { echo "=== stack ==="
+    echo "Defaults live in .env  ·  weights in MODELS_ROOT  ·  Ctrl+C abort"
+  } >&2
+  kind="$(pick 'What do you want?' \
+    '1) Status — what is up / where are weights' \
+    '2) Start stack (STACK_ENGINES)' \
+    '3) Stop stack' \
+    '4) Setup wizard (env + models download/skip + up)' \
+    '5) Change default preset (.env)' \
+    '6) List / download models' \
+    '7) Help' \
+    'Quit')"
+  case "$kind" in
+    *Status*) stack_status ;;
+    *Start*) stack_up ;;
+    *Stop*) stack_down ;;
+    *Setup*) cmd_setup ;;
+    *preset*|*Change*) cmd_defaults ;;
+    *download*|*List*) cmd_models_interactive ;;
+    *Help*) usage ;;
+    *) echo "bye." ;;
+  esac
+}
+
+cmd="${1:-}"
+shift || true
+case "$cmd" in
+  ""|i|interactive|menu) interactive ;;
+  setup|wizard|first-boot) cmd_setup ;;
+  defaults|preset|presets) cmd_defaults ;;
+  models|weights) cmd_models_interactive ;;
+  -h|--help|help) usage ;;
+  status|st) stack_status ;;
+  up|start) stack_up "${1:-}" ;;
+  down|stop) stack_down "${1:-}" ;;
+  restart)
+    stack_down "${1:-}"
+    stack_up "${1:-}"
+    ;;
+  *) die "unknown command: $cmd (try ./stack help)" ;;
+esac

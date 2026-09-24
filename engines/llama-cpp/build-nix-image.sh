@@ -10,7 +10,8 @@
 #   ./build-nix-image.sh --dry-run  # zeigt was gebaut werden würde
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENGINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$ENGINE_DIR/../.." && pwd)"
 LLAMA_SRC="$ROOT/.build/llama.cpp"
 IMAGE_NAME="llama-cpp-vulkan-nix"
 RESULT_LINK="$ROOT/.build/nix-image-result"
@@ -20,7 +21,7 @@ DRY_RUN=0
 
 if [[ ! -d "$LLAMA_SRC/.git" && ! -f "$LLAMA_SRC/flake.nix" ]]; then
   echo "error: llama.cpp source missing at $LLAMA_SRC" >&2
-  echo "  Run: ./scripts/fetch-llama.sh" >&2
+  echo "  Run: $ROOT/scripts/fetch-llama.sh" >&2
   exit 1
 fi
 
@@ -93,4 +94,4 @@ docker load < "$RESULT_LINK"
 
 echo ""
 echo "✓ Fertig! Image: ${IMAGE_NAME}:latest"
-echo "  Jetzt: docker compose up -d"
+echo "  Jetzt: cd $ENGINE_DIR && docker compose --env-file $ROOT/.env up -d"

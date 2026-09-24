@@ -34,38 +34,38 @@ tools/bench/
   halogen/                                           # compat shim → matrix/suites + --engine
 ```
 
-**Routers:** sticky `:11535`/`:11538` · lab `:11537` (coexist) · bench `:11601`/`:11602` (capacity/quality/sched) · llama-bench one-shot (throughput) · Halogen Flash API `:8731` (`BENCH_ENGINE=halogen-flash`).
+**Equal engine contract:** compose + `lib/engines/<id>.sh` + `./stack` + `./bench smoke` + `./bench matrix --engine <id>`.
+Audio engines use `./bench audio` (also via matrix). llama multi-sticky / `profile bench` are **optional extras** via the llama adapter (`LLAMA_DAILY_SERVICES`), not the default path for other engines.
+
+**`dual_llm` / `coexist_capacity`:** two **llama.cpp** routers under KV/GTT only. Stack health: `./bench smoke`.
 
 ## Engines (unified `--engine` + lifecycle)
 
-Same matrix profile for every runtime — pick the engine; lifecycle is per-adapter; HTTP suites use `*/backends/http.sh`:
+Compose glue: [`engines/`](../../engines/README.md). Same matrix profile for every runtime:
 
 ```bash
-# llama.cpp (bench-a) — default if --engine omitted
-./bench matrix --profile full --engine llama.cpp --model Tiel-Coder-35B,Qwen3.6-35B
+# LLM engines
+./bench matrix --profile full --engine llama.cpp
+./bench matrix --profile full --engine halogen-flash
+./bench matrix --profile full --engine gufo
 
-# Halogen Flash — auto compose up/down + stop/restore stickys
-export HALOGEN_MODELS=~/Documents/halogen-flash-server/models   # weights dir (*.hgn + tokenizer/)
-./bench matrix --profile full --engine halogen-flash              # model ids from /v1/models
-./bench capacity http --engine halogen-flash
-./bench throughput --engine halogen-flash
-./bench sched --engine halogen-flash
+# Audio engines (latency / RTF)
+./bench matrix --engine piper
+./bench matrix --engine whisper
+./bench audio --engine piper,whisper
 ```
 
-| Env | Meaning |
+| Env / CLI | Meaning |
 |-----|---------|
-| `HALOGEN_MODELS` | **Weights directory** for compose (not API model ids) |
-| `HALOGEN_COMPOSE` | Compose file (absolute or repo-relative; default `compose.halogen-flash-server.yaml`) |
-| `HALOGEN_COMPOSE_DIR` | Working dir for `docker compose` (default: dirname of compose file) |
-| `--model` / `MATRIX_MODELS` | API model id(s) from `/v1/models` |
-| `BENCH_ENGINE_SKIP_LIFECYCLE=1` | BYO server — no compose up/down |
-| `BENCH_ENGINE_KEEP=1` | Leave engine containers up after bench |
+| `--engine` / `BENCH_ENGINE` | `llama.cpp` · `halogen-flash` · `gufo` · `piper` · `whisper` |
+| `MODELS_DIR` / `HALOGEN_MODELS` / `GUFO_MODELS` / `TTS_MODELS` / `STT_MODELS` | weights |
+| `BENCH_ENGINE_SKIP_LIFECYCLE=1` | BYO — no compose up/down |
+| `BENCH_ENGINE_KEEP=1` | leave containers up after bench |
 
-Keep **halogen-flash-server** as a sibling git repo. Point `.env` at it — do not submodule/vendor the whole tree. This repo only needs a thin compose (or `HALOGEN_COMPOSE` → upstream `docker-compose.yml`) + `HALOGEN_MODELS`.
-
+Do not vendor full upstream trees — only thin compose under `engines/<name>/`.
 
 **Add a new engine:**
-1. `lib/engines/<id>.sh` → `engine_<prefix>_{prepare,cleanup,base_url}`
+1. `engines/<name>/compose.yaml` + `lib/engines/<id>.sh` → `engine_<prefix>_{prepare,cleanup,base_url}`
 2. Register in `bench_engine_known` / `normalize` / `protocol` (`http` vs `native`)
 3. If HTTP: reuse `*/backends/http.sh`; if native: extend suite `lib/server.sh`
 4. Matrix: dispatch in `matrix/run.sh` (HTTP → `matrix/lib/http_matrix.sh`)
@@ -80,10 +80,10 @@ Throughput `latest/` is **multi-engine**: each engine keeps `throughput/latest/b
 
 Align INIs with disk first, then run the matrix.
 
-Live `models*.ini` files are **gitignored** (templates: `examples/ini/`). Copy/edit sticky presets once; lab is rebuilt from `./models/` (+ VL twins when mmproj exists).
+Live `engines/llama-cpp/models*.ini` files are **gitignored** (templates: `engines/llama-cpp/presets/ini/`). Copy/edit sticky presets once; lab is rebuilt from `MODELS_DIR` (+ VL twins when mmproj exists).
 
 ```bash
-cp examples/ini/models.ini examples/ini/models-coder.ini .   # only if missing
+cp engines/llama-cpp/presets/ini/models.ini engines/llama-cpp/presets/ini/models-coder.ini engines/llama-cpp/   # only if missing
 ./bench sync-models --dry-run      # preview changes
 ./bench sync-models                # lab/emb/extractor (+ missing *-VL)
 ./bench sync-models --touch-sticky # optional: prune dead sticky sections

@@ -1,38 +1,34 @@
 #!/usr/bin/env bash
-# Shared inference-engine identity for benches (llama.cpp vs halogen-flash vs …).
+# Shared inference-engine identity for benches.
+# All engines: llama.cpp | halogen-flash | gufo | piper | whisper
 #
-# Canonical CLI (matrix):
-#   ./bench matrix --profile full --engine llama.cpp
-#   ./bench matrix --profile full --engine halogen-flash --model …
+#   ./bench matrix --engine llama.cpp|halogen-flash|gufo
+#   ./bench audio  --engine piper|whisper
+#   ./bench smoke  [any]
 #
-# Env BENCH_ENGINE is the same knob (set by --engine or profile).
-# `backend` (vulkan/rocm/cpu) stays the GPU path under llama.cpp.
-#
-# Lifecycle (compose start/stop): tools/bench/lib/lifecycle.sh + engines/*.sh
+# Lifecycle: tools/bench/lib/lifecycle.sh + engines/<id>.sh
 # shellcheck shell=bash
 : "${BENCH_ENGINE:=llama.cpp}"
 
-# Normalize known aliases → canonical id.
 bench_engine_normalize() {
   local raw="${1:-${BENCH_ENGINE:-llama.cpp}}"
   raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | tr ' _' '--' | sed 's/--*/-/g')"
   case "$raw" in
     ""|llama|llamacpp|llama-cpp|llama.cpp) printf '%s\n' "llama.cpp" ;;
     halogen|halogen-flash|halogenflash|flash-server|peonist-halogen)
-      printf '%s\n' "halogen-flash"
-      ;;
-    *)
-      printf '%s\n' "$raw"
-      ;;
+      printf '%s\n' "halogen-flash" ;;
+    gufo|gufo-runtime|gufo-org) printf '%s\n' "gufo" ;;
+    piper|tts|piper-tts) printf '%s\n' "piper" ;;
+    whisper|stt|whisper-cpp|whispercpp) printf '%s\n' "whisper" ;;
+    *) printf '%s\n' "$raw" ;;
   esac
 }
 
 BENCH_ENGINE="$(bench_engine_normalize "${BENCH_ENGINE:-llama.cpp}")"
 export BENCH_ENGINE
 
-# Space-separated known engines (extend when adding a new adapter).
 bench_engine_known() {
-  printf '%s\n' "llama.cpp halogen-flash"
+  printf '%s\n' "llama.cpp halogen-flash gufo piper whisper"
 }
 
 bench_engine_is_known() {
@@ -44,34 +40,44 @@ bench_engine_is_known() {
   return 1
 }
 
-# Human label for UI / logs.
 bench_engine_label() {
   case "$(bench_engine_normalize "${1:-$BENCH_ENGINE}")" in
     llama.cpp) printf '%s\n' "llama.cpp" ;;
     halogen-flash) printf '%s\n' "Halogen Flash" ;;
+    gufo) printf '%s\n' "Gufo" ;;
+    piper) printf '%s\n' "Piper TTS" ;;
+    whisper) printf '%s\n' "Whisper STT" ;;
     *) printf '%s\n' "$(bench_engine_normalize "${1:-$BENCH_ENGINE}")" ;;
   esac
 }
 
-# Default OpenAI-compatible base URL for an engine (no trailing /v1).
+# Family: llm | audio — which suite matrix uses
+bench_engine_family() {
+  case "$(bench_engine_normalize "${1:-$BENCH_ENGINE}")" in
+    piper|whisper) printf '%s\n' "audio" ;;
+    *) printf '%s\n' "llm" ;;
+  esac
+}
+
 bench_engine_default_url() {
   case "$(bench_engine_normalize "${1:-$BENCH_ENGINE}")" in
     halogen-flash) printf '%s\n' "${HALOGEN_BASE_URL:-http://127.0.0.1:8731}" ;;
+    gufo) printf '%s\n' "${GUFO_BASE_URL:-http://127.0.0.1:${GUFO_PUBLISH_PORT:-8080}}" ;;
+    piper) printf '%s\n' "${PIPER_BASE_URL:-http://127.0.0.1:${PIPER_PUBLISH_PORT:-9001}}" ;;
+    whisper) printf '%s\n' "${WHISPER_BASE_URL:-http://127.0.0.1:${WHISPER_PUBLISH_PORT:-9000}}" ;;
     *) printf '%s\n' "${QUALITY_BASE_URL:-http://127.0.0.1:11601}" ;;
   esac
 }
 
-# How suites talk to the engine: http | native (llama-server / llama-bench).
+# http = OpenAI chat LLM · audio = piper/whisper · native = llama-bench / llama-server
 bench_engine_protocol() {
   case "$(bench_engine_normalize "${1:-$BENCH_ENGINE}")" in
-    halogen-flash) printf '%s\n' "http" ;;
+    halogen-flash|gufo) printf '%s\n' "http" ;;
+    piper|whisper) printf '%s\n' "audio" ;;
     *) printf '%s\n' "native" ;;
   esac
 }
 
-# Suite backend script for current engine, or empty if suite uses native path.
-#   bench_suite_backend_path <suite-dir>
-# → e.g. …/capacity/backends/http.sh
 bench_suite_backend_path() {
   local suite_dir="${1:?}"
   local proto
@@ -83,21 +89,27 @@ bench_suite_backend_path() {
         return 0
       fi
       ;;
+    audio)
+      if [[ -f "$suite_dir/../audio/run.sh" ]]; then
+        printf '%s\n' "$suite_dir/../audio/run.sh"
+        return 0
+      fi
+      ;;
   esac
   return 1
 }
 
-# Infer engine from a base URL when BENCH_ENGINE was left default.
 bench_engine_from_url() {
   local url="${1:-}"
   case "$url" in
     *:8731*|*:8731/*) printf '%s\n' "halogen-flash" ;;
+    *:9001*|*:9001/*) printf '%s\n' "piper" ;;
+    *:9000*|*:9000/*) printf '%s\n' "whisper" ;;
+    *:8080*|*:8080/*) printf '%s\n' "gufo" ;;
     *) printf '%s\n' "llama.cpp" ;;
   esac
 }
 
-# Capacity cell key: keep legacy 5-part keys for llama.cpp so old ledgers resume.
-# Other engines: engine|backend|mode|model|kv|c
 bench_engine_cell_key_prefix() {
   local eng
   eng="$(bench_engine_normalize "${1:-$BENCH_ENGINE}")"
@@ -108,19 +120,23 @@ bench_engine_cell_key_prefix() {
   fi
 }
 
-# Apply Halogen-friendly quality defaults when targeting that engine.
 bench_engine_apply_quality_defaults() {
   local eng
   eng="$(bench_engine_normalize "${BENCH_ENGINE:-llama.cpp}")"
-  if [[ "$eng" == "halogen-flash" ]]; then
-    export QUALITY_SKIP_BENCH="${QUALITY_SKIP_BENCH:-1}"
-    if [[ -z "${QUALITY_BASE_URL:-}" || "${QUALITY_BASE_URL}" == *"11601"* ]]; then
-      export QUALITY_BASE_URL="$(bench_engine_default_url halogen-flash)"
-    fi
-  fi
+  case "$eng" in
+    halogen-flash|gufo)
+      export QUALITY_SKIP_BENCH="${QUALITY_SKIP_BENCH:-1}"
+      if [[ -z "${QUALITY_BASE_URL:-}" || "${QUALITY_BASE_URL}" == *"11601"* ]]; then
+        export QUALITY_BASE_URL="$(bench_engine_default_url "$eng")"
+      fi
+      ;;
+    piper|whisper)
+      # HumanEval N/A — audio suite instead
+      export QUALITY_SKIP_BENCH=1
+      ;;
+  esac
 }
 
-# Resolve final engine: CLI --engine > explicit BENCH_ENGINE env > profile > llama.cpp
 bench_engine_resolve() {
   local cli="${1:-}"
   local profile="${2:-}"

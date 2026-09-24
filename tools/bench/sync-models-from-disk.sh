@@ -5,9 +5,9 @@
 #   ./bench sync-models --dry-run
 #   ./bench sync-models --touch-sticky
 #
-# Sticky INIs (models.ini, models-coder.ini): bootstrap from examples/ini/ if missing;
+# Sticky INIs (models.ini, models-coder.ini): bootstrap from presets/ini/ if missing;
 # otherwise only prune missing paths with --touch-sticky (does not auto-pick sticky).
-# Live models*.ini are gitignored — see examples/ini/README.md.
+# Live models*.ini are gitignored — see engines/llama-cpp/presets/ini/README.md.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,27 +18,29 @@ source "$SCRIPT_DIR/lib/python.sh"
 DRY=0
 PRUNE=1
 TOUCH_STICKY=0
-MODELS_DIR="$ROOT/models"
+MODELS_ROOT="${MODELS_ROOT:-$ROOT/models}"
+MODELS_DIR="${MODELS_DIR:-$MODELS_ROOT/gguf}"
+INI_DIR="${LLAMA_INI_DIR:-$ROOT/engines/llama-cpp}"
 
 usage() {
   cat <<'EOF'
 Usage: ./bench sync-models [options]
 
-Scan ./models/**/*.gguf and update INIs automatically:
+Scan MODELS_DIR/**/*.gguf (default ./models/gguf) and update INIs:
   models-lab.ini          chat weights (+ VL twins when mmproj exists)
   models-embeddings.ini   embeddings/
   models-extractor.ini    extractor/
   models.ini / models-coder.ini
-                          bootstrap from examples/ini/ if missing;
+                          bootstrap from engines/llama-cpp/presets/ini/ if missing;
                           otherwise only prune dead paths (--touch-sticky)
 
-Live models*.ini are gitignored — templates live in examples/ini/.
+Live models*.ini are gitignored — templates: engines/llama-cpp/presets/ini/.
 
 Options:
   --dry-run         show plan, write nothing
   --no-prune        keep INI sections even if GGUF missing
   --touch-sticky    also prune dead sticky sections
-  --models-dir DIR  default ./models
+  --models-dir DIR  default $MODELS_ROOT/gguf
   -h|--help
 
 After sync, refresh bench presets:
@@ -59,18 +61,19 @@ done
 
 [[ -d "$MODELS_DIR" ]] || { echo "missing models dir: $MODELS_DIR" >&2; exit 1; }
 
-# Bootstrap sticky INIs from examples so forks are not blocked (never overwrite).
-EX_INI="$ROOT/examples/ini"
+# Bootstrap sticky INIs from presets so forks are not blocked (never overwrite).
+EX_INI="$ROOT/engines/llama-cpp/presets/ini"
 if [[ "$DRY" -eq 0 ]]; then
+  mkdir -p "$INI_DIR"
   for f in models.ini models-coder.ini; do
-    if [[ ! -f "$ROOT/$f" && -f "$EX_INI/$f" ]]; then
-      cp "$EX_INI/$f" "$ROOT/$f"
-      echo "bootstrapped $f ← examples/ini/$f (edit sticky, then re-run if needed)"
+    if [[ ! -f "$INI_DIR/$f" && -f "$EX_INI/$f" ]]; then
+      cp "$EX_INI/$f" "$INI_DIR/$f"
+      echo "bootstrapped $INI_DIR/$f ← presets/ini/$f (edit sticky, then re-run if needed)"
     fi
   done
 fi
 
-bench_python - "$ROOT" "$MODELS_DIR" "$DRY" "$PRUNE" "$TOUCH_STICKY" <<'PY'
+bench_python - "$INI_DIR" "$MODELS_DIR" "$DRY" "$PRUNE" "$TOUCH_STICKY" <<'PY'
 import json, os, re, sys
 from pathlib import Path
 
