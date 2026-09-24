@@ -9,6 +9,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+PROJECT_ROOT="$ROOT"
+export PROJECT_ROOT
 PROFILES="$SCRIPT_DIR/profiles"
 OUT="$ROOT/output/bench/matrix"
 PROGRESS="$OUT/progress.json"
@@ -218,6 +220,16 @@ suite_wanted() {
   return 0
 }
 
+# Profile enabled=1, OR --only NAME (forces that suite even if profile disabled).
+suite_active() {
+  local name="$1" enabled="${2:-0}"
+  suite_wanted "$name" || return 1
+  if [[ ${#ONLY[@]} -gt 0 ]]; then
+    return 0
+  fi
+  [[ "$enabled" == "1" ]]
+}
+
 models_from_bench_ini() {
   # Apply matrix --model / --no-vl via capacity resolver
   CAPACITY_MODELS="${MATRIX_MODELS:-}" CAPACITY_NO_VL="${MATRIX_NO_VL:-0}" \
@@ -246,8 +258,7 @@ matrix_dual_should_run() {
 }
 
 run_capacity() {
-  [[ "${SUITE_CAPACITY_ENABLED:-0}" == "1" ]] || { log "capacity disabled in profile"; return 0; }
-  suite_wanted capacity || { log "skip suite capacity (--only/--skip-suite)"; return 0; }
+  suite_active capacity "${SUITE_CAPACITY_ENABLED:-0}" || { log "skip suite capacity (profile/--only/--skip-suite)"; return 0; }
   write_progress "capacity" "kv-ctx"
   log "=== capacity kv-ctx ==="
   local cap_extra=()
@@ -274,8 +285,7 @@ run_capacity() {
 }
 
 run_sched() {
-  [[ "${SUITE_SCHED_ENABLED:-0}" == "1" ]] || { log "sched disabled in profile"; return 0; }
-  suite_wanted sched || { log "skip suite sched"; return 0; }
+  suite_active sched "${SUITE_SCHED_ENABLED:-0}" || { log "skip suite sched (profile/--only/--skip-suite)"; return 0; }
 
   # shellcheck source=../scheduling/lib/server.sh
   SCHED_BENCH_ROOT="$ROOT/tools/bench/scheduling"
@@ -332,8 +342,7 @@ run_sched() {
 }
 
 run_throughput() {
-  [[ "${SUITE_THROUGHPUT_ENABLED:-0}" == "1" ]] || { log "throughput disabled"; return 0; }
-  suite_wanted throughput || { log "skip suite throughput"; return 0; }
+  suite_active throughput "${SUITE_THROUGHPUT_ENABLED:-0}" || { log "skip suite throughput (profile/--only/--skip-suite)"; return 0; }
   write_progress "throughput" "$THR_BACKENDS"
   log "=== throughput $THR_SCOPE $THR_BACKENDS ==="
   local args=()
@@ -386,8 +395,7 @@ ensure_quality_humaneval() {
 }
 
 run_quality() {
-  [[ "${SUITE_QUALITY_ENABLED:-0}" == "1" ]] || { log "quality disabled"; return 0; }
-  suite_wanted quality || { log "skip suite quality"; return 0; }
+  suite_active quality "${SUITE_QUALITY_ENABLED:-0}" || { log "skip suite quality (profile/--only/--skip-suite)"; return 0; }
 
   ensure_quality_humaneval
 
@@ -493,20 +501,12 @@ run_matrix() {
     halogen-flash|gufo)
       log "engine=$BENCH_ENGINE → LLM HTTP backends @ $(bench_engine_default_url "$BENCH_ENGINE")"
       print_plan
-      # Honor profile enabled + --only/--skip-suite (HTTP path used to ignore these).
+      # Profile enabled + --only/--skip-suite. --only forces a suite even if profile disabled.
       local -a http_suites=()
-      if [[ "${SUITE_CAPACITY_ENABLED:-0}" == "1" ]] && suite_wanted capacity; then
-        http_suites+=(capacity)
-      fi
-      if [[ "${SUITE_SCHED_ENABLED:-0}" == "1" ]] && suite_wanted sched; then
-        http_suites+=(sched)
-      fi
-      if [[ "${SUITE_THROUGHPUT_ENABLED:-0}" == "1" ]] && suite_wanted throughput; then
-        http_suites+=(throughput)
-      fi
-      if [[ "${SUITE_QUALITY_ENABLED:-0}" == "1" ]] && suite_wanted quality; then
-        http_suites+=(quality)
-      fi
+      suite_active capacity "${SUITE_CAPACITY_ENABLED:-0}" && http_suites+=(capacity)
+      suite_active sched "${SUITE_SCHED_ENABLED:-0}" && http_suites+=(sched)
+      suite_active throughput "${SUITE_THROUGHPUT_ENABLED:-0}" && http_suites+=(throughput)
+      suite_active quality "${SUITE_QUALITY_ENABLED:-0}" && http_suites+=(quality)
       if [[ ${#http_suites[@]} -eq 0 ]]; then
         log "no HTTP suites enabled (profile / --only / --skip-suite) — nothing to run"
         return 0

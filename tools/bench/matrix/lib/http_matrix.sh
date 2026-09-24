@@ -6,7 +6,9 @@
 
 _MATRIX_HTTP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _MATRIX_ROOT="$(cd "$_MATRIX_HTTP_DIR/.." && pwd)"
-: "${PROJECT_ROOT:=$(cd "$_MATRIX_ROOT/../../.." && pwd)}"
+# Resolve from this file — ignore stale PROJECT_ROOT from .env (e.g. $HOME).
+PROJECT_ROOT="$(cd "$_MATRIX_ROOT/../../.." && pwd)"
+export PROJECT_ROOT
 
 # shellcheck source=../../lib/lifecycle.sh
 source "$PROJECT_ROOT/tools/bench/lib/lifecycle.sh"
