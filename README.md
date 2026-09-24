@@ -45,12 +45,11 @@ $MODELS_ROOT/              # default ./models · Jarvis ~/data/models
 
 ```bash
 git clone <this-repo> && cd strix-halo-llm
-./stack                  # menu → Setup wizard (.env, models download/skip, up, smoke)
-# or non-interactive:
-# cp .env.example .env && ./stack setup
+./stack up                 # defaults without .env (~/data/models + Gufo stack)
+# optional: ./stack setup  # wizard / download weights
 ```
 
-Weights: `./model-dl.sh list|download`. Defaults: edit `.env` or `./stack` → Change preset.
+Weights: `./model-dl.sh list|download`. Overrides: export vars or optional `.env` (see `.env.example`).
 
 More: [`engines/README.md`](engines/README.md) · [`tools/bench/README.md`](tools/bench/README.md) · GTT budgets [`setup.md`](setup.md).
 

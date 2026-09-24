@@ -29,18 +29,18 @@ usage() {
 Usage: ./stack [<command>] [engine[,engine…]]
 
   (no args)     interactive menu
-  setup         first-boot: .env → models → image → up → smoke
+  setup         optional wizard (models / images) — .env NOT required
   status|st     HTTP probes + paths
   up|start      start STACK_ENGINES (or listed engines)
   down|stop     stop
   restart       down + up
-  defaults      pick a preset stack into .env
+  defaults      pick a preset (writes optional .env overrides)
   models        list missing/present weights (model-dl.sh list)
   help
 
 Engines: llama · halogen · gufo · piper · whisper
 
-Env (edit in .env — template: .env.example):
+Defaults live in paths.sh / compose (no .env required). Optional overrides:
   STACK_ENGINES=gufo,llama,piper,whisper
   LLAMA_SERVICES=llama-embeddings
   GUFO_MODEL=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
@@ -172,7 +172,7 @@ engine_compose_up() {
       ;;
     halogen|halogen-flash)
       [[ -n "${HALOGEN_MODELS:-}" && -d "${HALOGEN_MODELS}" ]] \
-        || die "set HALOGEN_MODELS to hgn pack dir (*.hgn + tokenizer/) — ./stack setup or edit .env"
+        || die "HALOGEN_MODELS unset or missing (need hgn pack dir with *.hgn + tokenizer/)"
       log "halogen up HALOGEN_MODELS=$HALOGEN_MODELS"
       local -a envf=()
       [[ -f "$ROOT/.env" ]] && envf=(--env-file "$ROOT/.env")
@@ -275,7 +275,6 @@ stack_status() {
   echo "  MODELS_DIR=${MODELS_DIR:-?}"
   echo "  HALOGEN_MODELS=${HALOGEN_MODELS:-unset}"
   echo "  TTS_MODELS=${TTS_MODELS:-?}  STT_MODELS=${STT_MODELS:-?}"
-  echo "  .env: ${ROOT}/.env$([ -f "$ROOT/.env" ] && echo ' (ok)' || echo ' (missing — ./stack setup)')"
 }
 
 resolve_engines() {
@@ -440,14 +439,14 @@ cmd_setup() {
 interactive() {
   local kind
   { echo "=== stack ==="
-    echo "Defaults live in .env  ·  weights in MODELS_ROOT  ·  Ctrl+C abort"
+    echo "Defaults without .env  ·  weights in MODELS_ROOT  ·  Ctrl+C abort"
   } >&2
   kind="$(pick 'What do you want?' \
     '1) Status — what is up / where are weights' \
     '2) Start stack (STACK_ENGINES)' \
     '3) Stop stack' \
-    '4) Setup wizard (env + models download/skip + up)' \
-    '5) Change default preset (.env)' \
+    '4) Setup wizard (optional .env + models + up)' \
+    '5) Change default preset (writes optional .env)' \
     '6) List / download models' \
     '7) Help' \
     'Quit')"
