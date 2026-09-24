@@ -23,7 +23,6 @@ THROUGHPUT="$ROOT/tools/bench/throughput/run.sh"
 SCHED="$ROOT/tools/bench/scheduling/run.sh"
 QUALITY="$ROOT/tools/bench/quality/run.sh"
 CAPACITY="$ROOT/tools/bench/capacity/run.sh"
-HALOGEN="$ROOT/tools/bench/halogen/run.sh"
 MATRIX="$ROOT/tools/bench/matrix/run.sh"
 SYNC_MODELS="$ROOT/tools/bench/sync-models-from-disk.sh"
 APPLY_INI="$ROOT/tools/bench/apply-ini.sh"
@@ -54,7 +53,6 @@ Commands:
   sched | scheduling | s   load latency (llama; dual_llm = two llama routers, optional)
   quality | q              HumanEval (--engine for HTTP LLMs)
   capacity | cap           memory fit (llama · http for halogen/gufo)
-  halogen | halo           Halogen Flash full matrix (compat → matrix --engine)
   matrix | m               multi-suite (--engine llama.cpp|halogen-flash|gufo|piper|whisper)
   sync-models              scan MODELS_DIR → lab/emb/extractor INIs
   list | compare | compare-sched | apply-ini | index | publish | probe-host
@@ -324,12 +322,6 @@ case "$cmd" in
     [[ -x "$CAPACITY" ]] || chmod +x "$CAPACITY" 2>/dev/null || true
     chmod +x "$ROOT"/tools/bench/capacity/scenarios/*.sh 2>/dev/null || true
     exec "$CAPACITY" "$@"
-    ;;
-  halogen|halo)
-    shift
-    [[ -x "$HALOGEN" ]] || chmod +x "$HALOGEN" 2>/dev/null || true
-    chmod +x "$ROOT"/tools/bench/halogen/*.sh "$ROOT"/tools/bench/halogen/lib/*.sh 2>/dev/null || true
-    exec "$HALOGEN" "$@"
     ;;
   matrix|m)
     shift

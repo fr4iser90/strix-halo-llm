@@ -37,8 +37,8 @@ def fmt_num(x, digits=1):
 def decode_ms(slot):
     if not slot:
         return None
-    p50 = slot.get("token_interval_ms_p50")
-    p95 = slot.get("token_interval_ms_p95")
+    p50 = slot.get("itl_ms_p50")
+    p95 = slot.get("itl_ms_p95")
     if p95 is not None and (p50 is None or p50 < 1.0):
         return p95
     return p50 if p50 is not None else p95
@@ -123,9 +123,9 @@ def extract_scenario_row(man, scen, summ, ub_override=None):
         "ub": ub_override if ub_override is not None else man.get("ub", ""),
         "scenario": scen,
         "decode_ms": decode_ms(slot_a),
-        "decode_tps": slot_a.get("tokens_per_sec"),
+        "decode_tps": slot_a.get("decode_tok_s"),
         "prefill_ttft": slot_b.get("ttft_ms"),
-        "prefill_tps": slot_b.get("tokens_per_sec"),
+        "prefill_tps": slot_b.get("decode_tok_s"),
     }
 
 
@@ -152,9 +152,9 @@ def extract_sweep_rows(man, summ, param):
             param: val,
             "scenario": inner.get("scenario", "03_interleave_np2"),
             "decode_ms": decode_ms(slot_a),
-            "decode_tps": slot_a.get("tokens_per_sec"),
+            "decode_tps": slot_a.get("decode_tok_s"),
             "prefill_ttft": slot_b.get("ttft_ms") if slot_b else None,
-            "prefill_tps": slot_b.get("tokens_per_sec") if slot_b else None,
+            "prefill_tps": slot_b.get("decode_tok_s") if slot_b else None,
             "vram_mb": entry.get("vram_mb"),
             "valid": True if param == "c" else ttft_valid((slot_b or {}).get("ttft_ms")),
         }

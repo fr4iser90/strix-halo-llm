@@ -221,60 +221,11 @@ wait_pid() {
 
 summarize_jsonl() {
   local jsonl="$1" summary="$2"
-  bench_python - "$jsonl" "$summary" <<'PY'
-import json, sys
-
-path, out = sys.argv[1], sys.argv[2]
-events = []
-with open(path, encoding="utf-8") as f:
-    for line in f:
-        line = line.strip()
-        if not line:
-            continue
-        events.append(json.loads(line))
-
-chunks = [e for e in events if e.get("event") == "chunk"]
-times = [e["t"] for e in chunks]
-deltas = []
-for i in range(1, len(times)):
-    d = (times[i] - times[i - 1]) * 1000.0
-    if d > 0.05:
-        deltas.append(d)
-
-ttft_ms = None
-if chunks:
-    t0 = events[0]["t"]
-    ttft_ms = (chunks[0]["t"] - t0) * 1000.0
-
-def pct(vals, p):
-    if not vals:
-        return None
-    vals = sorted(vals)
-    k = (len(vals) - 1) * p / 100.0
-    f = int(k)
-    c = min(f + 1, len(vals) - 1)
-    if f == c:
-        return vals[f]
-    return vals[f] + (vals[c] - vals[f]) * (k - f)
-
-summary = {
-    "chunks": len(chunks),
-    "ttft_ms": round(ttft_ms, 2) if ttft_ms is not None else None,
-    "token_interval_ms_p50": round(pct(deltas, 50), 2) if deltas else None,
-    "token_interval_ms_p95": round(pct(deltas, 95), 2) if deltas else None,
-    "token_interval_ms_max": round(max(deltas), 2) if deltas else None,
-    "total_ms": round((events[-1]["t"] - events[0]["t"]) * 1000.0, 2) if events else None,
-    "tokens_per_sec": None,
-}
-if summary["total_ms"] and summary["chunks"] > 1:
-    dur_s = (events[-1]["t"] - chunks[0]["t"])
-    if dur_s > 0:
-        summary["tokens_per_sec"] = round((len(chunks) - 1) / dur_s, 2)
-
-with open(out, "w", encoding="utf-8") as f:
-    json.dump(summary, f, indent=2)
-    f.write("\n")
-PY
+  local root="${PROJECT_ROOT:-}"
+  if [[ -z "$root" ]]; then
+    root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+  fi
+  bench_python "$root/tools/bench/lib/stream_summary.py" "$jsonl" "$summary"
 }
 
 write_scenario_summary() {

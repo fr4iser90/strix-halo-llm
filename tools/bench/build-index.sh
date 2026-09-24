@@ -32,6 +32,17 @@ bench_python - "$OUT" "$THR" "$SCH" "$INDEX_MD" "$INDEX_HTML" "$HOST_JSON" <<'PY
 import csv, glob, html, json, os, re, sys
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path as _Path
+
+_lib = _Path(__file__).resolve().parent / "lib" if False else _Path(sys.argv[1]).parents[2] / "tools" / "bench" / "lib"
+# out_root = repo/output/bench → parents[2] = repo
+for _p in [_Path(sys.argv[1]), *_Path(sys.argv[1]).parents]:
+    _cand = _p / "tools" / "bench" / "lib"
+    if (_cand / "thr_metrics.py").is_file():
+        _lib = _cand
+        break
+sys.path.insert(0, str(_lib))
+from thr_metrics import parse_compare_md, dash as thr_dash
 
 out_root, thr, sch, index_md, index_html, host_json = sys.argv[1:7]
 
@@ -98,59 +109,12 @@ def rel(*parts):
 thr_models = []
 
 def _parse_thr_compare(path, default_engine="llama.cpp"):
-    models = []
-    engine = default_engine
-    in_table = False
-    header_cols = []
     try:
         with open(path, encoding="utf-8") as f:
-            lines = f.readlines()
+            body = f.read()
     except OSError:
-        return engine, models
-    for line in lines:
-        raw = line.rstrip()
-        low = raw.lower()
-        if low.startswith("engine:"):
-            engine = raw.split(":", 1)[1].strip() or engine
-            continue
-        if raw.startswith("|") and "model" in low and ("pp" in low or "tg" in low):
-            header_cols = [c.strip() for c in raw.strip("|").split("|")]
-            in_table = True
-            continue
-        if in_table:
-            if not raw.startswith("|") or raw.startswith("| ---") or re.match(r"^\|\s*-+", raw):
-                if models and not raw.startswith("|"):
-                    break
-                if raw.startswith("| ---") or re.match(r"^\|\s*-+", raw):
-                    continue
-                if not raw.startswith("|"):
-                    if models:
-                        # next ## section in merged file
-                        in_table = False
-                        header_cols = []
-                    continue
-            parts = [p.strip() for p in raw.strip("|").split("|")]
-            if not parts or parts[0].lower() == "model":
-                continue
-            pp = tg = "—"
-            if header_cols and len(header_cols) == len(parts):
-                for h, v in zip(header_cols, parts):
-                    hl = h.lower()
-                    if hl.endswith(" pp") or hl == "pp":
-                        pp = v
-                    elif hl.endswith(" tg") or hl == "tg":
-                        tg = v
-                if pp == "—" and len(parts) >= 3:
-                    pp, tg = parts[1], parts[2]
-            elif len(parts) >= 3:
-                pp, tg = parts[1], parts[2]
-            models.append({
-                "model": parts[0],
-                "pp": pp,
-                "tg": tg,
-                "engine": engine,
-            })
-    return engine, models
+        return default_engine, []
+    return parse_compare_md(body, default_engine)
 
 # Prefer per-engine snapshots; rebuild/merge recovers stamped archives.
 _thr_latest_sh = os.path.join(out_root, "..", "..", "tools", "bench", "lib", "thr_latest.sh")
@@ -189,7 +153,7 @@ if os.path.isdir(_by_eng):
                 m["engine"] = _eng2 or _eng
                 thr_models.append(m)
 
-# Legacy / merged file fallback if still empty
+# Merged file fallback if still empty
 if not thr_models:
     thr_engine = "llama.cpp"
     thr_meta = os.path.join(thr, "latest", "meta.json")
@@ -206,42 +170,26 @@ if not thr_models:
             pass
     thr_cmp = os.path.join(thr, "latest", "compare.md")
     if os.path.isfile(thr_cmp):
-        # Merged multi-section or single table
-        _cur = thr_engine
-        in_table = False
-        header_cols = []
         with open(thr_cmp, encoding="utf-8") as f:
-            for line in f:
-                raw = line.rstrip()
-                low = raw.lower()
-                if raw.startswith("## "):
-                    _cur = raw[3:].strip() or _cur
-                    in_table = False
-                    continue
-                if low.startswith("engine:"):
-                    _cur = raw.split(":", 1)[1].strip() or _cur
-                    continue
-                if raw.startswith("|") and "model" in low and ("pp" in low or "tg" in low):
-                    header_cols = [c.strip() for c in raw.strip("|").split("|")]
-                    in_table = True
-                    continue
-                if in_table:
-                    if not raw.startswith("|") or raw.startswith("| ---") or re.match(r"^\|\s*-+", raw):
-                        if thr_models and not raw.startswith("|"):
-                            in_table = False
-                        continue
-                    parts = [p.strip() for p in raw.strip("|").split("|")]
-                    if not parts or parts[0].lower() == "model":
-                        continue
-                    pp = tg = "—"
-                    if len(parts) >= 3:
-                        pp, tg = parts[1], parts[2]
-                    thr_models.append({
-                        "model": parts[0],
-                        "pp": pp,
-                        "tg": tg,
-                        "engine": _cur,
-                    })
+            _body = f.read()
+        # Split on ## sections so each engine block is parsed with its own engine:
+        _chunks = re.split(r"(?m)^##\s+", _body)
+        for _chunk in _chunks:
+            if not _chunk.strip():
+                continue
+            _eng_guess = thr_engine
+            _first = _chunk.splitlines()[0].strip() if _chunk.splitlines() else ""
+            if _first and not _first.lower().startswith("engine:") and "|" not in _first:
+                _eng_guess = _first
+            _eng2, _mods = parse_compare_md(
+                ("engine: " + _eng_guess + "\n" + _chunk)
+                if not any(l.lower().startswith("engine:") for l in _chunk.splitlines()[:5])
+                else _chunk,
+                _eng_guess,
+            )
+            for m in _mods:
+                m["engine"] = m.get("engine") or _eng2 or _eng_guess
+                thr_models.append(m)
 
 thr_runs = {}
 for path in sorted(glob.glob(os.path.join(thr, "llama-bench-*-*-*.*"))):
@@ -566,7 +514,11 @@ lines += [
 if thr_models:
     lines += ["| Model | PP (512 tok) | TG (128 tok) |", "| --- | ---: | ---: |"]
     for m in thr_models:
-        lines.append(f"| {m['model']} | {m['pp']} | {m['tg']} |")
+        lines.append(
+            f"| {m['model']} | {m.get('ttft_cold_ms') or '—'} | {m.get('ttft_warm_ms') or '—'} | "
+            f"{m.get('prefill_tok_s') or '—'} | {m.get('decode_tok_s') or '—'} | "
+            f"{m.get('itl_p50_ms') or '—'} |"
+        )
 else:
     lines.append("*No throughput bench yet.*")
 
@@ -1223,7 +1175,7 @@ def verdict_html():
     # Generation speed (TG)
     best_tg = None
     for m in thr_models or []:
-        tg = parse_float(m.get("tg"))
+        tg = parse_float(m.get("decode_tok_s"))
         if tg is None:
             continue
         if best_tg is None or tg > best_tg[0]:
@@ -1231,7 +1183,7 @@ def verdict_html():
     if best_tg:
         cards.append(
             '<div class="verdict-card">'
-            f'<div class="verdict-label">{tip("Generation speed", "Tokens per second while writing the reply (TG / decode), model alone. Higher = snappier chat.")}</div>'
+            f'<div class="verdict-label">{tip("Decode tok/s", "Generation after first token. Higher = snappier streaming.")}</div>'
             f'<div class="verdict-value">{fmt_num(best_tg[0])} <span class="unit">tok/s</span></div>'
             f'<div class="verdict-sub">{esc(short_name(best_tg[1]))}</div>'
             "</div>"
@@ -1248,7 +1200,7 @@ def verdict_html():
     # Prompt speed (PP)
     best_pp = None
     for m in thr_models or []:
-        pp = parse_float(m.get("pp"))
+        pp = parse_float(m.get("prefill_tok_s"))
         if pp is None:
             continue
         if best_pp is None or pp > best_pp[0]:
@@ -1256,7 +1208,7 @@ def verdict_html():
     if best_pp:
         cards.append(
             '<div class="verdict-card">'
-            f'<div class="verdict-label">{tip("Prompt speed", "Tokens per second while reading the prompt (PP / prefill), model alone. Higher = faster time-to-first-token on long prompts.")}</div>'
+            f'<div class="verdict-label">{tip("Prefill tok/s", "Prompt processing. Higher = lower TTFT on long prompts.")}</div>'
             f'<div class="verdict-value">{fmt_num(best_pp[0])} <span class="unit">tok/s</span></div>'
             f'<div class="verdict-sub">{esc(short_name(best_pp[1]))}</div>'
             "</div>"
@@ -1345,11 +1297,14 @@ if thr_models:
     for m in thr_models:
         thr_table += (
             f"<tr><td>{esc(m['model'])}</td>"
-            f'<td class="n">{esc(m.get("pp") or "—")}</td>'
-            f'<td class="n">{esc(m.get("tg") or "—")}</td></tr>'
+            f'<td class="n">{esc(m.get("ttft_cold_ms") or "—")}</td>'
+            f'<td class="n">{esc(m.get("ttft_warm_ms") or "—")}</td>'
+            f'<td class="n">{esc(m.get("prefill_tok_s") or "—")}</td>'
+            f'<td class="n">{esc(m.get("decode_tok_s") or "—")}</td>'
+            f'<td class="n">{esc(m.get("itl_p50_ms") or "—")}</td></tr>'
         )
 else:
-    thr_table = '<tr><td colspan="3" class="meta">No throughput runs yet.</td></tr>'
+    thr_table = '<tr><td colspan="6" class="meta">No throughput runs yet.</td></tr>'
 apply_plan_path = os.path.join(sch, "latest", "apply-plan.json")
 apply_table = ""
 global_cb = "1"
@@ -1504,12 +1459,23 @@ details.panel .card {{ margin: .75rem 0; border: none; background: #12141a; }}
 <p class="meta">Left/right: model alone on the server. Below: one model, context on X, prompt cost on Y, one line per KV cache setting.</p>
 <div class="charts two">
   <div class="chart-box">
-    <h3>{tip("Prompt vs generation", "Prompt = reading the input (PP). Generation = writing the reply (TG). Both in tokens/second; higher is better.")}</h3>
+    <h3>{tip("Prefill vs Decode", "Prefill = prompt processing tok/s. Decode = generation after first token. Higher better.")}</h3>
     <div class="chart-wrap"><canvas id="chart-thr"></canvas></div>
   </div>
   <div class="chart-box">
-    <h3>{tip("Under concurrent load", "Prompt tokens/s (higher better) and decode latency in ms (lower better) with the winning server settings.")}</h3>
+    <h3>{tip("TTFT & ITL", "TTFT = ms until first token (cold = first request, warm = repeat). ITL p50 = median ms between tokens. Lower better.")}</h3>
+    <div class="chart-wrap"><canvas id="chart-thr-latency"></canvas></div>
+  </div>
+</div>
+<div class="charts two" style="margin-top:1.25rem">
+  <div class="chart-box">
+    <h3>{tip("Under concurrent load", "Prefill tok/s under load (↑) and decode latency ms (↓) with winning server settings.")}</h3>
     <div class="chart-wrap"><canvas id="chart-sched"></canvas></div>
+  </div>
+  <div class="chart-box">
+    <h3>Prompt cost vs context</h3>
+    <p class="meta" style="margin-top:0">See full chart below.</p>
+    <p class="meta">Y-axis defaults to TTFT / prompt time at each context length.</p>
   </div>
 </div>
 <div class="chart-box" style="margin-top:1.25rem">
@@ -1519,8 +1485,8 @@ details.panel .card {{ margin: .75rem 0; border: none; background: #12141a; }}
   <select id="cap-model" class="model-pick"></select>
   <label class="meta" for="cap-y">Y axis </label>
   <select id="cap-y" class="model-pick">
-    <option value="prefill_s" selected>Prompt time (s)</option>
-    <option value="prefill_tok_s">Prompt speed (tok/s)</option>
+    <option value="prefill_s" selected>TTFT / prompt time (s)</option>
+    <option value="prefill_tok_s">Prefill speed (tok/s)</option>
     <option value="gtt_gib">Memory (GiB)</option>
     {('<option value="power_w">GPU watts (avg)</option>' if cap_has_power else '')}
   </select>
@@ -1568,12 +1534,15 @@ details.panel .card {{ margin: .75rem 0; border: none; background: #12141a; }}
 
 <div class="card" id="throughput">
 <h2>Single-user throughput</h2>
-<p class="meta">One request at a time. Higher tokens/s is better for both columns.</p>
+<p class="meta">One request at a time. TTFT = ms to first token (↓). Prefill/Decode = tok/s (↑). ITL = inter-token ms (↓).</p>
 <p class="more"><a href="throughput/latest/compare.html">→ Details</a></p>
 <table><thead><tr>
 <th>Model</th>
-<th class="n">{tip("Prompt (PP)", "Tokens/s while reading a ~512-token prompt.")}</th>
-<th class="n">{tip("Generation (TG)", "Tokens/s while writing ~128 tokens.")}</th>
+<th class="n">{tip("TTFT cold", "Time to first token on first request (ms). Lower = snappier cold start.")}</th>
+<th class="n">{tip("TTFT warm", "Time to first token on immediate repeat (ms). Lower better; gap vs cold shows cache.")}</th>
+<th class="n">{tip("Prefill tok/s", "Prompt processing speed. fill_tokens / warm_TTFT. Higher better.")}</th>
+<th class="n">{tip("Decode tok/s", "Generation after first token. Higher better.")}</th>
+<th class="n">{tip("ITL p50", "Median ms between output tokens. Lower = smoother streaming.")}</th>
 </tr></thead><tbody>{thr_table}</tbody></table>
 </div>
 """
@@ -1710,10 +1679,20 @@ def _num(x):
     except ValueError:
         return None
 
+def _thr_fields(m):
+    return {
+        "ttft_cold_ms": _num(m.get("ttft_cold_ms")),
+        "ttft_warm_ms": _num(m.get("ttft_warm_ms")),
+        "prefill_tok_s": _num(m.get("prefill_tok_s")),
+        "decode_tok_s": _num(m.get("decode_tok_s")),
+        "itl_p50_ms": _num(m.get("itl_p50_ms")),
+    }
+
 thr_chart = {
     "labels": [_short(m["model"]) for m in thr_models],
-    "pp": [_num(m.get("pp")) for m in thr_models],
-    "tg": [_num(m.get("tg")) for m in thr_models],
+    **{k: [_thr_fields(m)[k] for m in thr_models] for k in (
+        "ttft_cold_ms", "ttft_warm_ms", "prefill_tok_s", "decode_tok_s", "itl_p50_ms"
+    )},
 }
 sch_chart = {
     "labels": [_short(r.get("model")) for r in sch_recs],
@@ -1799,8 +1778,8 @@ footer = f"""
         data: {{
           labels: thr.labels,
           datasets: [
-            {{ label: "Prompt (tok/s)", data: thr.pp, backgroundColor: "#5b8def" }},
-            {{ label: "Generation (tok/s)", data: thr.tg, backgroundColor: "#7ddea5" }},
+            {{ label: "Prefill tok/s", data: thr.prefill_tok_s, backgroundColor: "#5b8def" }},
+            {{ label: "Decode tok/s", data: thr.decode_tok_s, backgroundColor: "#7ddea5" }},
           ],
         }},
         options: {{
@@ -1811,6 +1790,27 @@ footer = f"""
           }},
         }},
       }});
+      const latCanvas = document.getElementById("chart-thr-latency");
+      if (latCanvas) {{
+        new Chart(latCanvas, {{
+          type: "bar",
+          data: {{
+            labels: thr.labels,
+            datasets: [
+              {{ label: "TTFT cold (ms)", data: thr.ttft_cold_ms, backgroundColor: "#e06767" }},
+              {{ label: "TTFT warm (ms)", data: thr.ttft_warm_ms, backgroundColor: "#f0c674" }},
+              {{ label: "ITL p50 (ms)", data: thr.itl_p50_ms, backgroundColor: "#c4a5de" }},
+            ],
+          }},
+          options: {{
+            ...common,
+            scales: {{
+              x: {{ ticks: tick, grid }},
+              y: {{ ticks: tick, grid, title: {{ display: true, text: "milliseconds", color: "#9aa0a6" }} }},
+            }},
+          }},
+        }});
+      }}
     }}
 
     const sch = DATA.scheduling || {{}};
@@ -1820,7 +1820,7 @@ footer = f"""
         data: {{
           labels: sch.labels,
           datasets: [
-            {{ label: "Prompt under load (tok/s)", data: sch.prefill, backgroundColor: "#5b8def", yAxisID: "y" }},
+            {{ label: "Prefill under load (tok/s)", data: sch.prefill, backgroundColor: "#5b8def", yAxisID: "y" }},
             {{ label: "Decode latency (ms)", data: sch.decode, backgroundColor: "#f0c674", yAxisID: "y1" }},
           ],
         }},
@@ -1845,8 +1845,8 @@ footer = f"""
   let capChart = null;
   const palette = ["#5b8def", "#7ddea5", "#f0c674", "#f28b82", "#c58af9", "#78d4e8"];
   const yLabels = {{
-    prefill_s: "Prompt time (s)",
-    prefill_tok_s: "Prompt speed (tok/s)",
+    prefill_s: "TTFT / prompt time (s)",
+    prefill_tok_s: "Prefill speed (tok/s)",
     gtt_gib: "Memory (GiB)",
     power_w: "GPU watts",
   }};
@@ -2012,10 +2012,12 @@ engines_sorted = sorted(engine_set, key=lambda e: (0 if e == "llama.cpp" else 1,
 
 
 def _thr_chart_for(models):
+    rows = [_thr_fields(m) for m in models]
     return {
         "labels": [_disp(m.get("model"), 22) for m in models],
-        "pp": [_num(m.get("pp")) for m in models],
-        "tg": [_num(m.get("tg")) for m in models],
+        **{k: [r[k] for r in rows] for k in (
+            "ttft_cold_ms", "ttft_warm_ms", "prefill_tok_s", "decode_tok_s", "itl_p50_ms"
+        )},
     }
 
 

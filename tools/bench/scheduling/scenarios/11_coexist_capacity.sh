@@ -216,7 +216,7 @@ def tps_list(prefix, n):
             continue
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
-        t = d.get("tokens_per_sec")
+        t = d.get("decode_tok_s")
         if t is not None:
             vals.append(float(t))
     return vals

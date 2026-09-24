@@ -31,7 +31,6 @@ tools/bench/
     backends/http.sh                                 # OpenAI HTTP path (halogen-flash, …)
   lib/engines/*.sh                                   # lifecycle adapters (prepare/cleanup)
   lib/{lifecycle,http_openai,engine}.sh              # shared
-  halogen/                                           # compat shim → matrix/suites + --engine
 ```
 
 **Equal engine contract:** compose + `lib/engines/<id>.sh` + `./stack` + `./bench smoke` + `./bench matrix --engine <id>`.

@@ -118,8 +118,8 @@ def vram_max(path):
 def decode_ms(slot):
     if not slot:
         return None
-    p50 = slot.get("token_interval_ms_p50")
-    p95 = slot.get("token_interval_ms_p95")
+    p50 = slot.get("itl_ms_p50")
+    p95 = slot.get("itl_ms_p95")
     if p95 is not None and (p50 is None or p50 < 1.0):
         return p95
     return p50 if p50 is not None else p95
@@ -143,9 +143,9 @@ for path in sorted(glob.glob(os.path.join(sdir, "n_*", "run", "summary.json"))):
         "spec_type": "none" if label == "off" else "draft-mtp",
         "spec_draft_n_max": None if label == "off" else int(label),
         "decode_ms": decode_ms(slot_a),
-        "decode_tps": slot_a.get("tokens_per_sec"),
+        "decode_tps": slot_a.get("decode_tok_s"),
         "prefill_ttft_ms": slot_b.get("ttft_ms"),
-        "prefill_tps": slot_b.get("tokens_per_sec"),
+        "prefill_tps": slot_b.get("decode_tok_s"),
         "summary": data,
     }
     if vram is not None:
@@ -266,8 +266,8 @@ def vram_max(path):
 def decode_ms(slot):
     if not slot:
         return None
-    p50 = slot.get("token_interval_ms_p50")
-    p95 = slot.get("token_interval_ms_p95")
+    p50 = slot.get("itl_ms_p50")
+    p95 = slot.get("itl_ms_p95")
     if p95 is not None and (p50 is None or p50 < 1.0):
         return p95
     return p50 if p50 is not None else p95
@@ -309,9 +309,9 @@ for label in ("cont_on", "cont_off"):
         "cont_batching": label == "cont_on",
         "pp_tok_s": pp.get("pp_tok_s"),
         "pp_ttft_ms": pp.get("ttft_ms"),
-        "tg_tok_s": slot_solo.get("tokens_per_sec"),
+        "decode_tok_s": slot_solo.get("decode_tok_s"),
         "decode_ms": decode_ms(slot_a),
-        "prefill_tok_s": slot_b.get("tokens_per_sec"),
+        "prefill_tok_s": slot_b.get("decode_tok_s"),
         "prefill_ttft_ms": slot_b.get("ttft_ms"),
         "summary_interleave": inter or None,
         "summary_solo": solo or None,

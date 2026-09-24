@@ -659,13 +659,14 @@ write_compare() {
     if [[ "$scope" == history ]]; then
       echo "- Vulkan sources: $vk_n file(s) · ROCm: $rocm_n · CPU: $cpu_n"
     fi
-    echo "- pp = prompt tok/s ($PP), tg = generation tok/s ($TG). Higher is better."
+    echo "- Prefill tok/s = prompt processing ($PP). Decode tok/s = generation ($TG). Higher is better."
+    echo "- Native llama-bench has no client TTFT; TTFT columns stay empty for this suite."
     cols="model"
-    [[ "$show_vk" -eq 1 ]] && cols="$cols | Vulkan pp | Vulkan tg"
-    [[ "$show_rocm" -eq 1 ]] && cols="$cols | ROCm pp | ROCm tg"
-    [[ "$show_cpu" -eq 1 ]] && cols="$cols | CPU pp | CPU tg"
+    [[ "$show_vk" -eq 1 ]] && cols="$cols | Vulkan prefill_tok_s | Vulkan decode_tok_s"
+    [[ "$show_rocm" -eq 1 ]] && cols="$cols | ROCm prefill_tok_s | ROCm decode_tok_s"
+    [[ "$show_cpu" -eq 1 ]] && cols="$cols | CPU prefill_tok_s | CPU decode_tok_s"
     if [[ "$show_vk" -eq 1 && "$show_rocm" -eq 1 ]]; then
-      cols="$cols | pp Δ vk→rocm | tg Δ vk→rocm"
+      cols="$cols | prefill Δ vk→rocm | decode Δ vk→rocm"
     fi
     ncol=$(awk -F'|' '{print NF}' <<< "$cols")
     echo
@@ -711,15 +712,15 @@ td.n { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-mo
 </style></head><body>
 <h1>llama-bench compare</h1>
 <p class="meta">$(html_escape "$scope_note")<br>
-pp${PP} prompt tok/s · tg${TG} generation tok/s · higher is better</p>
+prefill ${PP} tok · decode ${TG} tok · higher is better</p>
 <table><thead><tr>
 EOF
     echo -n '<th>model</th>'
-    [[ "$show_vk" -eq 1 ]] && echo -n '<th class="n">Vulkan pp</th><th class="n">Vulkan tg</th>'
-    [[ "$show_rocm" -eq 1 ]] && echo -n '<th class="n">ROCm pp</th><th class="n">ROCm tg</th>'
-    [[ "$show_cpu" -eq 1 ]] && echo -n '<th class="n">CPU pp</th><th class="n">CPU tg</th>'
+    [[ "$show_vk" -eq 1 ]] && echo -n '<th class="n">Vulkan prefill</th><th class="n">Vulkan decode</th>'
+    [[ "$show_rocm" -eq 1 ]] && echo -n '<th class="n">ROCm prefill</th><th class="n">ROCm decode</th>'
+    [[ "$show_cpu" -eq 1 ]] && echo -n '<th class="n">CPU prefill</th><th class="n">CPU decode</th>'
     if [[ "$show_vk" -eq 1 && "$show_rocm" -eq 1 ]]; then
-      echo -n '<th class="n">pp Δ</th><th class="n">tg Δ</th>'
+      echo -n '<th class="n">prefill Δ</th><th class="n">decode Δ</th>'
     fi
     echo '</tr></thead><tbody>'
     printf '%s\n' "${model_names[@]}" | sort -u | while IFS= read -r name; do

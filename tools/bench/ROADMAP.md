@@ -39,8 +39,8 @@ setup” decisions. Items below are polish — track here so they are not forgot
 
 - [x] Live INIs gitignored; templates in `engines/llama-cpp/presets/ini/`
 - [x] Engine dimension (`BENCH_ENGINE` / Halogen Flash) — tagged results + Pages engine tabs / Compare
-- [x] Halogen full matrix (`full-halogen` / `./bench halogen matrix`) — HTTP capacity+sched+throughput+quality
+- [x] Halogen full matrix (`./bench matrix --engine halogen-flash`) — HTTP capacity+sched+throughput+quality
 - [x] Generic engine lifecycle (`lib/lifecycle.sh` + `lib/engines/*.sh`) — prepare/cleanup per engine; Halogen compose+stickys
-- [x] Suite-primary layout — `*/backends/http.sh` + `lib/engines/*`; `halogen/` compat shim only
+- [x] Suite-primary layout — `*/backends/http.sh` + `lib/engines/*` (no halogen/ shim)
 - [x] Multi-engine throughput latest (`latest/by-engine/<engine>/` + merged compare; no overwrite)
 - [ ] One-page “first matrix” checklist on GitHub Pages index

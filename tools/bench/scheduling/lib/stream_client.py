@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Stream /v1/chat/completions and log SSE chunks with timestamps (JSONL)."""
+"""Stream /v1/chat/completions and log SSE chunks with timestamps (JSONL).
+
+Events:
+  start   — request begin (t0)
+  chunk   — content/reasoning delta
+  timings — server timing object when present (llama.cpp / Gufo)
+  done    — stream finished
+"""
 from __future__ import annotations
 
 import argparse
@@ -10,8 +17,14 @@ import urllib.error
 import urllib.request
 
 
+def _emit(out_f, event: str, **extra: object) -> None:
+    rec = {"t": time.perf_counter(), "event": event, **extra}
+    out_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    out_f.flush()
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="llama-server streaming client for sched-bench")
+    ap = argparse.ArgumentParser(description="OpenAI streaming client for bench timing")
     ap.add_argument("--url", required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--label", default="slot")
@@ -26,6 +39,7 @@ def main() -> int:
     body = {
         "model": args.model,
         "stream": True,
+        "stream_options": {"include_usage": True},
         "max_tokens": args.max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
@@ -38,15 +52,11 @@ def main() -> int:
     )
 
     t0 = time.perf_counter()
-
-    def emit(event: str, **extra: object) -> None:
-        rec = {"t": time.perf_counter(), "label": args.label, "event": event, **extra}
-        out_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        out_f.flush()
+    timings_seen = False
 
     try:
         with open(args.out, "w", encoding="utf-8") as out_f:
-            emit("start", t0=t0)
+            _emit(out_f, "start", t0=t0, label=args.label)
             with urllib.request.urlopen(req, timeout=600) as resp:
                 for raw in resp:
                     line = raw.decode("utf-8", errors="replace").strip()
@@ -54,19 +64,44 @@ def main() -> int:
                         continue
                     payload = line[5:].strip()
                     if payload == "[DONE]":
-                        emit("done")
+                        _emit(out_f, "done", label=args.label)
                         break
                     try:
                         obj = json.loads(payload)
                     except json.JSONDecodeError:
                         continue
+
+                    # Server timings (llama.cpp / Gufo) on terminal or usage chunk.
+                    timings = obj.get("timings")
+                    if isinstance(timings, dict) and not timings_seen:
+                        timings_seen = True
+                        _emit(out_f, "timings", label=args.label, timings=timings)
+
+                    usage = obj.get("usage")
+                    if isinstance(usage, dict):
+                        _emit(out_f, "usage", label=args.label, usage=usage)
+                        nested = usage.get("timings")
+                        if isinstance(nested, dict) and not timings_seen:
+                            timings_seen = True
+                            _emit(out_f, "timings", label=args.label, timings=nested)
+
                     choices = obj.get("choices") or []
                     if not choices:
                         continue
-                    delta = choices[0].get("delta") or {}
+                    choice0 = choices[0] or {}
+                    # Some servers put timings on the terminal choice object.
+                    if isinstance(choice0.get("timings"), dict) and not timings_seen:
+                        timings_seen = True
+                        _emit(
+                            out_f,
+                            "timings",
+                            label=args.label,
+                            timings=choice0["timings"],
+                        )
+                    delta = choice0.get("delta") or {}
                     text = delta.get("content") or delta.get("reasoning_content")
                     if text:
-                        emit("chunk", text=text)
+                        _emit(out_f, "chunk", label=args.label, text=text)
     except urllib.error.HTTPError as e:
         err = e.read().decode("utf-8", errors="replace")
         print(f"HTTP {e.code}: {err}", file=sys.stderr)

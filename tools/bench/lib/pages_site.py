@@ -198,8 +198,6 @@ def _compare_catalog(by_engine: dict[str, dict], engines: list[str]) -> list[dic
                 "engine_label": engine_label(eng),
                 "model": model,
                 "label": f"{engine_label(eng)} · {display_name(model, 42, engine=eng)}",
-                "pp": None,
-                "tg": None,
                 "pass_at_1": None,
                 "pass_at_10": None,
                 "n": None,
@@ -214,8 +212,11 @@ def _compare_catalog(by_engine: dict[str, dict], engines: list[str]) -> list[dic
             if not name:
                 continue
             e = slot(eng, name)
-            e["pp"] = parse_float(m.get("pp"))
-            e["tg"] = parse_float(m.get("tg"))
+            e["prefill_tok_s"] = parse_float(m.get("prefill_tok_s"))
+            e["decode_tok_s"] = parse_float(m.get("decode_tok_s"))
+            e["ttft_cold_ms"] = parse_float(m.get("ttft_cold_ms"))
+            e["ttft_warm_ms"] = parse_float(m.get("ttft_warm_ms"))
+            e["itl_p50_ms"] = parse_float(m.get("itl_p50_ms"))
         for r in payload.get("qual_rows") or []:
             name = (r.get("model") or "").strip()
             if not name:
@@ -323,20 +324,20 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
         if len(engines_hit) < 2:
             continue
         if thr.get(eng_a) or thr.get(eng_b):
-            a_tg = (thr.get(eng_a) or {}).get("tg")
-            b_tg = (thr.get(eng_b) or {}).get("tg")
+            a_tg = (thr.get(eng_a) or {}).get("decode_tok_s")
+            b_tg = (thr.get(eng_b) or {}).get("decode_tok_s")
             overlap_rows.append(
                 f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
-                f"<td>Generation tok/s</td>"
+                f"<td>Decode tok/s</td>"
                 f'<td class="n">{esc(fmt_num(a_tg) if a_tg not in (None, "") else "—")}</td>'
                 f'<td class="n">{esc(fmt_num(b_tg) if b_tg not in (None, "") else "—")}</td>'
                 f'<td class="n">{esc(delta_pct(a_tg, b_tg))}</td></tr>'
             )
-            a_pp = (thr.get(eng_a) or {}).get("pp")
-            b_pp = (thr.get(eng_b) or {}).get("pp")
+            a_pp = (thr.get(eng_a) or {}).get("prefill_tok_s")
+            b_pp = (thr.get(eng_b) or {}).get("prefill_tok_s")
             overlap_rows.append(
                 f'<tr><td title="{esc(name)}">{esc(display_name(name, 36))}</td>'
-                f"<td>Prompt tok/s</td>"
+                f"<td>Prefill tok/s</td>"
                 f'<td class="n">{esc(fmt_num(a_pp) if a_pp not in (None, "") else "—")}</td>'
                 f'<td class="n">{esc(fmt_num(b_pp) if b_pp not in (None, "") else "—")}</td>'
                 f'<td class="n">{esc(delta_pct(a_pp, b_pp))}</td></tr>'
@@ -457,8 +458,11 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
       return;
     }}
     const rows = [
-      ["Generation tok/s", fmtNum(a.tg), fmtNum(b.tg), delta(a.tg, b.tg)],
-      ["Prompt tok/s", fmtNum(a.pp), fmtNum(b.pp), delta(a.pp, b.pp)],
+      ["Decode tok/s", fmtNum(a.decode_tok_s), fmtNum(b.decode_tok_s), delta(a.decode_tok_s, b.decode_tok_s)],
+      ["Prefill tok/s", fmtNum(a.prefill_tok_s), fmtNum(b.prefill_tok_s), delta(a.prefill_tok_s, b.prefill_tok_s)],
+      ["TTFT warm (ms)", fmtNum(a.ttft_warm_ms), fmtNum(b.ttft_warm_ms), delta(b.ttft_warm_ms, a.ttft_warm_ms)],
+      ["TTFT cold (ms)", fmtNum(a.ttft_cold_ms), fmtNum(b.ttft_cold_ms), delta(b.ttft_cold_ms, a.ttft_cold_ms)],
+      ["ITL p50 (ms)", fmtNum(a.itl_p50_ms), fmtNum(b.itl_p50_ms), delta(b.itl_p50_ms, a.itl_p50_ms)],
       ["HumanEval pass@1", fmtPct(a.pass_at_1), fmtPct(b.pass_at_1), delta(a.pass_at_1, b.pass_at_1)],
       ["HumanEval pass@10", fmtPct(a.pass_at_10), fmtPct(b.pass_at_10), delta(a.pass_at_10, b.pass_at_10)],
       ["Max context", fmtCtx(a.max_c), fmtCtx(b.max_c), delta(a.max_c, b.max_c)],
@@ -554,6 +558,10 @@ details.panel { background: #171a21; border: 1px solid #252a35; border-radius: 1
 summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
 .chart-box { background: #12141a; border-radius: 8px; padding: .75rem 1rem 1rem;
   border: 1px solid #252a35; margin: .75rem 0; }
+.charts.two { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+@media (min-width: 900px) {
+  .charts.two { grid-template-columns: 1fr 1fr; }
+}
 .chart-wrap { position: relative; height: 280px; }
 .chart-wrap.tall { height: 320px; }
 .btn { display: inline-block; margin: .3rem .4rem .3rem 0; padding: .45rem .85rem;
@@ -681,7 +689,7 @@ def verdict_cards(thr_models: list, qual_rows: list, cap_latest: dict) -> str:
 
     best_tg = None
     for m in thr_models or []:
-        tg = parse_float(m.get("tg"))
+        tg = parse_float(m.get("decode_tok_s"))
         if tg is None:
             continue
         if best_tg is None or tg > best_tg[0]:
@@ -704,7 +712,7 @@ def verdict_cards(thr_models: list, qual_rows: list, cap_latest: dict) -> str:
 
     best_pp = None
     for m in thr_models or []:
-        pp = parse_float(m.get("pp"))
+        pp = parse_float(m.get("prefill_tok_s"))
         if pp is None:
             continue
         if best_pp is None or pp > best_pp[0]:
@@ -773,21 +781,30 @@ def thr_table_html(thr_models: list) -> str:
             full = m.get("model") or "—"
             eng = normalize_engine(m.get("engine"))
             shown = canonicalize_model(full, eng)
+            prefill = m.get("prefill_tok_s") or "—"
+            decode = m.get("decode_tok_s") or "—"
             rows.append(
                 f'<tr><td title="{esc(shown)}">{esc(display_name(full, 40, engine=eng))}</td>'
-                f'<td class="n">{esc(m.get("pp") or "—")}</td>'
-                f'<td class="n">{esc(m.get("tg") or "—")}</td></tr>'
+                f'<td class="n">{esc(m.get("ttft_cold_ms") or "—")}</td>'
+                f'<td class="n">{esc(m.get("ttft_warm_ms") or "—")}</td>'
+                f'<td class="n">{esc(prefill)}</td>'
+                f'<td class="n">{esc(decode)}</td>'
+                f'<td class="n">{esc(m.get("itl_p50_ms") or "—")}</td></tr>'
             )
     else:
-        rows.append('<tr><td colspan="3" class="meta">No throughput runs yet.</td></tr>')
+        rows.append('<tr><td colspan="6" class="meta">No throughput runs yet.</td></tr>')
     return (
         '<div class="card" id="throughput"><h2>Single-user throughput</h2>'
-        '<p class="meta">One request at a time. Higher tokens/s is better.</p>'
+        '<p class="meta">TTFT = ms to first token (↓). Prefill/Decode = tok/s (↑). ITL = inter-token ms (↓). '
+        "Cold = first request; warm = immediate repeat (cache may hit).</p>"
         '<p class="more"><a href="throughput/latest/compare.html">→ Full throughput details</a></p>'
         "<table><thead><tr>"
         "<th>Model</th>"
-        f'<th class="n">{tip("Prompt", "Tokens/s reading ~512-token prompt.")}</th>'
-        f'<th class="n">{tip("Generation", "Tokens/s writing ~128 tokens.")}</th>'
+        f'<th class="n">{tip("TTFT cold", "Time to first token on the first request (ms). Lower better.")}</th>'
+        f'<th class="n">{tip("TTFT warm", "Time to first token on an immediate repeat (ms). Gap vs cold shows cache.")}</th>'
+        f'<th class="n">{tip("Prefill tok/s", "Prompt processing speed . Higher better.")}</th>'
+        f'<th class="n">{tip("Decode tok/s", "Generation after first token . Higher better.")}</th>'
+        f'<th class="n">{tip("ITL p50", "Median ms between output tokens. Lower = smoother stream.")}</th>'
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table></div>"
@@ -1037,13 +1054,13 @@ def max_ctx_one_per_model(cap_latest: dict, cap_metrics_fn) -> str:
     return (
         '<p class="meta">Preferred KV <strong>q8_0</strong> (typical sticky setting). '
         "Other quants that also reach the same max are noted on the right. "
-        "Prompt cost is for a full fill at that context.</p>"
+        "TTFT / Prefill are for a full fill at that context.</p>"
         "<table><thead><tr>"
         "<th>Model</th><th>KV</th>"
         f'<th class="n">{tip("Max context", "Largest successful context at the preferred KV (q8 when measured).")}</th>'
         f'<th class="n">{tip("Memory", "Shared GPU memory at that context.")}</th>'
-        f'<th class="n">{tip("Prompt time", "Seconds to process a full prompt at max context.")}</th>'
-        f'<th class="n">{tip("Prompt speed", "Tokens/s while reading the prompt.")}</th>'
+        f'<th class="n">{tip("TTFT", "Seconds from request start to first token at max context (client wall). Lower better.")}</th>'
+        f'<th class="n">{tip("Prefill tok/s", "Approx fill_tokens / TTFT at that context. Higher better.")}</th>'
         "<th>Also fits</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
@@ -1055,6 +1072,7 @@ def max_ctx_one_per_model(cap_latest: dict, cap_metrics_fn) -> str:
 def overview_chart_script(thr_chart: dict, canvas_id: str = "chart-thr") -> str:
     data = json.dumps({"throughput": thr_chart}, ensure_ascii=False).replace("<", "\\u003c")
     sid = f"bench-thr-data-{canvas_id}"
+    lat_id = f"{canvas_id}-latency"
     return f"""
 <script id="{esc(sid)}" type="application/json">{data}</script>
 <script>
@@ -1068,28 +1086,53 @@ def overview_chart_script(thr_chart: dict, canvas_id: str = "chart-thr") -> str:
   if (!(thr.labels || []).length) return;
   const tick = {{ color: "#9aa0a6" }};
   const grid = {{ color: "#2a2e37" }};
+  const common = {{
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {{ legend: {{ labels: {{ color: "#c4c7cc" }} }} }},
+  }};
   new Chart(canvas, {{
     type: "bar",
     data: {{
       labels: thr.labels,
       datasets: [
-        {{ label: "Prompt (tok/s)", data: thr.pp, backgroundColor: "#5b8def" }},
-        {{ label: "Generation (tok/s)", data: thr.tg, backgroundColor: "#7ddea5" }},
+        {{ label: "Prefill tok/s", data: thr.prefill_tok_s, backgroundColor: "#5b8def" }},
+        {{ label: "Decode tok/s", data: thr.decode_tok_s, backgroundColor: "#7ddea5" }},
       ],
     }},
     options: {{
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {{ legend: {{ labels: {{ color: "#c4c7cc" }} }} }},
+      ...common,
       scales: {{
         x: {{ ticks: tick, grid }},
         y: {{ ticks: tick, grid, title: {{ display: true, text: "tokens / s", color: "#9aa0a6" }} }},
       }},
     }},
   }});
+  const lat = document.getElementById({json.dumps(lat_id)});
+  if (lat) {{
+    new Chart(lat, {{
+      type: "bar",
+      data: {{
+        labels: thr.labels,
+        datasets: [
+          {{ label: "TTFT cold (ms)", data: thr.ttft_cold_ms, backgroundColor: "#e06767" }},
+          {{ label: "TTFT warm (ms)", data: thr.ttft_warm_ms, backgroundColor: "#f0c674" }},
+          {{ label: "ITL p50 (ms)", data: thr.itl_p50_ms, backgroundColor: "#c4a5de" }},
+        ],
+      }},
+      options: {{
+        ...common,
+        scales: {{
+          x: {{ ticks: tick, grid }},
+          y: {{ ticks: tick, grid, title: {{ display: true, text: "milliseconds", color: "#9aa0a6" }} }},
+        }},
+      }},
+    }});
+  }}
 }})();
 </script>
 """
+
 
 def context_chart_script(
     cap_chart: dict,
@@ -1124,8 +1167,8 @@ def context_chart_script(
     plugins: {{ legend: {{ labels: {{ color: "#c4c7cc" }} }} }},
   }};
   const yLabels = {{
-    prefill_s: "Prompt time (s)",
-    prefill_tok_s: "Prompt speed (tok/s)",
+    prefill_s: "TTFT / prompt time (s)",
+    prefill_tok_s: "Prefill speed (tok/s)",
     gtt_gib: "Memory (GiB)",
     power_w: "GPU watts",
   }};
@@ -1267,11 +1310,15 @@ def write_public_pages(
             f'<div class="engine-panel" data-engine="{esc(eng)}"{hidden}>'
             f"{verdict_cards(thr_m, qual, cap)}"
             f'<div class="card" id="charts-{esc(slug)}">'
-            f"<h2>Prompt vs generation</h2>"
-            f'<p class="meta">Tokens per second with the model alone on the server. Higher is better.'
+            f"<h2>Prefill, Decode &amp; TTFT</h2>"
+            f'<p class="meta">Alone on the server. Prefill/Decode = tok/s (↑). TTFT/ITL = ms (↓).'
             f' <span class="engine-badge">{esc(engine_label(eng))}</span></p>'
-            f'<div class="chart-box"><div class="chart-wrap"><canvas id="{esc(canvas)}"></canvas></div></div>'
-            f"</div>"
+            f'<div class="charts two">'
+            f'<div class="chart-box"><h3>Prefill vs Decode</h3>'
+            f'<div class="chart-wrap"><canvas id="{esc(canvas)}"></canvas></div></div>'
+            f'<div class="chart-box"><h3>TTFT &amp; ITL</h3>'
+            f'<div class="chart-wrap"><canvas id="{esc(canvas)}-latency"></canvas></div></div>'
+            f"</div></div>"
             f"{thr_table_html(thr_m)}"
             f'<div class="card" id="quality-preview-{esc(slug)}">'
             f"<h2>Code correctness</h2>"
@@ -1341,14 +1388,14 @@ def write_public_pages(
             f"{max_ctx_one_per_model(cap, cap_metrics_fn)}"
             f"</div>"
             f'<div class="card">'
-            f"<h2>Prompt cost vs context</h2>"
-            f'<p class="meta">Pick a model. Lower line = faster prompt processing as context grows.</p>'
+            f"<h2>TTFT / Prefill vs context</h2>"
+            f'<p class="meta">Pick a model. Lower TTFT line = snappier first token as context grows.</p>'
             f'<label class="meta" for="{esc(model_sel)}">Model </label>'
             f'<select id="{esc(model_sel)}" class="model-pick"></select>'
             f'<label class="meta" for="{esc(y_sel)}">Y axis </label>'
             f'<select id="{esc(y_sel)}" class="model-pick">'
-            f'<option value="prefill_s" selected>Prompt time (s)</option>'
-            f'<option value="prefill_tok_s">Prompt speed (tok/s)</option>'
+            f'<option value="prefill_s" selected>TTFT / prompt time (s)</option>'
+            f'<option value="prefill_tok_s">Prefill speed (tok/s)</option>'
             f'<option value="gtt_gib">Memory (GiB)</option>'
             f"{power_opt}"
             f"</select>"

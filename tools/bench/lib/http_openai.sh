@@ -41,8 +41,7 @@ bench_http_require_up() {
   bench_engine_prepare "$eng" || bench_http_die "$eng prepare failed"
   BENCH_HTTP_BASE_URL="$(bench_http_base_url)"
   export BENCH_HTTP_BASE_URL
-  # Compat aliases used by older scripts / halogen engine adapter
-  export HALOGEN_BASE_URL="$BENCH_HTTP_BASE_URL"
+    export HALOGEN_BASE_URL="$BENCH_HTTP_BASE_URL"
   export QUALITY_BASE_URL="${QUALITY_BASE_URL:-$BENCH_HTTP_BASE_URL}"
   export SCHED_BASE_URL="${SCHED_BASE_URL:-$BENCH_HTTP_BASE_URL}"
 }
@@ -249,94 +248,23 @@ bench_http_stream_once() {
 }
 
 bench_http_summarize_stream() {
-  local jsonl="$1" out_json="$2"
-  bench_python - "$jsonl" "$out_json" <<'PY'
-import json, sys
-path, out = sys.argv[1], sys.argv[2]
-t0 = None
-chunks = []
-with open(path, encoding="utf-8") as f:
-    for line in f:
-        rec = json.loads(line)
-        if rec.get("event") == "start":
-            t0 = rec.get("t0") or rec.get("t")
-        elif rec.get("event") == "chunk":
-            chunks.append(rec.get("t"))
-summary = {"chunks": len(chunks), "ttft_ms": None, "tokens_per_sec": None, "elapsed_s": None}
-if t0 is not None and chunks:
-    ttft = (chunks[0] - t0) * 1000.0
-    elapsed = chunks[-1] - t0
-    summary["ttft_ms"] = round(ttft, 2)
-    summary["elapsed_s"] = round(elapsed, 3)
-    if elapsed > 0 and len(chunks) > 1:
-        summary["tokens_per_sec"] = round((len(chunks) - 1) / elapsed, 2)
-with open(out, "w", encoding="utf-8") as f:
-    json.dump(summary, f, indent=2)
-    f.write("\n")
-print(json.dumps(summary))
-PY
+  # Args: jsonl out_json [fill_tokens]
+  local jsonl="$1" out_json="$2" fill="${3:-}"
+  local -a args=("$PROJECT_ROOT/tools/bench/lib/stream_summary.py" "$jsonl" "$out_json")
+  if [[ -n "$fill" ]]; then
+    args+=(--fill-tokens "$fill")
+  fi
+  bench_python "${args[@]}"
 }
 
 bench_http_summarize_jsonl_sched() {
-  local jsonl="$1" summary="$2"
-  bench_python - "$jsonl" "$summary" <<'PY'
-import json, sys
-path, out = sys.argv[1], sys.argv[2]
-events = []
-with open(path, encoding="utf-8") as f:
-    for line in f:
-        line = line.strip()
-        if line:
-            events.append(json.loads(line))
-chunks = [e for e in events if e.get("event") == "chunk"]
-times = [e["t"] for e in chunks]
-deltas = []
-for i in range(1, len(times)):
-    d = (times[i] - times[i - 1]) * 1000.0
-    if d > 0.05:
-        deltas.append(d)
-ttft_ms = None
-if chunks:
-    t0 = events[0]["t"]
-    ttft_ms = (chunks[0]["t"] - t0) * 1000.0
-
-def pct(vals, p):
-    if not vals:
-        return None
-    vals = sorted(vals)
-    k = (len(vals) - 1) * p / 100.0
-    f = int(k)
-    c = min(f + 1, len(vals) - 1)
-    if f == c:
-        return vals[f]
-    return vals[f] + (vals[c] - vals[f]) * (k - f)
-
-summary = {
-    "chunks": len(chunks),
-    "ttft_ms": round(ttft_ms, 2) if ttft_ms is not None else None,
-    "token_interval_ms_p50": round(pct(deltas, 50), 2) if deltas else None,
-    "token_interval_ms_p95": round(pct(deltas, 95), 2) if deltas else None,
-    "token_interval_ms_max": round(max(deltas), 2) if deltas else None,
-    "total_ms": round((events[-1]["t"] - events[0]["t"]) * 1000.0, 2) if events else None,
-    "tokens_per_sec": None,
-}
-if summary["total_ms"] and summary["chunks"] > 1:
-    dur_s = (events[-1]["t"] - chunks[0]["t"])
-    if dur_s > 0:
-        summary["tokens_per_sec"] = round((len(chunks) - 1) / dur_s, 2)
-with open(out, "w", encoding="utf-8") as f:
-    json.dump(summary, f, indent=2)
-    f.write("\n")
-PY
+  # Full summary (TTFT / decode / ITL / E2E / server timings).
+  bench_http_summarize_stream "$1" "$2"
 }
 
-# --- Compat aliases (halogen/* shims + older call sites) ---
+# --- Compat aliases (capacity/scheduling call sites) ---
 log() { bench_http_log "$@"; }
 die() { bench_http_die "$@"; }
-halogen_require_up() { bench_http_require_up "$@"; }
-halogen_list_models() { bench_http_list_models "$@"; }
-halogen_resolve_models() { bench_http_resolve_models "$@"; }
-halogen_fingerprint() { bench_http_fingerprint "$@"; }
 write_fill_prompt() { bench_http_write_fill_prompt "$@"; }
 write_short_prompt() { bench_http_write_short_prompt "$@"; }
 stream_once() { bench_http_stream_once "$@"; }
