@@ -72,6 +72,40 @@ engine_gufo_compose_cmd() {
   printf '%s\n' "$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
 }
 
+# Map container /models/… → host file under GUFO_MODELS; fail early if missing.
+engine_gufo_assert_weights() {
+  local models_dir="${1:?}"
+  local cpath="${GUFO_MODEL:-/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf}"
+  local rel host
+  rel="${cpath#/models/}"
+  rel="${rel#/}"
+  host="${models_dir}/${rel}"
+  export GUFO_MODEL="$cpath"
+  if [[ ! -f "$host" ]]; then
+    printf 'error: GUFO_MODEL missing on host\n' >&2
+    printf '  container: %s\n' "$cpath" >&2
+    printf '  expected:  %s\n' "$host" >&2
+    printf '  GUFO_MODELS=%s (must be the gguf/ root)\n' "$models_dir" >&2
+    printf 'hint: ./model-dl.sh download Qwen3.8-27B-UD-Q8  →  gguf/chat/large/\n' >&2
+    printf 'hint: or set GUFO_MODEL=/models/chat/large/<file>.gguf in .env\n' >&2
+    return 1
+  fi
+  if [[ -n "${GUFO_DFLASH_MODEL:-}" ]]; then
+    rel="${GUFO_DFLASH_MODEL#/models/}"
+    rel="${rel#/}"
+    host="${models_dir}/${rel}"
+    if [[ ! -f "$host" ]]; then
+      printf 'warning: GUFO_DFLASH_MODEL missing (%s) — starting AR only\n' "$host" >&2
+      unset GUFO_DFLASH_MODEL GUFO_SPECULATIVE
+      export -n GUFO_DFLASH_MODEL GUFO_SPECULATIVE 2>/dev/null || true
+      GUFO_DFLASH_MODEL=""
+      GUFO_SPECULATIVE=""
+      export GUFO_DFLASH_MODEL GUFO_SPECULATIVE
+    fi
+  fi
+  bench_lifecycle_log "gufo weights OK: $cpath${GUFO_SPECULATIVE:+ speculative=$GUFO_SPECULATIVE}"
+}
+
 engine_gufo_prepare() {
   local compose compose_dir models_dir url
   url="$(engine_gufo_base_url)"
@@ -95,6 +129,8 @@ engine_gufo_prepare() {
     return 1
   }
   export GUFO_MODELS="$models_dir"
+  : "${GUFO_MODEL:=/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf}"
+  engine_gufo_assert_weights "$models_dir" || return 1
   compose="$(engine_gufo_compose_cmd)" || return 1
   compose_dir="$(dirname "$compose")"
 
@@ -103,10 +139,15 @@ engine_gufo_prepare() {
   fi
   bench_engine_guard_start "gufo" 1 || return 1
 
-  bench_lifecycle_log "gufo compose up (file=$compose GUFO_MODELS=$models_dir)"
+  bench_lifecycle_log "gufo compose up (file=$compose GUFO_MODELS=$models_dir GUFO_MODEL=$GUFO_MODEL)"
   local envf=()
   [[ -f "${PROJECT_ROOT}/.env" ]] && envf=(--env-file "${PROJECT_ROOT}/.env")
-  (cd "$compose_dir" && GUFO_MODELS="$models_dir" docker compose "${envf[@]}" -f "$(basename "$compose")" up -d) || {
+  (cd "$compose_dir" && \
+    GUFO_MODELS="$models_dir" \
+    GUFO_MODEL="$GUFO_MODEL" \
+    GUFO_SPECULATIVE="${GUFO_SPECULATIVE:-}" \
+    GUFO_DFLASH_MODEL="${GUFO_DFLASH_MODEL:-}" \
+    docker compose "${envf[@]}" -f "$(basename "$compose")" up -d) || {
     printf 'error: docker compose up failed for %s\n' "$compose" >&2
     printf 'hint: set GUFO_MODEL / GUFO_MODELS; Docker needs group_add video/render (not keep-groups)\n' >&2
     return 1

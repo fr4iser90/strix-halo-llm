@@ -14,9 +14,9 @@
 #       --speculative dflash2 \
 #       --dflash-model /models/Qwen3.8-27B-DFlash2-GGUF/Qwen3.8-27B-DFlash2-Q4_K_M.gguf
 #
-# ONE VOLUME IS ENOUGH. Point GUFO_MODELS at the directory that holds the
-# downloaded GGUFs (the README quickstart layout under ./models). Paths in
-# GUFO_MODEL / GUFO_DFLASH_MODEL are inside the container, under /models.
+# Hub layout (MODELS_ROOT/gguf → /models):
+#   /models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf
+# Upstream gufo quickstart used /models/Qwen3.8-27B-GGUF/… — do not use that here.
 #
 # Gufo is configured by CLI flags. This file maps a small set of environment
 # variables onto that CLI so overrides stay in one place. Do not copy a
@@ -54,22 +54,20 @@ services:
       GUFO_HOST: 0.0.0.0
       GUFO_PORT: "8080"
       #
-      # NOTHING ELSE IS SET AS A HARD DEFAULT ON PURPOSE beyond the README
-      # quickstart model paths. Uncomment to change sessions, drop speculative
-      # decode, or point at another GGUF.
-      #
-      # GUFO_SESSIONS: "2"
-      #
-      # README quickstart (Qwen3.8 27B Q8 + DFlash2). Change these for another
-      # model; clear GUFO_SPECULATIVE and GUFO_DFLASH_MODEL for plain AR.
-      GUFO_MODEL: /models/Qwen3.8-27B-GGUF/Qwen3.8-27B-UD-Q8_K_XL.gguf
-      GUFO_SPECULATIVE: dflash2
-      GUFO_DFLASH_MODEL: /models/Qwen3.8-27B-DFlash2-GGUF/Qwen3.8-27B-DFlash2-Q4_K_M.gguf
+      # Hub layout: GUFO_MODELS → host gguf/ mounted at /models
+      #   → files live at /models/chat/large/….gguf (not upstream Qwen3.8-27B-GGUF/)
+      # Override in .env. Clear GUFO_SPECULATIVE + GUFO_DFLASH_MODEL for plain AR.
+      GUFO_MODEL: ${GUFO_MODEL:-/models/chat/large/Qwen3.8-27B-UD-Q8_K_XL.gguf}
+      # Optional DFlash2 — set both in .env when draft GGUF is present:
+      #   GUFO_SPECULATIVE=dflash2
+      #   GUFO_DFLASH_MODEL=/models/chat/large/Qwen3.8-27B-DFlash2-Q4_K_M.gguf
+      GUFO_SPECULATIVE: ${GUFO_SPECULATIVE:-}
+      GUFO_DFLASH_MODEL: ${GUFO_DFLASH_MODEL:-}
       #
       # Extra flags appended as-is (e.g. "--context 32768 --verbose").
       # GUFO_EXTRA_ARGS: "--context 32768"
     volumes:
-      - ${GUFO_MODELS:?set GUFO_MODELS to the directory that holds the downloaded weights}:/models:ro
+      - ${GUFO_MODELS:?set GUFO_MODELS to the gguf root (…/gguf) mounted at /models}:/models:ro
     ports:
       - "${GUFO_PUBLISH_PORT:-8080}:8080"
     devices:
