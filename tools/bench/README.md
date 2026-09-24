@@ -75,6 +75,8 @@ After runs: `./bench index && ./bench publish` (engine tabs when ≥2 engines ha
 
 Throughput `latest/` is **multi-engine**: each engine keeps `throughput/latest/by-engine/<engine>/`; merged `compare.md` is rebuilt so Halogen does not wipe llama.cpp charts.
 
+HTTP engines (`--engine halogen-flash|gufo`): fill ladder for TTFT/Prefill — default `THROUGHPUT_PREFILL_LIST=512,4096,16384` (rows `model @N`). Prefill = **cold** fill/TTFT (warm is cache TTFT only). Single size: `THROUGHPUT_PREFILL_TOKENS=4096`. Decode length: `THROUGHPUT_DECODE_TOKENS=128`.
+
 ## Full matrix (multi-day)
 
 Align INIs with disk first, then run the matrix.

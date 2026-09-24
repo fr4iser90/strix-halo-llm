@@ -7,11 +7,12 @@ Client wall-clock (primary for user feel):
   itl_ms_p50/p95   — inter-token latency distribution
 
 Optional with --fill-tokens N:
-  prefill_tok_s    — fill_tokens / (ttft_ms/1000)
+  prefill_tok_s    — fill_tokens / (ttft_ms/1000)  (use cold stream for real prefill)
 
 Server timings when the engine emits them (Gufo / llama.cpp):
   server_prompt_ms, server_predicted_ms, server_prompt_n, server_predicted_n,
   server_prompt_tok_s, server_decode_tok_s, server_cache_n
+  (non-positive server rates are dropped — warm cache often reports 0)
 """
 from __future__ import annotations
 
@@ -106,11 +107,23 @@ def summarize(path: str, fill_tokens: float | None = None) -> dict[str, Any]:
         out["server_cache_n"] = server.get("cache_n")
         out["server_prompt_tok_s"] = server.get("prompt_per_second")
         out["server_decode_tok_s"] = server.get("predicted_per_second")
+        # Drop non-positive server rates (warm cache often reports 0).
+        try:
+            if out["server_prompt_tok_s"] is not None and float(out["server_prompt_tok_s"]) <= 0:
+                out["server_prompt_tok_s"] = None
+        except (TypeError, ValueError):
+            out["server_prompt_tok_s"] = None
+        try:
+            if out["server_decode_tok_s"] is not None and float(out["server_decode_tok_s"]) <= 0:
+                out["server_decode_tok_s"] = None
+        except (TypeError, ValueError):
+            out["server_decode_tok_s"] = None
         if (
             out["server_prompt_tok_s"] is None
             and prompt_ms
             and prompt_n
             and float(prompt_ms) > 0
+            and float(prompt_n) > 0
         ):
             out["server_prompt_tok_s"] = round(
                 float(prompt_n) * 1000.0 / float(prompt_ms), 2
@@ -120,6 +133,7 @@ def summarize(path: str, fill_tokens: float | None = None) -> dict[str, Any]:
             and predicted_ms
             and predicted_n
             and float(predicted_ms) > 0
+            and float(predicted_n) > 0
         ):
             out["server_decode_tok_s"] = round(
                 float(predicted_n) * 1000.0 / float(predicted_ms), 2
