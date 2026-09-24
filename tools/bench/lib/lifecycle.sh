@@ -22,9 +22,12 @@
 # Env:
 #   BENCH_ENGINE_SKIP_LIFECYCLE=1  — never start/stop (BYO server)
 #   BENCH_ENGINE_KEEP=1            — leave engine containers up after cleanup
-#   BENCH_NO_RESTORE=1             — do not restore sticky routers
+#   BENCH_NO_RESTORE=1             — do not restore sticky routers / peer engines
 #   ENGINE_FORCE_OVERLOAD=1        — skip MemAvailable / solo peer checks
 #   LLAMA_DAILY_SERVICES=llama,llama-coder  — which stickys to restore
+#
+# Solo GPU prepare: evicts live foreign peers (halogen↔gufo), snapshots them,
+# restores after cleanup (same idea as llama stop_daily / restore_daily).
 #
 # shellcheck shell=bash
 
@@ -158,7 +161,12 @@ bench_engine_prepare() {
     return 0
   fi
   bench_lifecycle_log "prepare engine=$eng"
+  # Solo GPU engines: stop foreign halogen/gufo first (snapshot for restore).
+  if bench_engine_is_gpu_llm "$eng" 2>/dev/null; then
+    bench_engine_evict_peers "$eng" || true
+  fi
   bench_engine_call "$eng" prepare || {
+    bench_engine_restore_peers || true
     printf 'error: engine_%s_prepare failed (or missing)\n' "$(bench_engine_fn_prefix "$eng")" >&2
     return 1
   }
@@ -182,6 +190,8 @@ bench_engine_cleanup() {
   fi
   bench_lifecycle_log "cleanup engine=$eng"
   bench_engine_call "$eng" cleanup || true
+  # Restore halogen/gufo that prepare evicted (after this engine is down).
+  bench_engine_restore_peers || true
   BENCH_ENGINE_READY=0
   BENCH_ENGINE_OWNED=0
   BENCH_ENGINE_ACTIVE=""

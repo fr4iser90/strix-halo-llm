@@ -210,6 +210,30 @@ engine_gufo_prepare() {
   engine_gufo_wait_ready "$url"
 }
 
+# Peer eviction / restore — stop/start only (no sticky restore).
+engine_gufo_stop_containers() {
+  command -v docker >/dev/null 2>&1 || return 0
+  engine_gufo_export_compose_env 2>/dev/null || true
+  bench_lifecycle_log "gufo compose stop (peer)"
+  engine_gufo_compose stop 2>/dev/null || true
+}
+
+engine_gufo_start_containers() {
+  local url
+  url="$(engine_gufo_base_url)"
+  command -v docker >/dev/null 2>&1 || return 0
+  engine_gufo_export_compose_env 2>/dev/null || {
+    bench_lifecycle_log "warn: cannot restore gufo (compose env)"
+    return 0
+  }
+  bench_lifecycle_log "gufo compose up (peer restore GUFO_MODEL=${GUFO_MODEL:-})"
+  engine_gufo_compose up -d || {
+    bench_lifecycle_log "warn: gufo peer restore compose up failed"
+    return 0
+  }
+  engine_gufo_wait_ready "$url" || true
+}
+
 engine_gufo_cleanup() {
   if [[ "${BENCH_ENGINE_BORROWED:-0}" == "1" ]]; then
     bench_lifecycle_log "gufo was borrowed — not stopping"

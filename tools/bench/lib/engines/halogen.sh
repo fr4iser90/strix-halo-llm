@@ -174,6 +174,36 @@ engine_halogen_flash_prepare() {
   bench_lifecycle_log "halogen-flash ready"
 }
 
+# Peer eviction / restore — stop/start only (no sticky restore; no borrow).
+engine_halogen_flash_stop_containers() {
+  local compose compose_dir
+  compose="$(engine_halogen_flash_compose_cmd 2>/dev/null)" || return 0
+  compose_dir="$(engine_halogen_flash_compose_dir 2>/dev/null)" || return 0
+  [[ -n "$compose" && -f "$compose" ]] || return 0
+  bench_lifecycle_log "halogen-flash compose stop (peer)"
+  (cd "$compose_dir" && docker compose -f "$(basename "$compose")" stop 2>/dev/null) || true
+}
+
+engine_halogen_flash_start_containers() {
+  local compose compose_dir models_dir url
+  url="$(engine_halogen_flash_base_url)"
+  models_dir="$(engine_halogen_flash_models_dir 2>/dev/null)" || {
+    bench_lifecycle_log "warn: cannot restore halogen-flash (HALOGEN_MODELS unset)"
+    return 0
+  }
+  export HALOGEN_MODELS="$models_dir"
+  compose="$(engine_halogen_flash_compose_cmd)" || return 0
+  compose_dir="$(engine_halogen_flash_compose_dir)" || return 0
+  bench_lifecycle_log "halogen-flash compose up (peer restore HALOGEN_MODELS=$models_dir)"
+  local envf=()
+  [[ -f "${PROJECT_ROOT}/.env" ]] && envf=(--env-file "${PROJECT_ROOT}/.env")
+  (cd "$compose_dir" && HALOGEN_MODELS="$models_dir" docker compose "${envf[@]}" -f "$(basename "$compose")" up -d) || {
+    bench_lifecycle_log "warn: halogen-flash peer restore compose up failed"
+    return 0
+  }
+  bench_engine_wait_ready "$url" "${HALOGEN_WAIT_TRIES}" || true
+}
+
 engine_halogen_flash_cleanup() {
   local compose compose_dir
 

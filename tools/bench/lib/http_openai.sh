@@ -21,7 +21,7 @@ source "$_BENCH_HTTP_DIR/lifecycle.sh"
 
 STREAM_CLIENT="${STREAM_CLIENT:-$PROJECT_ROOT/tools/bench/scheduling/lib/stream_client.py}"
 
-bench_http_log() { printf '[bench http] %s\n' "$*"; }
+bench_http_log() { printf '[bench http] %s\n' "$*" >&2; }
 bench_http_die() { printf '[bench http] error: %s\n' "$*" >&2; exit 1; }
 
 # Resolve OpenAI base URL for the active engine.
@@ -41,9 +41,16 @@ bench_http_require_up() {
   bench_engine_prepare "$eng" || bench_http_die "$eng prepare failed"
   BENCH_HTTP_BASE_URL="$(bench_http_base_url)"
   export BENCH_HTTP_BASE_URL
-    export HALOGEN_BASE_URL="$BENCH_HTTP_BASE_URL"
+  export HALOGEN_BASE_URL="$BENCH_HTTP_BASE_URL"
   export QUALITY_BASE_URL="${QUALITY_BASE_URL:-$BENCH_HTTP_BASE_URL}"
   export SCHED_BASE_URL="${SCHED_BASE_URL:-$BENCH_HTTP_BASE_URL}"
+  # Standalone suite backends must tear down + restore peers on exit.
+  # Matrix may also trap cleanup — second call is a no-op once OWNED=0.
+  if [[ "${BENCH_HTTP_LIFECYCLE_TRAP:-0}" != "1" ]]; then
+    export BENCH_HTTP_LIFECYCLE_TRAP=1
+    # shellcheck disable=SC2064
+    trap 'bench_engine_cleanup' EXIT
+  fi
 }
 
 # Print model ids from /v1/models (one per line).

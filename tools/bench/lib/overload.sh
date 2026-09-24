@@ -91,6 +91,110 @@ _bench_overload_is_self() {
   esac
 }
 
+# Probe name (bench_gpu_llm_live) → canonical engine id for container stop/start.
+_bench_peer_engine_id() {
+  case "$1" in
+    halogen) printf '%s\n' "halogen-flash" ;;
+    gufo) printf '%s\n' "gufo" ;;
+    *) return 1 ;;
+  esac
+}
+
+# Snapshot + stop foreign halogen/gufo peers so solo prepare can proceed.
+# llama-* stickys stay owned by stop_daily / restore_daily.
+# Sets BENCH_PEER_SNAPSHOT (comma) + BENCH_PEER_SNAPSHOT_TAKEN=1 for restore.
+bench_engine_evict_peers() {
+  local eng="${1:?}"
+  local line other
+  local -a snap=()
+  if declare -F bench_engine_normalize >/dev/null 2>&1; then
+    eng="$(bench_engine_normalize "$eng")"
+  fi
+  # One snapshot per lifecycle (prepare → cleanup).
+  if [[ "${BENCH_PEER_SNAPSHOT_TAKEN:-0}" == "1" ]]; then
+    return 0
+  fi
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    other="${line%% *}"
+    _bench_overload_is_self "$eng" "$other" && continue
+    case "$other" in
+      halogen|gufo)
+        # de-dupe
+        local s
+        for s in "${snap[@]:-}"; do
+          [[ "$s" == "$other" ]] && continue 2
+        done
+        snap+=("$other")
+        ;;
+    esac
+  done < <(bench_gpu_llm_live)
+
+  BENCH_PEER_SNAPSHOT="$(IFS=','; echo "${snap[*]:-}")"
+  BENCH_PEER_SNAPSHOT_TAKEN=1
+  export BENCH_PEER_SNAPSHOT BENCH_PEER_SNAPSHOT_TAKEN
+
+  if [[ ${#snap[@]} -eq 0 ]]; then
+    return 0
+  fi
+  local peer eid
+  for peer in "${snap[@]}"; do
+    eid="$(_bench_peer_engine_id "$peer")" || continue
+    if declare -F bench_lifecycle_log >/dev/null 2>&1; then
+      bench_lifecycle_log "evict peer $peer ($eid) for $eng"
+    else
+      bench_overload_log "evict peer $peer ($eid) for $eng"
+    fi
+    if declare -F bench_engine_call >/dev/null 2>&1; then
+      bench_engine_call "$eid" stop_containers 2>/dev/null || true
+    fi
+  done
+}
+
+# Bring back peers stopped by bench_engine_evict_peers (after bench engine is down).
+bench_engine_restore_peers() {
+  [[ "${BENCH_PEER_SNAPSHOT_TAKEN:-0}" == "1" ]] || return 0
+  [[ "${BENCH_NO_RESTORE:-0}" == "1" ]] && {
+    BENCH_PEER_SNAPSHOT_TAKEN=0
+    BENCH_PEER_SNAPSHOT=""
+    export BENCH_PEER_SNAPSHOT_TAKEN BENCH_PEER_SNAPSHOT
+    return 0
+  }
+  # Leaving the bench engine up would fight restored peers for GPU.
+  if [[ "${BENCH_ENGINE_KEEP:-0}" == "1" ]]; then
+    if declare -F bench_lifecycle_log >/dev/null 2>&1; then
+      bench_lifecycle_log "BENCH_ENGINE_KEEP=1 — skip peer restore (snapshot was: ${BENCH_PEER_SNAPSHOT:-none})"
+    fi
+    BENCH_PEER_SNAPSHOT_TAKEN=0
+    BENCH_PEER_SNAPSHOT=""
+    export BENCH_PEER_SNAPSHOT_TAKEN BENCH_PEER_SNAPSHOT
+    return 0
+  fi
+
+  local peer eid
+  local -a peers=()
+  if [[ -n "${BENCH_PEER_SNAPSHOT:-}" ]]; then
+    IFS=',' read -ra peers <<<"$BENCH_PEER_SNAPSHOT"
+  fi
+  BENCH_PEER_SNAPSHOT_TAKEN=0
+  BENCH_PEER_SNAPSHOT=""
+  export BENCH_PEER_SNAPSHOT_TAKEN BENCH_PEER_SNAPSHOT
+
+  for peer in "${peers[@]:-}"; do
+    peer="${peer// /}"
+    [[ -n "$peer" ]] || continue
+    eid="$(_bench_peer_engine_id "$peer")" || continue
+    if declare -F bench_lifecycle_log >/dev/null 2>&1; then
+      bench_lifecycle_log "restore peer $peer ($eid)"
+    else
+      bench_overload_log "restore peer $peer ($eid)"
+    fi
+    if declare -F bench_engine_call >/dev/null 2>&1; then
+      bench_engine_call "$eid" start_containers 2>/dev/null || true
+    fi
+  done
+}
+
 # Guard before starting `want` additional GPU instances of `eng`.
 # Exit 0 = ok to proceed; 1 = blocked (unless ENGINE_FORCE_OVERLOAD=1).
 bench_engine_guard_start() {
