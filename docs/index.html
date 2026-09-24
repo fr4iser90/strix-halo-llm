@@ -60,6 +60,10 @@ details.panel { background: #171a21; border: 1px solid #252a35; border-radius: 1
 summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
 .chart-box { background: #12141a; border-radius: 8px; padding: .75rem 1rem 1rem;
   border: 1px solid #252a35; margin: .75rem 0; }
+.charts.two { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+@media (min-width: 900px) {
+  .charts.two { grid-template-columns: 1fr 1fr; }
+}
 .chart-wrap { position: relative; height: 280px; }
 .chart-wrap.tall { height: 320px; }
 .btn { display: inline-block; margin: .3rem .4rem .3rem 0; padding: .45rem .85rem;
@@ -107,10 +111,10 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
 <h1>LLM bench results</h1>
 <p class="lede">Speed, longest usable context, and code correctness — measured on this host.</p>
 </header>
-<p class="host-line">c5:00.0 Display controller: Advanced Micro Devi… · 124.9 GiB RAM · vulkan · llama.cpp · Halogen Flash · <a href="host.html">Host details</a></p>
-<nav class="engine-tabs" aria-label="Inference engine"><button type="button" class="engine-tab active" data-engine="llama.cpp" aria-pressed="true">llama.cpp</button><button type="button" class="engine-tab" data-engine="halogen-flash" aria-pressed="false">Halogen Flash</button><button type="button" class="engine-tab" data-engine="__compare__" aria-pressed="false">Compare</button></nav>
-<div class="engine-panel" data-engine="llama.cpp"><section class="card" id="verdict" aria-label="At a glance"><h2>At a glance</h2><p class="meta">Best measured numbers on this host.</p><div class="verdict-grid"><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Code quality<span class="tip-text" role="tooltip">HumanEval: share of Python problems solved on the first try. Code correctness only — not chat or speed.</span></span></div><div class="verdict-value">62.3%</div><div class="verdict-sub" title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Generation<span class="tip-text" role="tooltip">Tokens/s while writing the reply (alone on the server). Higher is better.</span></span></div><div class="verdict-value">57.3 <span class="unit">tok/s</span></div><div class="verdict-sub" title="Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Prompt<span class="tip-text" role="tooltip">Tokens/s while reading the prompt (alone). Higher is better.</span></span></div><div class="verdict-value">1,031 <span class="unit">tok/s</span></div><div class="verdict-sub" title="Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest context length that loaded and ran successfully.</span></span></div><div class="verdict-value">256k</div><div class="verdict-sub" title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B · KV q8_0</div></div></div></section><div class="card" id="charts-llama-cpp"><h2>Prompt vs generation</h2><p class="meta">Tokens per second with the model alone on the server. Higher is better. <span class="engine-badge">llama.cpp</span></p><div class="chart-box"><div class="chart-wrap"><canvas id="chart-thr-llama-cpp"></canvas></div></div></div><div class="card" id="throughput"><h2>Single-user throughput</h2><p class="meta">One request at a time. Higher tokens/s is better.</p><p class="more"><a href="throughput/latest/compare.html">→ Full throughput details</a></p><table><thead><tr><th>Model</th><th class="n"><span class="tip" tabindex="0">Prompt<span class="tip-text" role="tooltip">Tokens/s reading ~512-token prompt.</span></span></th><th class="n"><span class="tip" tabindex="0">Generation<span class="tip-text" role="tooltip">Tokens/s writing ~128 tokens.</span></span></th></tr></thead><tbody><tr><td title="Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</td><td class="n">1030.6</td><td class="n">57.3</td></tr><tr><td title="Qwen3.6-35B-A3B-MTP-Q5_K_XL">Qwen3.6-35B-A3B</td><td class="n">1029.6</td><td class="n">57.0</td></tr><tr><td title="Tiel-Coder-35B-A3B-MTP-Q5_K_XL">Tiel-Coder-35B-A3B</td><td class="n">1023.9</td><td class="n">56.5</td></tr></tbody></table></div><div class="card" id="quality-preview-llama-cpp"><h2>Code correctness</h2><p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a> · Duration = whole run (see n); pass@1/@10 share the same samples when n≥10.</p><table><thead><tr><th>Benchmark</th><th>Model</th><th class="n"><span class="tip" tabindex="0">pass@1<span class="tip-text" role="tooltip">Share of problems solved within 1 sample(s). Blank if this run used fewer samples.</span></span></th><th class="n"><span class="tip" tabindex="0">pass@10<span class="tip-text" role="tooltip">Share of problems solved within 10 sample(s). Blank if this run used fewer samples.</span></span></th><th class="n"><span class="tip" tabindex="0">n<span class="tip-text" role="tooltip">Samples drawn per problem. pass@k needs n≥k.</span></span></th><th class="n"><span class="tip" tabindex="0">Duration<span class="tip-text" role="tooltip">Time for the whole run (all n samples + eval). Not a separate timer per pass@k — those scores come from the same run.</span></span></th><th>Measured</th></tr></thead><tbody><tr><td>HumanEval</td><td title="Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</td><td class="n">59.9%</td><td class="n">73.8%</td><td class="n meta">10</td><td class="n meta"><span class="tip" tabindex="0">27 min<span class="tip-text" role="tooltip">Wall time for this whole HumanEval run (generate all samples + score). pass@1 and pass@10 are computed from the same samples — not separate timed stages. This run used n=10 sample(s) per problem. n≥10 is why pass@10 is filled and why it took longer than an n=1 run. Generate ≈ 27 min; total including eval ≈ 27 min.</span></span></td><td class="meta">2026-09-14 19:20 UTC</td></tr><tr><td>HumanEval</td><td title="Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">Qwen3.6-35B-A3B</td><td class="n">60.7%</td><td class="n">76.2%</td><td class="n meta">10</td><td class="n meta"><span class="tip" tabindex="0">24 min<span class="tip-text" role="tooltip">Wall time for this whole HumanEval run (generate all samples + score). pass@1 and pass@10 are computed from the same samples — not separate timed stages. This run used n=10 sample(s) per problem. n≥10 is why pass@10 is filled and why it took longer than an n=1 run. Generate ≈ 24 min; total including eval ≈ 24 min.</span></span></td><td class="meta">2026-09-14 19:48 UTC</td></tr><tr><td>HumanEval</td><td title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B</td><td class="n best">62.3%</td><td class="n">79.9%</td><td class="n meta">10</td><td class="n meta"><span class="tip" tabindex="0">34 min<span class="tip-text" role="tooltip">Wall time for this whole HumanEval run (generate all samples + score). pass@1 and pass@10 are computed from the same samples — not separate timed stages. This run used n=10 sample(s) per problem. n≥10 is why pass@10 is filled and why it took longer than an n=1 run.</span></span></td><td class="meta">2026-09-14 18:34 UTC</td></tr></tbody></table></div>
-<script id="bench-thr-data-chart-thr-llama-cpp" type="application/json">{"throughput": {"labels": ["Cyber-Tiel-Coder-35B-…", "Qwen3.6-35B-A3B", "Tiel-Coder-35B-A3B"], "pp": [1030.6, 1029.6, 1023.9], "tg": [57.3, 57.0, 56.5]}}</script>
+<p class="host-line">c5:00.0 Display controller: Advanced Micro Devi… · 124.9 GiB RAM · vulkan · llama.cpp · gufo · Halogen Flash · <a href="host.html">Host details</a></p>
+<nav class="engine-tabs" aria-label="Inference engine"><button type="button" class="engine-tab active" data-engine="llama.cpp" aria-pressed="true">llama.cpp</button><button type="button" class="engine-tab" data-engine="gufo" aria-pressed="false">gufo</button><button type="button" class="engine-tab" data-engine="halogen-flash" aria-pressed="false">Halogen Flash</button><button type="button" class="engine-tab" data-engine="__compare__" aria-pressed="false">Compare</button></nav>
+<div class="engine-panel" data-engine="llama.cpp"><section class="card" id="verdict" aria-label="At a glance"><h2>At a glance</h2><p class="meta">Best measured numbers on this host.</p><div class="verdict-grid"><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Code quality<span class="tip-text" role="tooltip">HumanEval: share of Python problems solved on the first try. Code correctness only — not chat or speed.</span></span></div><div class="verdict-value">62.3%</div><div class="verdict-sub" title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</div></div><div class="verdict-card muted"><div class="verdict-label">Generation</div><div class="verdict-value">—</div><div class="verdict-sub">No throughput yet</div></div><div class="verdict-card muted"><div class="verdict-label">Prompt</div><div class="verdict-value">—</div><div class="verdict-sub">No throughput yet</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest context length that loaded and ran successfully.</span></span></div><div class="verdict-value">256k</div><div class="verdict-sub" title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL · KV q8_0</div></div></div></section><div class="card" id="charts-llama-cpp"><h2>Prefill, Decode &amp; TTFT</h2><p class="meta">Alone on the server. Prefill/Decode = tok/s (↑). TTFT/ITL = ms (↓). <span class="engine-badge">llama.cpp</span></p><div class="charts two"><div class="chart-box"><h3>Prefill vs Decode</h3><div class="chart-wrap"><canvas id="chart-thr-llama-cpp"></canvas></div></div><div class="chart-box"><h3>TTFT &amp; ITL</h3><div class="chart-wrap"><canvas id="chart-thr-llama-cpp-latency"></canvas></div></div></div></div><div class="card" id="throughput"><h2>Single-user throughput</h2><p class="meta">TTFT = ms to first token (↓). Prefill/Decode = tok/s (↑). ITL = inter-token ms (↓). Cold = first request; warm = immediate repeat (cache may hit).</p><p class="more"><a href="throughput/latest/compare.html">→ Full throughput details</a></p><table><thead><tr><th>Model</th><th class="n"><span class="tip" tabindex="0">TTFT cold<span class="tip-text" role="tooltip">Time to first token on the first request (ms). Lower better.</span></span></th><th class="n"><span class="tip" tabindex="0">TTFT warm<span class="tip-text" role="tooltip">Time to first token on an immediate repeat (ms). Gap vs cold shows cache.</span></span></th><th class="n"><span class="tip" tabindex="0">Prefill tok/s<span class="tip-text" role="tooltip">Prompt processing speed . Higher better.</span></span></th><th class="n"><span class="tip" tabindex="0">Decode tok/s<span class="tip-text" role="tooltip">Generation after first token . Higher better.</span></span></th><th class="n"><span class="tip" tabindex="0">ITL p50<span class="tip-text" role="tooltip">Median ms between output tokens. Lower = smoother stream.</span></span></th></tr></thead><tbody><tr><td colspan="6" class="meta">No throughput runs yet.</td></tr></tbody></table></div><div class="card" id="quality-preview-llama-cpp"><h2>Code correctness</h2><p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a> · Duration = whole run (see n); pass@1/@10 share the same samples when n≥10.</p><table><thead><tr><th>Benchmark</th><th>Model</th><th class="n"><span class="tip" tabindex="0">pass@1<span class="tip-text" role="tooltip">Share of problems solved within 1 sample(s). Blank if this run used fewer samples.</span></span></th><th class="n"><span class="tip" tabindex="0">pass@10<span class="tip-text" role="tooltip">Share of problems solved within 10 sample(s). Blank if this run used fewer samples.</span></span></th><th class="n"><span class="tip" tabindex="0">n<span class="tip-text" role="tooltip">Samples drawn per problem. pass@k needs n≥k.</span></span></th><th class="n"><span class="tip" tabindex="0">Duration<span class="tip-text" role="tooltip">Time for the whole run (all n samples + eval). Not a separate timer per pass@k — those scores come from the same run.</span></span></th><th>Measured</th></tr></thead><tbody><tr><td>HumanEval</td><td title="Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</td><td class="n">59.9%</td><td class="n">73.8%</td><td class="n meta">10</td><td class="n meta"><span class="tip" tabindex="0">27 min<span class="tip-text" role="tooltip">Wall time for this whole HumanEval run (generate all samples + score). pass@1 and pass@10 are computed from the same samples — not separate timed stages. This run used n=10 sample(s) per problem. n≥10 is why pass@10 is filled and why it took longer than an n=1 run. Generate ≈ 27 min; total including eval ≈ 27 min.</span></span></td><td class="meta">2026-09-14 19:20 UTC</td></tr><tr><td>HumanEval</td><td title="Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL</td><td class="n">60.7%</td><td class="n">76.2%</td><td class="n meta">10</td><td class="n meta"><span class="tip" tabindex="0">24 min<span class="tip-text" role="tooltip">Wall time for this whole HumanEval run (generate all samples + score). pass@1 and pass@10 are computed from the same samples — not separate timed stages. This run used n=10 sample(s) per problem. n≥10 is why pass@10 is filled and why it took longer than an n=1 run. Generate ≈ 24 min; total including eval ≈ 24 min.</span></span></td><td class="meta">2026-09-14 19:48 UTC</td></tr><tr><td>HumanEval</td><td title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</td><td class="n best">62.3%</td><td class="n">79.9%</td><td class="n meta">10</td><td class="n meta"><span class="tip" tabindex="0">34 min<span class="tip-text" role="tooltip">Wall time for this whole HumanEval run (generate all samples + score). pass@1 and pass@10 are computed from the same samples — not separate timed stages. This run used n=10 sample(s) per problem. n≥10 is why pass@10 is filled and why it took longer than an n=1 run.</span></span></td><td class="meta">2026-09-14 18:34 UTC</td></tr></tbody></table></div>
+<script id="bench-thr-data-chart-thr-llama-cpp" type="application/json">{"throughput": {"labels": [], "ttft_cold_ms": [], "ttft_warm_ms": [], "prefill_tok_s": [], "decode_tok_s": [], "itl_p50_ms": []}}</script>
 <script>
 (function () {
   const raw = document.getElementById("bench-thr-data-chart-thr-llama-cpp");
@@ -122,29 +126,111 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   if (!(thr.labels || []).length) return;
   const tick = { color: "#9aa0a6" };
   const grid = { color: "#2a2e37" };
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: "#c4c7cc" } } },
+  };
   new Chart(canvas, {
     type: "bar",
     data: {
       labels: thr.labels,
       datasets: [
-        { label: "Prompt (tok/s)", data: thr.pp, backgroundColor: "#5b8def" },
-        { label: "Generation (tok/s)", data: thr.tg, backgroundColor: "#7ddea5" },
+        { label: "Prefill tok/s", data: thr.prefill_tok_s, backgroundColor: "#5b8def" },
+        { label: "Decode tok/s", data: thr.decode_tok_s, backgroundColor: "#7ddea5" },
       ],
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: "#c4c7cc" } } },
+      ...common,
       scales: {
         x: { ticks: tick, grid },
         y: { ticks: tick, grid, title: { display: true, text: "tokens / s", color: "#9aa0a6" } },
       },
     },
   });
+  const lat = document.getElementById("chart-thr-llama-cpp-latency");
+  if (lat) {
+    new Chart(lat, {
+      type: "bar",
+      data: {
+        labels: thr.labels,
+        datasets: [
+          { label: "TTFT cold (ms)", data: thr.ttft_cold_ms, backgroundColor: "#e06767" },
+          { label: "TTFT warm (ms)", data: thr.ttft_warm_ms, backgroundColor: "#f0c674" },
+          { label: "ITL p50 (ms)", data: thr.itl_p50_ms, backgroundColor: "#c4a5de" },
+        ],
+      },
+      options: {
+        ...common,
+        scales: {
+          x: { ticks: tick, grid },
+          y: { ticks: tick, grid, title: { display: true, text: "milliseconds", color: "#9aa0a6" } },
+        },
+      },
+    });
+  }
 })();
 </script>
-</div><div class="engine-panel" data-engine="halogen-flash" hidden><section class="card" id="verdict" aria-label="At a glance"><h2>At a glance</h2><p class="meta">Best measured numbers on this host.</p><div class="verdict-grid"><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Code quality<span class="tip-text" role="tooltip">HumanEval: share of Python problems solved on the first try. Code correctness only — not chat or speed.</span></span></div><div class="verdict-value">69.5%</div><div class="verdict-sub" title="halogen-qwen3.8-flash-next">halogen-qwen3.8-flash-next</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Generation<span class="tip-text" role="tooltip">Tokens/s while writing the reply (alone on the server). Higher is better.</span></span></div><div class="verdict-value">17.6 <span class="unit">tok/s</span></div><div class="verdict-sub" title="halogen-qwen3.8-flash-next">halogen-qwen3.8-flash-next</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Prompt<span class="tip-text" role="tooltip">Tokens/s while reading the prompt (alone). Higher is better.</span></span></div><div class="verdict-value">387.1 <span class="unit">tok/s</span></div><div class="verdict-sub" title="halogen-qwen3.8-flash-next">halogen-qwen3.8-flash-next</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest context length that loaded and ran successfully.</span></span></div><div class="verdict-value">256k</div><div class="verdict-sub" title="halogen-qwen3.8-flash-next">halogen-qwen3.8-flash-next · KV native</div></div></div></section><div class="card" id="charts-halogen-flash"><h2>Prompt vs generation</h2><p class="meta">Tokens per second with the model alone on the server. Higher is better. <span class="engine-badge">Halogen Flash</span></p><div class="chart-box"><div class="chart-wrap"><canvas id="chart-thr-halogen-flash"></canvas></div></div></div><div class="card" id="throughput"><h2>Single-user throughput</h2><p class="meta">One request at a time. Higher tokens/s is better.</p><p class="more"><a href="throughput/latest/compare.html">→ Full throughput details</a></p><table><thead><tr><th>Model</th><th class="n"><span class="tip" tabindex="0">Prompt<span class="tip-text" role="tooltip">Tokens/s reading ~512-token prompt.</span></span></th><th class="n"><span class="tip" tabindex="0">Generation<span class="tip-text" role="tooltip">Tokens/s writing ~128 tokens.</span></span></th></tr></thead><tbody><tr><td title="halogen-qwen3.8-flash-next">halogen-qwen3.8-flash-next</td><td class="n">387.13</td><td class="n">17.59</td></tr></tbody></table></div><div class="card" id="quality-preview-halogen-flash"><h2>Code correctness</h2><p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a> · Duration = whole run (see n); pass@1/@10 share the same samples when n≥10.</p><table><thead><tr><th>Benchmark</th><th>Model</th><th class="n"><span class="tip" tabindex="0">pass@1<span class="tip-text" role="tooltip">Share of problems solved within 1 sample(s). Blank if this run used fewer samples.</span></span></th><th class="n"><span class="tip" tabindex="0">n<span class="tip-text" role="tooltip">Samples drawn per problem. pass@k needs n≥k.</span></span></th><th class="n"><span class="tip" tabindex="0">Duration<span class="tip-text" role="tooltip">Time for the whole run (all n samples + eval). Not a separate timer per pass@k — those scores come from the same run.</span></span></th><th>Measured</th></tr></thead><tbody><tr><td>HumanEval</td><td title="halogen-qwen3.8-flash-next">halogen-qwen3.8-flash-next</td><td class="n best">69.5%</td><td class="n meta">1</td><td class="n meta"><span class="tip" tabindex="0">9 min<span class="tip-text" role="tooltip">Wall time for this whole HumanEval run (generate all samples + score). pass@1 and pass@10 are computed from the same samples — not separate timed stages. This run used n=1 sample(s) per problem. n=1 → only pass@1; run pass@10 with --n 10 (about 10× generate time).</span></span></td><td class="meta">2026-09-16 19:32 UTC</td></tr></tbody></table></div>
-<script id="bench-thr-data-chart-thr-halogen-flash" type="application/json">{"throughput": {"labels": ["halogen-qwen3.8-flash…"], "pp": [387.13], "tg": [17.59]}}</script>
+</div><div class="engine-panel" data-engine="gufo" hidden><section class="card" id="verdict" aria-label="At a glance"><h2>At a glance</h2><p class="meta">Best measured numbers on this host.</p><div class="verdict-grid"><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Code quality<span class="tip-text" role="tooltip">HumanEval: share of Python problems solved on the first try. Code correctness only — not chat or speed.</span></span></div><div class="verdict-value">82.3%</div><div class="verdict-sub" title="Qwen3.8-Flash-Next-UD-Q4_K_XL">Qwen3.8-Flash-Next-UD-Q4-K-XL</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Generation<span class="tip-text" role="tooltip">Tokens/s while writing the reply (alone on the server). Higher is better.</span></span></div><div class="verdict-value">25.9 <span class="unit">tok/s</span></div><div class="verdict-sub" title="Qwen3.8-Flash-Next-UD-Q4_K_XL @512">Qwen3.8-Flash-Next-UD-Q4-K-XL @512</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Prompt<span class="tip-text" role="tooltip">Tokens/s while reading the prompt (alone). Higher is better.</span></span></div><div class="verdict-value">1,554 <span class="unit">tok/s</span></div><div class="verdict-sub" title="Qwen3.8-Flash-Next-UD-Q4_K_XL @16384">Qwen3.8-Flash-Next-UD-Q4-K-XL @16384</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest context length that loaded and ran successfully.</span></span></div><div class="verdict-value">256k</div><div class="verdict-sub" title="Qwen3.8-Flash-Next-UD-Q4_K_XL">Qwen3.8-Flash-Next-UD-Q4-K-XL · KV native</div></div></div></section><div class="card" id="charts-gufo"><h2>Prefill, Decode &amp; TTFT</h2><p class="meta">Alone on the server. Prefill/Decode = tok/s (↑). TTFT/ITL = ms (↓). <span class="engine-badge">gufo</span></p><div class="charts two"><div class="chart-box"><h3>Prefill vs Decode</h3><div class="chart-wrap"><canvas id="chart-thr-gufo"></canvas></div></div><div class="chart-box"><h3>TTFT &amp; ITL</h3><div class="chart-wrap"><canvas id="chart-thr-gufo-latency"></canvas></div></div></div></div><div class="card" id="throughput"><h2>Single-user throughput</h2><p class="meta">TTFT = ms to first token (↓). Prefill/Decode = tok/s (↑). ITL = inter-token ms (↓). Cold = first request; warm = immediate repeat (cache may hit).</p><p class="more"><a href="throughput/latest/compare.html">→ Full throughput details</a></p><table><thead><tr><th>Model</th><th class="n"><span class="tip" tabindex="0">TTFT cold<span class="tip-text" role="tooltip">Time to first token on the first request (ms). Lower better.</span></span></th><th class="n"><span class="tip" tabindex="0">TTFT warm<span class="tip-text" role="tooltip">Time to first token on an immediate repeat (ms). Gap vs cold shows cache.</span></span></th><th class="n"><span class="tip" tabindex="0">Prefill tok/s<span class="tip-text" role="tooltip">Prompt processing speed . Higher better.</span></span></th><th class="n"><span class="tip" tabindex="0">Decode tok/s<span class="tip-text" role="tooltip">Generation after first token . Higher better.</span></span></th><th class="n"><span class="tip" tabindex="0">ITL p50<span class="tip-text" role="tooltip">Median ms between output tokens. Lower = smoother stream.</span></span></th></tr></thead><tbody><tr><td title="Qwen3.8-Flash-Next-UD-Q4_K_XL @512">Qwen3.8-Flash-Next-UD-Q4-K-XL @512</td><td class="n">524.62</td><td class="n">15.04</td><td class="n">836.57</td><td class="n">25.93</td><td class="n">37.29</td></tr><tr><td title="Qwen3.8-Flash-Next-UD-Q4_K_XL @4096">Qwen3.8-Flash-Next-UD-Q4-K-XL @4096</td><td class="n">2009.66</td><td class="n">17.69</td><td class="n">1460.13</td><td class="n">25.93</td><td class="n">37.29</td></tr><tr><td title="Qwen3.8-Flash-Next-UD-Q4_K_XL @16384">Qwen3.8-Flash-Next-UD-Q4-K-XL @16384</td><td class="n">7528.34</td><td class="n">21.75</td><td class="n">1553.83</td><td class="n">25.93</td><td class="n">37.29</td></tr></tbody></table></div><div class="card" id="quality-preview-gufo"><h2>Code correctness</h2><p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a> · Duration = whole run (see n); pass@1/@10 share the same samples when n≥10.</p><table><thead><tr><th>Benchmark</th><th>Model</th><th class="n"><span class="tip" tabindex="0">pass@1<span class="tip-text" role="tooltip">Share of problems solved within 1 sample(s). Blank if this run used fewer samples.</span></span></th><th class="n"><span class="tip" tabindex="0">n<span class="tip-text" role="tooltip">Samples drawn per problem. pass@k needs n≥k.</span></span></th><th class="n"><span class="tip" tabindex="0">Duration<span class="tip-text" role="tooltip">Time for the whole run (all n samples + eval). Not a separate timer per pass@k — those scores come from the same run.</span></span></th><th>Measured</th></tr></thead><tbody><tr><td>HumanEval</td><td title="Qwen3.8-Flash-Next-UD-Q4_K_XL">Qwen3.8-Flash-Next-UD-Q4-K-XL</td><td class="n best">82.3%</td><td class="n meta">1</td><td class="n meta"><span class="tip" tabindex="0">12 min<span class="tip-text" role="tooltip">Wall time for this whole HumanEval run (generate all samples + score). pass@1 and pass@10 are computed from the same samples — not separate timed stages. This run used n=1 sample(s) per problem. n=1 → only pass@1; run pass@10 with --n 10 (about 10× generate time).</span></span></td><td class="meta">2026-09-24 15:28 UTC</td></tr></tbody></table></div>
+<script id="bench-thr-data-chart-thr-gufo" type="application/json">{"throughput": {"labels": ["Qwen3.8-Flash-Next-UD…", "Qwen3.8-Flash-Next-UD…", "Qwen3.8-Flash-Next-UD…"], "ttft_cold_ms": [524.62, 2009.66, 7528.34], "ttft_warm_ms": [15.04, 17.69, 21.75], "prefill_tok_s": [836.57, 1460.13, 1553.83], "decode_tok_s": [25.93, 25.93, 25.93], "itl_p50_ms": [37.29, 37.29, 37.29]}}</script>
+<script>
+(function () {
+  const raw = document.getElementById("bench-thr-data-chart-thr-gufo");
+  const canvas = document.getElementById("chart-thr-gufo");
+  if (!raw || !canvas || typeof Chart === "undefined") return;
+  let DATA;
+  try { DATA = JSON.parse(raw.textContent); } catch (e) { return; }
+  const thr = DATA.throughput || {};
+  if (!(thr.labels || []).length) return;
+  const tick = { color: "#9aa0a6" };
+  const grid = { color: "#2a2e37" };
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: "#c4c7cc" } } },
+  };
+  new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: thr.labels,
+      datasets: [
+        { label: "Prefill tok/s", data: thr.prefill_tok_s, backgroundColor: "#5b8def" },
+        { label: "Decode tok/s", data: thr.decode_tok_s, backgroundColor: "#7ddea5" },
+      ],
+    },
+    options: {
+      ...common,
+      scales: {
+        x: { ticks: tick, grid },
+        y: { ticks: tick, grid, title: { display: true, text: "tokens / s", color: "#9aa0a6" } },
+      },
+    },
+  });
+  const lat = document.getElementById("chart-thr-gufo-latency");
+  if (lat) {
+    new Chart(lat, {
+      type: "bar",
+      data: {
+        labels: thr.labels,
+        datasets: [
+          { label: "TTFT cold (ms)", data: thr.ttft_cold_ms, backgroundColor: "#e06767" },
+          { label: "TTFT warm (ms)", data: thr.ttft_warm_ms, backgroundColor: "#f0c674" },
+          { label: "ITL p50 (ms)", data: thr.itl_p50_ms, backgroundColor: "#c4a5de" },
+        ],
+      },
+      options: {
+        ...common,
+        scales: {
+          x: { ticks: tick, grid },
+          y: { ticks: tick, grid, title: { display: true, text: "milliseconds", color: "#9aa0a6" } },
+        },
+      },
+    });
+  }
+})();
+</script>
+</div><div class="engine-panel" data-engine="halogen-flash" hidden><section class="card" id="verdict" aria-label="At a glance"><h2>At a glance</h2><p class="meta">Best measured numbers on this host.</p><div class="verdict-grid"><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Code quality<span class="tip-text" role="tooltip">HumanEval: share of Python problems solved on the first try. Code correctness only — not chat or speed.</span></span></div><div class="verdict-value">69.5%</div><div class="verdict-sub" title="qwen38-flash-next-w4b">qwen38-flash-next-w4b</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Generation<span class="tip-text" role="tooltip">Tokens/s while writing the reply (alone on the server). Higher is better.</span></span></div><div class="verdict-value">25.4 <span class="unit">tok/s</span></div><div class="verdict-sub" title="qwen38-flash-next-w4b @512">qwen38-flash-next-w4b @512</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Prompt<span class="tip-text" role="tooltip">Tokens/s while reading the prompt (alone). Higher is better.</span></span></div><div class="verdict-value">741.4 <span class="unit">tok/s</span></div><div class="verdict-sub" title="qwen38-flash-next-w4b @16384">qwen38-flash-next-w4b @16384</div></div><div class="verdict-card"><div class="verdict-label"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest context length that loaded and ran successfully.</span></span></div><div class="verdict-value">256k</div><div class="verdict-sub" title="qwen38-flash-next-w4b">qwen38-flash-next-w4b · KV native</div></div></div></section><div class="card" id="charts-halogen-flash"><h2>Prefill, Decode &amp; TTFT</h2><p class="meta">Alone on the server. Prefill/Decode = tok/s (↑). TTFT/ITL = ms (↓). <span class="engine-badge">Halogen Flash</span></p><div class="charts two"><div class="chart-box"><h3>Prefill vs Decode</h3><div class="chart-wrap"><canvas id="chart-thr-halogen-flash"></canvas></div></div><div class="chart-box"><h3>TTFT &amp; ITL</h3><div class="chart-wrap"><canvas id="chart-thr-halogen-flash-latency"></canvas></div></div></div></div><div class="card" id="throughput"><h2>Single-user throughput</h2><p class="meta">TTFT = ms to first token (↓). Prefill/Decode = tok/s (↑). ITL = inter-token ms (↓). Cold = first request; warm = immediate repeat (cache may hit).</p><p class="more"><a href="throughput/latest/compare.html">→ Full throughput details</a></p><table><thead><tr><th>Model</th><th class="n"><span class="tip" tabindex="0">TTFT cold<span class="tip-text" role="tooltip">Time to first token on the first request (ms). Lower better.</span></span></th><th class="n"><span class="tip" tabindex="0">TTFT warm<span class="tip-text" role="tooltip">Time to first token on an immediate repeat (ms). Gap vs cold shows cache.</span></span></th><th class="n"><span class="tip" tabindex="0">Prefill tok/s<span class="tip-text" role="tooltip">Prompt processing speed . Higher better.</span></span></th><th class="n"><span class="tip" tabindex="0">Decode tok/s<span class="tip-text" role="tooltip">Generation after first token . Higher better.</span></span></th><th class="n"><span class="tip" tabindex="0">ITL p50<span class="tip-text" role="tooltip">Median ms between output tokens. Lower = smoother stream.</span></span></th></tr></thead><tbody><tr><td title="qwen38-flash-next-w4b @512">qwen38-flash-next-w4b @512</td><td class="n">6084.82</td><td class="n">68.17</td><td class="n">70.89</td><td class="n">25.45</td><td class="n">30.34</td></tr><tr><td title="qwen38-flash-next-w4b @4096">qwen38-flash-next-w4b @4096</td><td class="n">3995.55</td><td class="n">76.66</td><td class="n">734.03</td><td class="n">25.45</td><td class="n">30.34</td></tr><tr><td title="qwen38-flash-next-w4b @16384">qwen38-flash-next-w4b @16384</td><td class="n">15780.14</td><td class="n">81.31</td><td class="n">741.43</td><td class="n">25.45</td><td class="n">30.34</td></tr></tbody></table></div><div class="card" id="quality-preview-halogen-flash"><h2>Code correctness</h2><p class="meta">HumanEval — code only, not chat quality. <a href="quality.html">→ Quality page</a> · Duration = whole run (see n); pass@1/@10 share the same samples when n≥10.</p><table><thead><tr><th>Benchmark</th><th>Model</th><th class="n"><span class="tip" tabindex="0">pass@1<span class="tip-text" role="tooltip">Share of problems solved within 1 sample(s). Blank if this run used fewer samples.</span></span></th><th class="n"><span class="tip" tabindex="0">n<span class="tip-text" role="tooltip">Samples drawn per problem. pass@k needs n≥k.</span></span></th><th class="n"><span class="tip" tabindex="0">Duration<span class="tip-text" role="tooltip">Time for the whole run (all n samples + eval). Not a separate timer per pass@k — those scores come from the same run.</span></span></th><th>Measured</th></tr></thead><tbody><tr><td>HumanEval</td><td title="qwen38-flash-next-w4b">qwen38-flash-next-w4b</td><td class="n best">69.5%</td><td class="n meta">1</td><td class="n meta"><span class="tip" tabindex="0">9 min<span class="tip-text" role="tooltip">Wall time for this whole HumanEval run (generate all samples + score). pass@1 and pass@10 are computed from the same samples — not separate timed stages. This run used n=1 sample(s) per problem. n=1 → only pass@1; run pass@10 with --n 10 (about 10× generate time).</span></span></td><td class="meta">2026-09-16 19:32 UTC</td></tr></tbody></table></div>
+<script id="bench-thr-data-chart-thr-halogen-flash" type="application/json">{"throughput": {"labels": ["qwen38-flash-next-w4b…", "qwen38-flash-next-w4b…", "qwen38-flash-next-w4b…"], "ttft_cold_ms": [6084.82, 3995.55, 15780.14], "ttft_warm_ms": [68.17, 76.66, 81.31], "prefill_tok_s": [70.89, 734.03, 741.43], "decode_tok_s": [25.45, 25.45, 25.45], "itl_p50_ms": [30.34, 30.34, 30.34]}}</script>
 <script>
 (function () {
   const raw = document.getElementById("bench-thr-data-chart-thr-halogen-flash");
@@ -156,54 +242,86 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   if (!(thr.labels || []).length) return;
   const tick = { color: "#9aa0a6" };
   const grid = { color: "#2a2e37" };
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: "#c4c7cc" } } },
+  };
   new Chart(canvas, {
     type: "bar",
     data: {
       labels: thr.labels,
       datasets: [
-        { label: "Prompt (tok/s)", data: thr.pp, backgroundColor: "#5b8def" },
-        { label: "Generation (tok/s)", data: thr.tg, backgroundColor: "#7ddea5" },
+        { label: "Prefill tok/s", data: thr.prefill_tok_s, backgroundColor: "#5b8def" },
+        { label: "Decode tok/s", data: thr.decode_tok_s, backgroundColor: "#7ddea5" },
       ],
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: "#c4c7cc" } } },
+      ...common,
       scales: {
         x: { ticks: tick, grid },
         y: { ticks: tick, grid, title: { display: true, text: "tokens / s", color: "#9aa0a6" } },
       },
     },
   });
+  const lat = document.getElementById("chart-thr-halogen-flash-latency");
+  if (lat) {
+    new Chart(lat, {
+      type: "bar",
+      data: {
+        labels: thr.labels,
+        datasets: [
+          { label: "TTFT cold (ms)", data: thr.ttft_cold_ms, backgroundColor: "#e06767" },
+          { label: "TTFT warm (ms)", data: thr.ttft_warm_ms, backgroundColor: "#f0c674" },
+          { label: "ITL p50 (ms)", data: thr.itl_p50_ms, backgroundColor: "#c4a5de" },
+        ],
+      },
+      options: {
+        ...common,
+        scales: {
+          x: { ticks: tick, grid },
+          y: { ticks: tick, grid, title: { display: true, text: "milliseconds", color: "#9aa0a6" } },
+        },
+      },
+    });
+  }
 })();
 </script>
 </div><div class="engine-panel" data-engine="__compare__" hidden><div class="card"><h2>Compare models</h2><p class="meta">Pick any two measured models (any engine). Δ is B relative to A.</p>
 <div class="compare-pick">
   <label class="compare-field">
     <span>Model A</span>
-    <select id="compare-a" aria-label="Model A"><option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · halogen-qwen3.8-flash-next</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-UD-Q5-K-XL-VL</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Qwen3.6-35B-A3B-UD-Q5-K-XL-VL</option>
-<option value="llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP">llama.cpp · Qwen3.8-27B-UD-Q4-K-M</option>
-<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B</option></select>
+    <select id="compare-a" aria-label="Model A"><option value="gufo::Qwen3.8 Flash Next">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @16384">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @16384</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @4096">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @512">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @512</option>
+<option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · qwen38-flash-next-w4b</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @16384">Halogen Flash · qwen38-flash-next-w4b @16384</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @4096">Halogen Flash · qwen38-flash-next-w4b @4096</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @512">Halogen Flash · qwen38-flash-next-w4b @512</option>
+<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option>
+<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
+<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL</option>
+<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
+<option value="llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP">llama.cpp · Qwen3.8-27B-UD-Q4-K-M-MTP</option>
+<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option></select>
   </label>
   <label class="compare-field">
     <span>Model B</span>
-    <select id="compare-b" aria-label="Model B"><option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · halogen-qwen3.8-flash-next</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-UD-Q5-K-XL-VL</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Qwen3.6-35B-A3B-UD-Q5-K-XL-VL</option>
-<option value="llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP">llama.cpp · Qwen3.8-27B-UD-Q4-K-M</option>
-<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B</option></select>
+    <select id="compare-b" aria-label="Model B"><option value="gufo::Qwen3.8 Flash Next">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @16384">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @16384</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @4096">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @512">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @512</option>
+<option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · qwen38-flash-next-w4b</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @16384">Halogen Flash · qwen38-flash-next-w4b @16384</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @4096">Halogen Flash · qwen38-flash-next-w4b @4096</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @512">Halogen Flash · qwen38-flash-next-w4b @512</option>
+<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option>
+<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
+<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL</option>
+<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
+<option value="llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP">llama.cpp · Qwen3.8-27B-UD-Q4-K-M-MTP</option>
+<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option></select>
   </label>
 </div>
 <table class="compare-pair"><thead><tr>
@@ -215,7 +333,7 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
 <tbody id="compare-pair-body">
   <tr><td colspan="4" class="meta">Pick two models.</td></tr>
 </tbody></table>
-<script type="application/json" id="compare-catalog">[{"id": "halogen-flash::halogen-qwen3.8-flash-next", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "halogen-qwen3.8-flash-next", "label": "Halogen Flash · halogen-qwen3.8-flash-next", "pp": 387.13, "tg": 17.59, "pass_at_1": 0.6951219512195121, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B", "pp": 1030.6, "tg": 57.3, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B", "pp": null, "tg": null, "pass_at_1": 0.5993902439024391, "pass_at_10": 0.7378048780487805, "n": null, "max_c": 262144}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-UD-Q5-K-XL-VL", "pp": null, "tg": null, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-Q5_K_XL", "label": "llama.cpp · Qwen3.6-35B-A3B", "pp": 1029.6, "tg": 57.0, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Qwen3.6-35B-A3B", "pp": null, "tg": null, "pass_at_1": 0.6067073170731707, "pass_at_10": 0.7621951219512195, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Qwen3.6-35B-A3B-UD-Q5-K-XL-VL", "pp": null, "tg": null, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.8-27B-UD-Q4_K_M-MTP", "label": "llama.cpp · Qwen3.8-27B-UD-Q4-K-M", "pp": null, "tg": null, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 131072}, {"id": "llama.cpp::Tiel-Coder-35B-A3B-MTP-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Tiel-Coder-35B-A3B-MTP-Q5_K_XL", "label": "llama.cpp · Tiel-Coder-35B-A3B", "pp": 1023.9, "tg": 56.5, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null}, {"id": "llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Tiel-Coder-35B-A3B", "pp": null, "tg": null, "pass_at_1": 0.6231707317073171, "pass_at_10": 0.7987804878048781, "n": null, "max_c": 262144}]</script>
+<script type="application/json" id="compare-catalog">[{"id": "gufo::Qwen3.8 Flash Next", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8 Flash Next", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL", "pass_at_1": 0.823170731707317, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @16384", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL @16384", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @16384", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 1553.83, "decode_tok_s": 25.93, "ttft_cold_ms": 7528.34, "ttft_warm_ms": 21.75, "itl_p50_ms": 37.29}, {"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @4096", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL @4096", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 1460.13, "decode_tok_s": 25.93, "ttft_cold_ms": 2009.66, "ttft_warm_ms": 17.69, "itl_p50_ms": 37.29}, {"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @512", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL @512", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @512", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 836.57, "decode_tok_s": 25.93, "ttft_cold_ms": 524.62, "ttft_warm_ms": 15.04, "itl_p50_ms": 37.29}, {"id": "halogen-flash::halogen-qwen3.8-flash-next", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "halogen-qwen3.8-flash-next", "label": "Halogen Flash · qwen38-flash-next-w4b", "pass_at_1": 0.6951219512195121, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "halogen-flash::qwen38-flash-next-w4b @16384", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b @16384", "label": "Halogen Flash · qwen38-flash-next-w4b @16384", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 741.43, "decode_tok_s": 25.45, "ttft_cold_ms": 15780.14, "ttft_warm_ms": 81.31, "itl_p50_ms": 30.34}, {"id": "halogen-flash::qwen38-flash-next-w4b @4096", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b @4096", "label": "Halogen Flash · qwen38-flash-next-w4b @4096", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 734.03, "decode_tok_s": 25.45, "ttft_cold_ms": 3995.55, "ttft_warm_ms": 76.66, "itl_p50_ms": 30.34}, {"id": "halogen-flash::qwen38-flash-next-w4b @512", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b @512", "label": "Halogen Flash · qwen38-flash-next-w4b @512", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 70.89, "decode_tok_s": 25.45, "ttft_cold_ms": 6084.82, "ttft_warm_ms": 68.17, "itl_p50_ms": 30.34}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.5993902439024391, "pass_at_10": 0.7378048780487805, "n": null, "max_c": 262144}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.6067073170731707, "pass_at_10": 0.7621951219512195, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL-VL", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.8-27B-UD-Q4_K_M-MTP", "label": "llama.cpp · Qwen3.8-27B-UD-Q4-K-M-MTP", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 131072}, {"id": "llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.6231707317073171, "pass_at_10": 0.7987804878048781, "n": null, "max_c": 262144}]</script>
 <script>
 (function () {
   const catEl = document.getElementById("compare-catalog");
@@ -227,8 +345,8 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   if (!catEl || !selA || !selB || !body) return;
   const catalog = JSON.parse(catEl.textContent || "[]");
   const byId = Object.fromEntries(catalog.map((e) => [e.id, e]));
-  selA.value = "halogen-flash::halogen-qwen3.8-flash-next";
-  selB.value = "halogen-flash::halogen-qwen3.8-flash-next";
+  selA.value = "gufo::Qwen3.8 Flash Next";
+  selB.value = "gufo::Qwen3.8 Flash Next";
 
   function fmtNum(v) {
     if (v === null || v === undefined || v === "") return "—";
@@ -270,8 +388,11 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
       return;
     }
     const rows = [
-      ["Generation tok/s", fmtNum(a.tg), fmtNum(b.tg), delta(a.tg, b.tg)],
-      ["Prompt tok/s", fmtNum(a.pp), fmtNum(b.pp), delta(a.pp, b.pp)],
+      ["Decode tok/s", fmtNum(a.decode_tok_s), fmtNum(b.decode_tok_s), delta(a.decode_tok_s, b.decode_tok_s)],
+      ["Prefill tok/s", fmtNum(a.prefill_tok_s), fmtNum(b.prefill_tok_s), delta(a.prefill_tok_s, b.prefill_tok_s)],
+      ["TTFT warm (ms)", fmtNum(a.ttft_warm_ms), fmtNum(b.ttft_warm_ms), delta(b.ttft_warm_ms, a.ttft_warm_ms)],
+      ["TTFT cold (ms)", fmtNum(a.ttft_cold_ms), fmtNum(b.ttft_cold_ms), delta(b.ttft_cold_ms, a.ttft_cold_ms)],
+      ["ITL p50 (ms)", fmtNum(a.itl_p50_ms), fmtNum(b.itl_p50_ms), delta(b.itl_p50_ms, a.itl_p50_ms)],
       ["HumanEval pass@1", fmtPct(a.pass_at_1), fmtPct(b.pass_at_1), delta(a.pass_at_1, b.pass_at_1)],
       ["HumanEval pass@10", fmtPct(a.pass_at_10), fmtPct(b.pass_at_10), delta(a.pass_at_10, b.pass_at_10)],
       ["Max context", fmtCtx(a.max_c), fmtCtx(b.max_c), delta(a.max_c, b.max_c)],

@@ -1,6 +1,6 @@
 # Capacity ledger (latest per cell)
 
-Cells: 79
+Cells: 84
 
 Cell = GTT MiB · prefill s · prefill tok/s
 
@@ -51,6 +51,18 @@ Cell = **GTT MiB · prefill s · prefill tok/s**
 | 131072 | 28368 MiB · 374.002 s · 315.41 t/s PP | 28528 MiB · 384.689 s · 306.65 t/s PP | 29080 MiB · 369.862 s · 318.94 t/s PP |
 | 196608 | 28793 MiB · 653.956 s · 270.58 t/s PP | 29039 MiB · 678.917 s · 260.63 t/s PP | 30278 MiB · 634.599 s · 278.83 t/s PP |
 | 262144 | 29376 MiB · 990.616 s · 238.16 t/s PP | 29696 MiB · 1022.736 s · 230.68 t/s PP | 31000 MiB · 959.764 s · 245.82 t/s PP |
+
+### Qwen3.8 Flash Next (solo)
+
+Cell = **GTT MiB · prefill s · prefill tok/s**
+
+| c \ kv | native |
+| ---: | --- |
+| 32768 | 17.525 s · 1682.83 t/s PP |
+| 65536 | 28.887 s · 2041.79 t/s PP |
+| 131072 | 60.016 s · 1965.53 t/s PP |
+| 196608 | 92.611 s · 1910.65 t/s PP |
+| 262144 | 128.131 s · 1841.31 t/s PP |
 
 ### Qwen3.8-27B-UD-Q4_K_M-MTP (solo)
 

@@ -4,13 +4,24 @@
 body{font:15px/1.5 system-ui,sans-serif;background:#0f1115;color:#e8eaed;margin:1.5rem}
 table{border-collapse:collapse;width:100%} th,td{border-bottom:1px solid #252a35;padding:.4rem .55rem;text-align:left}
 th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
-.meta{color:#9aa0a6}
+.meta{color:#9aa0a6} .def{margin:.75rem 0 1.25rem;font-size:.92rem;color:#9aa0a6}
+.def strong{color:#c4c7cc}
 </style></head><body>
 <h1>Throughput (multi-engine)</h1>
 <p class="meta">Merged from latest/by-engine/*</p>
-<table><thead><tr><th>Engine</th><th>Model</th><th class="n">pp</th><th class="n">tg</th></tr></thead>
+<div class="def">
+  <div><strong>TTFT cold/warm</strong> — ms to first token (lower better). Cold = first fill; warm = repeat (cache may hit).</div>
+  <div><strong>Prefill tok/s</strong> — prompt processing speed. Higher better.</div>
+  <div><strong>Decode tok/s</strong> — generation after first token. Higher better.</div>
+  <div><strong>ITL p50</strong> — median ms between output tokens (lower better).</div>
+</div>
+<table><thead><tr>
+<th>Engine</th><th>Model</th>
+<th class="n">TTFT cold</th><th class="n">TTFT warm</th>
+<th class="n">Prefill tok/s</th><th class="n">Decode tok/s</th><th class="n">ITL p50</th>
+</tr></thead>
 <tbody>
-<tr><td>llama.cpp</td><td>Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL</td><td class='n'>1030.6</td><td class='n'>57.3</td></tr><tr><td>llama.cpp</td><td>Qwen3.6-35B-A3B-MTP-Q5_K_XL</td><td class='n'>1029.6</td><td class='n'>57.0</td></tr><tr><td>llama.cpp</td><td>Tiel-Coder-35B-A3B-MTP-Q5_K_XL</td><td class='n'>1023.9</td><td class='n'>56.5</td></tr><tr><td>halogen-flash</td><td>halogen-qwen3.8-flash-next</td><td class='n'>387.13</td><td class='n'>17.59</td></tr>
+<tr><td>gufo</td><td>Qwen3.8-Flash-Next-UD-Q4_K_XL @512</td><td class='n'>524.62</td><td class='n'>15.04</td><td class='n'>836.57</td><td class='n'>25.93</td><td class='n'>37.29</td></tr><tr><td>gufo</td><td>Qwen3.8-Flash-Next-UD-Q4_K_XL @4096</td><td class='n'>2009.66</td><td class='n'>17.69</td><td class='n'>1460.13</td><td class='n'>25.93</td><td class='n'>37.29</td></tr><tr><td>gufo</td><td>Qwen3.8-Flash-Next-UD-Q4_K_XL @16384</td><td class='n'>7528.34</td><td class='n'>21.75</td><td class='n'>1553.83</td><td class='n'>25.93</td><td class='n'>37.29</td></tr><tr><td>halogen-flash</td><td>qwen38-flash-next-w4b @512</td><td class='n'>6084.82</td><td class='n'>68.17</td><td class='n'>70.89</td><td class='n'>25.45</td><td class='n'>30.34</td></tr><tr><td>halogen-flash</td><td>qwen38-flash-next-w4b @4096</td><td class='n'>3995.55</td><td class='n'>76.66</td><td class='n'>734.03</td><td class='n'>25.45</td><td class='n'>30.34</td></tr><tr><td>halogen-flash</td><td>qwen38-flash-next-w4b @16384</td><td class='n'>15780.14</td><td class='n'>81.31</td><td class='n'>741.43</td><td class='n'>25.45</td><td class='n'>30.34</td></tr>
 </tbody></table>
 <p class="meta">Markdown: output/bench/throughput/latest/compare.md</p>
 </body></html>

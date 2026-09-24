@@ -1,6 +1,26 @@
 {
   "recommendations": [
     {
+      "engine": "gufo",
+      "model": "Qwen3.8 Flash Next",
+      "best_ub": "\u2014",
+      "best_np": "\u2014",
+      "best_b": "\u2014",
+      "best_c": "\u2014",
+      "best_mtp": "\u2014",
+      "vram_mb": null,
+      "cont_batching": "on (default)",
+      "cont_batch_recommended": null,
+      "fit_ctx_hint": null,
+      "decode_ms": 39.67,
+      "decode_tps": 23.81,
+      "prefill_tps": 20.47,
+      "prefill_ttft": 11700.51,
+      "pp_idle": null,
+      "tg_idle": null,
+      "interleave_gain": null
+    },
+    {
       "engine": "halogen-flash",
       "model": "halogen-qwen3.8-flash-next",
       "best_ub": "\u2014",
@@ -12,10 +32,10 @@
       "cont_batching": "on (default)",
       "cont_batch_recommended": null,
       "fit_ctx_hint": null,
-      "decode_ms": 35.26,
-      "decode_tps": 10.31,
-      "prefill_tps": 24.72,
-      "prefill_ttft": 8501.73,
+      "decode_ms": 35.42,
+      "decode_tps": 10.32,
+      "prefill_tps": 24.6,
+      "prefill_ttft": 8439.0,
       "pp_idle": null,
       "tg_idle": null,
       "interleave_gain": null
@@ -101,5 +121,5 @@
       "interleave_gain": 320.3918973941368
     }
   ],
-  "models": 5
+  "models": 6
 }

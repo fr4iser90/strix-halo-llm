@@ -1,6 +1,6 @@
 {
-  "engine": "halogen-flash",
-  "stamp": "20260924T191219Z",
+  "engine": "gufo",
+  "stamp": "20260924T191458Z",
   "suite": "http",
   "scope": "run",
   "prefill_list": [
@@ -16,5 +16,5 @@
     "decode_tok_s",
     "itl_p50_ms"
   ],
-  "base_url": "http://127.0.0.1:8731"
+  "base_url": "http://127.0.0.1:8080"
 }

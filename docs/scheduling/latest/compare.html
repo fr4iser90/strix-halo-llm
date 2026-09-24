@@ -44,10 +44,23 @@ section.model { margin: 2rem 0; padding: 1rem 0; border-top: 1px solid #2a2e37; 
 <th>cont-batch</th><th class="n">PP on</th><th class="n">PP off</th>
 <th class="n">Decode ms</th><th class="n">Prefill tok/s</th>
 <th class="n">Interleave</th>
-</tr></thead><tbody><tr><td>halogen-qwen3.8-flash-next</td><td class="n best">—</td><td class="n best">—</td><td class="n best">—</td><td class="n best">—</td><td class="n">on (default)</td><td class="n">—</td><td class="n">—</td><td class="n">35.3</td><td class="n">24.7</td><td class="n ">—</td></tr><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">128</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">—</td><td class="n">—</td><td class="n">17.9</td><td class="n">54.4</td><td class="n pos">297×</td></tr><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td class="n best">1</td><td class="n best">256</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">—</td><td class="n">—</td><td class="n">37.6</td><td class="n">63.7</td><td class="n pos">344×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">2</td><td class="n best">32</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">—</td><td class="n">—</td><td class="n">15.5</td><td class="n">69.8</td><td class="n pos">61×</td></tr><tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">64</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">—</td><td class="n">—</td><td class="n">36.2</td><td class="n">57.8</td><td class="n pos">320×</td></tr></tbody></table>
+</tr></thead><tbody><tr><td>Qwen3.8 Flash Next</td><td class="n best">—</td><td class="n best">—</td><td class="n best">—</td><td class="n best">—</td><td class="n">on (default)</td><td class="n">—</td><td class="n">—</td><td class="n">39.7</td><td class="n">20.5</td><td class="n ">—</td></tr><tr><td>halogen-qwen3.8-flash-next</td><td class="n best">—</td><td class="n best">—</td><td class="n best">—</td><td class="n best">—</td><td class="n">on (default)</td><td class="n">—</td><td class="n">—</td><td class="n">35.4</td><td class="n">24.6</td><td class="n ">—</td></tr><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">128</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">—</td><td class="n">—</td><td class="n">17.9</td><td class="n">54.4</td><td class="n pos">297×</td></tr><tr><td>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL</td><td class="n best">1</td><td class="n best">256</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">—</td><td class="n">—</td><td class="n">37.6</td><td class="n">63.7</td><td class="n pos">344×</td></tr><tr><td>Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">2</td><td class="n best">32</td><td class="n best">—</td><td class="n best">—</td><td class="n">off ★</td><td class="n">—</td><td class="n">—</td><td class="n">15.5</td><td class="n">69.8</td><td class="n pos">61×</td></tr><tr><td>Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</td><td class="n best">1</td><td class="n best">64</td><td class="n best">—</td><td class="n best">—</td><td class="n">on ★</td><td class="n">—</td><td class="n">—</td><td class="n">36.2</td><td class="n">57.8</td><td class="n pos">320×</td></tr></tbody></table>
 
 <h2>Details per model</h2>
 
+<section class="model">
+<h3>Qwen3.8 Flash Next <span class="badge">gufo</span> </h3>
+
+
+<h4>Interleaving np=2</h4>
+<table><thead><tr>
+<th>Scenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
+<th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
+</tr></thead><tbody><tr><td>01 solo</td><td class="n">41.9</td><td class="n">22.7</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>03 interleave</td><td class="n">39.7</td><td class="n">23.8</td><td class="n">20.5</td><td class="n bad">11,701</td></tr></tbody></table>
+
+
+
+</section>
 <section class="model">
 <h3>halogen-qwen3.8-flash-next <span class="badge">halogen-flash</span> </h3>
 
@@ -56,7 +69,7 @@ section.model { margin: 2rem 0; padding: 1rem 0; border-top: 1px solid #2a2e37; 
 <table><thead><tr>
 <th>Scenario</th><th class="n">Decode ms</th><th class="n">Decode tok/s</th>
 <th class="n">Prefill tok/s</th><th class="n">Prefill TTFT</th>
-</tr></thead><tbody><tr><td>01 solo</td><td class="n">26.2</td><td class="n">34.1</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>03 interleave</td><td class="n">35.3</td><td class="n">10.3</td><td class="n">24.7</td><td class="n bad">8,502</td></tr></tbody></table>
+</tr></thead><tbody><tr><td>01 solo</td><td class="n">31.1</td><td class="n">31.5</td><td class="n">—</td><td class="n ">—</td></tr><tr><td>03 interleave</td><td class="n">35.4</td><td class="n">10.3</td><td class="n">24.6</td><td class="n bad">8,439</td></tr></tbody></table>
 
 
 

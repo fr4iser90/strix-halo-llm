@@ -15,7 +15,8 @@ Decode latency and prefill throughput **under load** (2 slots, rolling prefill).
 
 | Model | np ★ | ub ★ | b ★ | c ★ | cont-batch | PP on | PP off | Decode ms | Prefill tok/s |
 | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: |
-| halogen-qwen3.8-flash-next | — | — | — | — | on (default) | — | — | 35.3 | 24.7 |
+| Qwen3.8 Flash Next | — | — | — | — | on (default) | — | — | 39.7 | 20.5 |
+| halogen-qwen3.8-flash-next | — | — | — | — | on (default) | — | — | 35.4 | 24.6 |
 | Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL | 1 | 128 | — | — | off ★ | — | — | 17.9 | 54.4 |
 | Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL | 1 | 256 | — | — | on ★ | — | — | 37.6 | 63.7 |
 | Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL | 2 | 32 | — | — | off ★ | — | — | 15.5 | 69.8 |
@@ -23,14 +24,24 @@ Decode latency and prefill throughput **under load** (2 slots, rolling prefill).
 
 ---
 
+## Qwen3.8 Flash Next · engine `gufo`
+
+### Interleaving — lohnt sich np=2?
+
+| Scenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
+| --- | ---: | ---: | ---: | ---: |
+| 01 solo (reference) | 41.9 | 22.7 | — | — |
+| 03 interleave (np=2) | 39.7 | 23.8 | 20.5 | 11,701 ⚠ |
+
+
 ## halogen-qwen3.8-flash-next · engine `halogen-flash`
 
 ### Interleaving — lohnt sich np=2?
 
 | Scenario | Decode ms/token | Decode tok/s | Prefill tok/s | Prefill TTFT |
 | --- | ---: | ---: | ---: | ---: |
-| 01 solo (reference) | 26.2 | 34.1 | — | — |
-| 03 interleave (np=2) | 35.3 | 10.3 | 24.7 | 8,502 ⚠ |
+| 01 solo (reference) | 31.1 | 31.5 | — | — |
+| 03 interleave (np=2) | 35.4 | 10.3 | 24.6 | 8,439 ⚠ |
 
 
 ## Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL

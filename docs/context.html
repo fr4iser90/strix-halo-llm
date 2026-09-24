@@ -60,6 +60,10 @@ details.panel { background: #171a21; border: 1px solid #252a35; border-radius: 1
 summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
 .chart-box { background: #12141a; border-radius: 8px; padding: .75rem 1rem 1rem;
   border: 1px solid #252a35; margin: .75rem 0; }
+.charts.two { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+@media (min-width: 900px) {
+  .charts.two { grid-template-columns: 1fr 1fr; }
+}
 .chart-wrap { position: relative; height: 280px; }
 .chart-wrap.tall { height: 320px; }
 .btn { display: inline-block; margin: .3rem .4rem .3rem 0; padding: .45rem .85rem;
@@ -107,12 +111,12 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
 <h1>Context &amp; memory</h1>
 <p class="lede">How far context can grow, and what prompt processing costs at that point.</p>
 </header>
-<p class="host-line">c5:00.0 Display controller: Advanced Micro Devi… · 124.9 GiB RAM · vulkan · llama.cpp · Halogen Flash · <a href="host.html">Host details</a></p>
-<nav class="engine-tabs" aria-label="Inference engine"><button type="button" class="engine-tab active" data-engine="llama.cpp" aria-pressed="true">llama.cpp</button><button type="button" class="engine-tab" data-engine="halogen-flash" aria-pressed="false">Halogen Flash</button><button type="button" class="engine-tab" data-engine="__compare__" aria-pressed="false">Compare</button></nav>
-<div class="engine-panel" data-engine="llama.cpp"><div class="card"><h2>Longest context that fits <span class="engine-badge">llama.cpp</span></h2><p class="meta">Preferred KV <strong>q8_0</strong> (typical sticky setting). Other quants that also reach the same max are noted on the right. Prompt cost is for a full fill at that context.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest successful context at the preferred KV (q8 when measured).</span></span></th><th class="n"><span class="tip" tabindex="0">Memory<span class="tip-text" role="tooltip">Shared GPU memory at that context.</span></span></th><th class="n"><span class="tip" tabindex="0">Prompt time<span class="tip-text" role="tooltip">Seconds to process a full prompt at max context.</span></span></th><th class="n"><span class="tip" tabindex="0">Prompt speed<span class="tip-text" role="tooltip">Tokens/s while reading the prompt.</span></span></th><th>Also fits</th></tr></thead><tbody><tr><td title="Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B</td><td>q8_0</td><td class="n best">262,144</td><td class="n">29448 MiB</td><td class="n">981.31 s</td><td class="n">240.42 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">Cyber-Tiel-Coder-35B-A3B-UD-Q5-K-XL-VL</td><td>q8_0</td><td class="n best">262,144</td><td class="n">30132 MiB</td><td class="n">1249.411 s</td><td class="n">188.83 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">Qwen3.6-35B-A3B</td><td>q8_0</td><td class="n best">262,144</td><td class="n">29894 MiB</td><td class="n">958.133 s</td><td class="n">246.24 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">Qwen3.6-35B-A3B-UD-Q5-K-XL-VL</td><td>q8_0</td><td class="n best">262,144</td><td class="n">31000 MiB</td><td class="n">959.764 s</td><td class="n">245.82 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Qwen3.8-27B-UD-Q4_K_M-MTP">Qwen3.8-27B-UD-Q4-K-M</td><td>q8_0</td><td class="n best">131,072</td><td class="n">21166 MiB</td><td class="n">—</td><td class="n"><span class="meta" title="Prefill metric looked inconsistent — see full grid">suspect</span></td><td></td></tr><tr><td title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B</td><td>q8_0</td><td class="n best">262,144</td><td class="n">29448 MiB</td><td class="n">977.549 s</td><td class="n">241.35 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr></tbody></table><h3>Two instances (dual)</h3><p class="meta">Largest context where two copies of the same model both fit.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n">Max context</th></tr></thead><tbody><tr><td title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B</td><td>q8_0</td><td class="n best">262,144</td></tr></tbody></table></div><div class="card"><h2>Prompt cost vs context</h2><p class="meta">Pick a model. Lower line = faster prompt processing as context grows.</p><label class="meta" for="cap-model-llama-cpp">Model </label><select id="cap-model-llama-cpp" class="model-pick"></select><label class="meta" for="cap-y-llama-cpp">Y axis </label><select id="cap-y-llama-cpp" class="model-pick"><option value="prefill_s" selected>Prompt time (s)</option><option value="prefill_tok_s">Prompt speed (tok/s)</option><option value="gtt_gib">Memory (GiB)</option></select><div class="chart-box"><div class="chart-wrap tall"><canvas id="chart-cap-llama-cpp"></canvas></div><div id="cap-fallback-llama-cpp" class="meta" hidden></div></div></div><details class="panel"><summary>Full context × KV grid &amp; dual instances</summary><p class="meta">Lab detail — every measured cell. Prefer the summary table above for decisions.</p><div class="card" id="capacity">
+<p class="host-line">c5:00.0 Display controller: Advanced Micro Devi… · 124.9 GiB RAM · vulkan · llama.cpp · gufo · Halogen Flash · <a href="host.html">Host details</a></p>
+<nav class="engine-tabs" aria-label="Inference engine"><button type="button" class="engine-tab active" data-engine="llama.cpp" aria-pressed="true">llama.cpp</button><button type="button" class="engine-tab" data-engine="gufo" aria-pressed="false">gufo</button><button type="button" class="engine-tab" data-engine="halogen-flash" aria-pressed="false">Halogen Flash</button><button type="button" class="engine-tab" data-engine="__compare__" aria-pressed="false">Compare</button></nav>
+<div class="engine-panel" data-engine="llama.cpp"><div class="card"><h2>Longest context that fits <span class="engine-badge">llama.cpp</span></h2><p class="meta">Preferred KV <strong>q8_0</strong> (typical sticky setting). Other quants that also reach the same max are noted on the right. TTFT / Prefill are for a full fill at that context.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest successful context at the preferred KV (q8 when measured).</span></span></th><th class="n"><span class="tip" tabindex="0">Memory<span class="tip-text" role="tooltip">Shared GPU memory at that context.</span></span></th><th class="n"><span class="tip" tabindex="0">TTFT<span class="tip-text" role="tooltip">Seconds from request start to first token at max context (client wall). Lower better.</span></span></th><th class="n"><span class="tip" tabindex="0">Prefill tok/s<span class="tip-text" role="tooltip">Approx fill_tokens / TTFT at that context. Higher better.</span></span></th><th>Also fits</th></tr></thead><tbody><tr><td title="Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</td><td>q8_0</td><td class="n best">262,144</td><td class="n">29448 MiB</td><td class="n">981.31 s</td><td class="n">240.42 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL</td><td>q8_0</td><td class="n best">262,144</td><td class="n">30132 MiB</td><td class="n">1249.411 s</td><td class="n">188.83 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL</td><td>q8_0</td><td class="n best">262,144</td><td class="n">29894 MiB</td><td class="n">958.133 s</td><td class="n">246.24 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL-VL</td><td>q8_0</td><td class="n best">262,144</td><td class="n">31000 MiB</td><td class="n">959.764 s</td><td class="n">245.82 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr><tr><td title="Qwen3.8-27B-UD-Q4_K_M-MTP">Qwen3.8-27B-UD-Q4-K-M-MTP</td><td>q8_0</td><td class="n best">131,072</td><td class="n">21166 MiB</td><td class="n">—</td><td class="n"><span class="meta" title="Prefill metric looked inconsistent — see full grid">suspect</span></td><td></td></tr><tr><td title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</td><td>q8_0</td><td class="n best">262,144</td><td class="n">29448 MiB</td><td class="n">977.549 s</td><td class="n">241.35 t/s</td><td><span class="meta">also @ q4_0 / q5_0</span></td></tr></tbody></table><h3>Two instances (dual)</h3><p class="meta">Largest context where two copies of the same model both fit.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n">Max context</th></tr></thead><tbody><tr><td title="Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</td><td>q8_0</td><td class="n best">262,144</td></tr></tbody></table></div><div class="card"><h2>TTFT / Prefill vs context</h2><p class="meta">Pick a model. Lower TTFT line = snappier first token as context grows.</p><label class="meta" for="cap-model-llama-cpp">Model </label><select id="cap-model-llama-cpp" class="model-pick"></select><label class="meta" for="cap-y-llama-cpp">Y axis </label><select id="cap-y-llama-cpp" class="model-pick"><option value="prefill_s" selected>TTFT / prompt time (s)</option><option value="prefill_tok_s">Prefill speed (tok/s)</option><option value="gtt_gib">Memory (GiB)</option></select><div class="chart-box"><div class="chart-wrap tall"><canvas id="chart-cap-llama-cpp"></canvas></div><div id="cap-fallback-llama-cpp" class="meta" hidden></div></div></div><details class="panel"><summary>Full context × KV grid &amp; dual instances</summary><p class="meta">Lab detail — every measured cell. Prefer the summary table above for decisions.</p><div class="card" id="capacity">
 <h2>Context &amp; memory grid</h2>
 <p class="meta">Rows = context length (tokens). Columns = <span class="tip" tabindex="0">KV cache quant<span class="tip-text" role="tooltip">Quantization of the attention KV cache. Affects memory and how far context can grow.</span></span>. Cells show memory use and prompt-processing cost. Toggle metrics below.</p>
-<p class="more"><a href="capacity/latest/compare.md">→ Full ledger</a> · measured cells: <strong>79</strong></p>
+<p class="more"><a href="capacity/latest/compare.md">→ Full ledger</a> · measured cells: <strong>84</strong></p>
 <div class="metric-tabs" id="cap-metric-tabs"><button type="button" class="btn secondary active" data-metric="all">All</button><button type="button" class="btn secondary" data-metric="gtt" title="Shared GPU memory (GTT) at this context">Memory</button><button type="button" class="btn secondary" data-metric="prefill_s" title="Seconds to process the prompt">Prompt time</button><button type="button" class="btn secondary" data-metric="prefill_tok_s" title="Tokens/s while reading the prompt">Prompt speed</button></div>
 <h3>Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL</h3>
 <div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \ KV</th>
@@ -242,6 +246,26 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
 <td class="n ok cap-cell" data-gtt="31000 MiB" data-prefill_s="959.764 s" data-prefill_tok_s="245.82 t/s" data-power="—" data-all="31000 MiB · 959.764 s · 245.82 t/s PP">31000 MiB · 959.764 s · 245.82 t/s PP</td>
 </tr>
 </tbody></table></div>
+<h3>Qwen3.8 Flash Next</h3>
+<div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \ KV</th>
+<th class="n">native</th>
+</tr></thead><tbody>
+<tr><td class="n">32768</td>
+<td class="n ok cap-cell" data-gtt="—" data-prefill_s="17.525 s" data-prefill_tok_s="1682.83 t/s" data-power="—" data-all="17.525 s · 1682.83 t/s PP">17.525 s · 1682.83 t/s PP</td>
+</tr>
+<tr><td class="n">65536</td>
+<td class="n ok cap-cell" data-gtt="—" data-prefill_s="28.887 s" data-prefill_tok_s="2041.79 t/s" data-power="—" data-all="28.887 s · 2041.79 t/s PP">28.887 s · 2041.79 t/s PP</td>
+</tr>
+<tr><td class="n">131072</td>
+<td class="n ok cap-cell" data-gtt="—" data-prefill_s="60.016 s" data-prefill_tok_s="1965.53 t/s" data-power="—" data-all="60.016 s · 1965.53 t/s PP">60.016 s · 1965.53 t/s PP</td>
+</tr>
+<tr><td class="n">196608</td>
+<td class="n ok cap-cell" data-gtt="—" data-prefill_s="92.611 s" data-prefill_tok_s="1910.65 t/s" data-power="—" data-all="92.611 s · 1910.65 t/s PP">92.611 s · 1910.65 t/s PP</td>
+</tr>
+<tr><td class="n">262144</td>
+<td class="n ok cap-cell" data-gtt="—" data-prefill_s="128.131 s" data-prefill_tok_s="1841.31 t/s" data-power="—" data-all="128.131 s · 1841.31 t/s PP">128.131 s · 1841.31 t/s PP</td>
+</tr>
+</tbody></table></div>
 <h3>Qwen3.8-27B-UD-Q4_K_M-MTP</h3>
 <div class="scroll"><table class="cap-grid"><thead><tr><th class="n">Context \ KV</th>
 <th class="n">q8_0</th>
@@ -357,8 +381,8 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
     plugins: { legend: { labels: { color: "#c4c7cc" } } },
   };
   const yLabels = {
-    prefill_s: "Prompt time (s)",
-    prefill_tok_s: "Prompt speed (tok/s)",
+    prefill_s: "TTFT / prompt time (s)",
+    prefill_tok_s: "Prefill speed (tok/s)",
     gtt_gib: "Memory (GiB)",
     power_w: "GPU watts",
   };
@@ -435,7 +459,108 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   }
 })();
 </script>
-</div><div class="engine-panel" data-engine="halogen-flash" hidden><div class="card"><h2>Longest context that fits <span class="engine-badge">Halogen Flash</span></h2><p class="meta">Preferred KV <strong>q8_0</strong> (typical sticky setting). Other quants that also reach the same max are noted on the right. Prompt cost is for a full fill at that context.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest successful context at the preferred KV (q8 when measured).</span></span></th><th class="n"><span class="tip" tabindex="0">Memory<span class="tip-text" role="tooltip">Shared GPU memory at that context.</span></span></th><th class="n"><span class="tip" tabindex="0">Prompt time<span class="tip-text" role="tooltip">Seconds to process a full prompt at max context.</span></span></th><th class="n"><span class="tip" tabindex="0">Prompt speed<span class="tip-text" role="tooltip">Tokens/s while reading the prompt.</span></span></th><th>Also fits</th></tr></thead><tbody><tr><td title="halogen-qwen3.8-flash-next">halogen-qwen3.8-flash-next</td><td>native</td><td class="n best">262,144</td><td class="n">—</td><td class="n">—</td><td class="n"><span class="meta" title="Prefill metric looked inconsistent — see full grid">suspect</span></td><td></td></tr></tbody></table></div><div class="card"><h2>Prompt cost vs context</h2><p class="meta">Pick a model. Lower line = faster prompt processing as context grows.</p><label class="meta" for="cap-model-halogen-flash">Model </label><select id="cap-model-halogen-flash" class="model-pick"></select><label class="meta" for="cap-y-halogen-flash">Y axis </label><select id="cap-y-halogen-flash" class="model-pick"><option value="prefill_s" selected>Prompt time (s)</option><option value="prefill_tok_s">Prompt speed (tok/s)</option><option value="gtt_gib">Memory (GiB)</option></select><div class="chart-box"><div class="chart-wrap tall"><canvas id="chart-cap-halogen-flash"></canvas></div><div id="cap-fallback-halogen-flash" class="meta" hidden></div></div></div><details class="panel"><summary>Full context × KV grid &amp; dual instances</summary><p class="meta">Lab detail — every measured cell. Prefer the summary table above for decisions.</p><p class="meta">Ledger cells for Halogen Flash — see capacity/latest/compare.md for the full grid.</p></details>
+</div><div class="engine-panel" data-engine="gufo" hidden><div class="card"><h2>Longest context that fits <span class="engine-badge">gufo</span></h2><p class="meta">Preferred KV <strong>q8_0</strong> (typical sticky setting). Other quants that also reach the same max are noted on the right. TTFT / Prefill are for a full fill at that context.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest successful context at the preferred KV (q8 when measured).</span></span></th><th class="n"><span class="tip" tabindex="0">Memory<span class="tip-text" role="tooltip">Shared GPU memory at that context.</span></span></th><th class="n"><span class="tip" tabindex="0">TTFT<span class="tip-text" role="tooltip">Seconds from request start to first token at max context (client wall). Lower better.</span></span></th><th class="n"><span class="tip" tabindex="0">Prefill tok/s<span class="tip-text" role="tooltip">Approx fill_tokens / TTFT at that context. Higher better.</span></span></th><th>Also fits</th></tr></thead><tbody><tr><td title="Qwen3.8 Flash Next">Qwen3.8-Flash-Next-UD-Q4-K-XL</td><td>native</td><td class="n best">262,144</td><td class="n">—</td><td class="n">—</td><td class="n"><span class="meta" title="Prefill metric looked inconsistent — see full grid">suspect</span></td><td></td></tr></tbody></table></div><div class="card"><h2>TTFT / Prefill vs context</h2><p class="meta">Pick a model. Lower TTFT line = snappier first token as context grows.</p><label class="meta" for="cap-model-gufo">Model </label><select id="cap-model-gufo" class="model-pick"></select><label class="meta" for="cap-y-gufo">Y axis </label><select id="cap-y-gufo" class="model-pick"><option value="prefill_s" selected>TTFT / prompt time (s)</option><option value="prefill_tok_s">Prefill speed (tok/s)</option><option value="gtt_gib">Memory (GiB)</option></select><div class="chart-box"><div class="chart-wrap tall"><canvas id="chart-cap-gufo"></canvas></div><div id="cap-fallback-gufo" class="meta" hidden></div></div></div><details class="panel"><summary>Full context × KV grid &amp; dual instances</summary><p class="meta">Lab detail — every measured cell. Prefer the summary table above for decisions.</p><p class="meta">Ledger cells for gufo — see capacity/latest/compare.md for the full grid.</p></details>
+<script id="bench-cap-data-chart-cap-gufo" type="application/json">{"capacity": {"Qwen3.8 Flash Next": {"native": [{"c": 32768, "gtt_gib": null, "prefill_s": 17.525, "prefill_tok_s": 1682.83, "power_w": null}, {"c": 65536, "gtt_gib": null, "prefill_s": 28.887, "prefill_tok_s": 2041.79, "power_w": null}, {"c": 131072, "gtt_gib": null, "prefill_s": 60.016, "prefill_tok_s": 1965.53, "power_w": null}, {"c": 196608, "gtt_gib": null, "prefill_s": 92.611, "prefill_tok_s": 1910.65, "power_w": null}, {"c": 262144, "gtt_gib": null, "prefill_s": 128.131, "prefill_tok_s": 1841.31, "power_w": null}]}}}</script>
+<script>
+(function () {
+  const raw = document.getElementById("bench-cap-data-chart-cap-gufo");
+  const sel = document.getElementById("cap-model-gufo");
+  const ySel = document.getElementById("cap-y-gufo");
+  const canvas = document.getElementById("chart-cap-gufo");
+  const fallback = document.getElementById("cap-fallback-gufo");
+  if (!raw) return;
+  let DATA;
+  try { DATA = JSON.parse(raw.textContent); } catch (e) { return; }
+  const cap = DATA.capacity || {};
+  const models = Object.keys(cap).sort();
+  const hasChart = typeof Chart !== "undefined";
+  const tick = { color: "#9aa0a6" };
+  const grid = { color: "#2a2e37" };
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: "#c4c7cc" } } },
+  };
+  const yLabels = {
+    prefill_s: "TTFT / prompt time (s)",
+    prefill_tok_s: "Prefill speed (tok/s)",
+    gtt_gib: "Memory (GiB)",
+    power_w: "GPU watts",
+  };
+  const palette = ["#5b8def", "#7ddea5", "#f0c674", "#f28b82", "#c58af9", "#78d4e8"];
+  let capChart = null;
+  function fmtC(c) {
+    if (c >= 1024) return (c / 1024) + "k";
+    return String(c);
+  }
+  function renderCap(model) {
+    const series = cap[model] || {};
+    const yKey = (ySel && ySel.value) || "prefill_s";
+    const kvs = Object.keys(series).sort();
+    if (!hasChart || !canvas) {
+      if (fallback) {
+        fallback.hidden = false;
+        let html = "<table><thead><tr><th>KV</th><th class=\"n\">Context</th><th class=\"n\">Value</th></tr></thead><tbody>";
+        kvs.forEach((kv) => {
+          (series[kv] || []).forEach((p) => {
+            if (p[yKey] == null) return;
+            html += "<tr><td>" + kv + "</td><td class=\"n\">" + p.c + "</td><td class=\"n\">" + p[yKey] + "</td></tr>";
+          });
+        });
+        html += "</tbody></table>";
+        fallback.innerHTML = html;
+      }
+      return;
+    }
+    const datasets = kvs.map((kv, i) => ({
+      label: kv,
+      data: (series[kv] || []).filter((p) => p[yKey] != null).map((p) => ({ x: p.c, y: p[yKey] })),
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length],
+      tension: 0.15,
+      showLine: true,
+      pointRadius: 4,
+    }));
+    if (capChart) capChart.destroy();
+    capChart = new Chart(canvas, {
+      type: "line",
+      data: { datasets },
+      options: {
+        ...common,
+        parsing: false,
+        scales: {
+          x: {
+            type: "linear",
+            ticks: { ...tick, callback: (v) => fmtC(v) },
+            grid,
+            title: { display: true, text: "context tokens", color: "#9aa0a6" },
+          },
+          y: {
+            ticks: tick,
+            grid,
+            title: { display: true, text: yLabels[yKey] || yKey, color: "#9aa0a6" },
+          },
+        },
+      },
+    });
+  }
+  if (sel && models.length) {
+    models.forEach((m) => {
+      const o = document.createElement("option");
+      o.value = m;
+      o.textContent = m.length > 48 ? m.slice(0, 47) + "…" : m;
+      o.title = m;
+      sel.appendChild(o);
+    });
+    sel.addEventListener("change", () => renderCap(sel.value));
+    if (ySel) ySel.addEventListener("change", () => renderCap(sel.value));
+    renderCap(models[0]);
+  } else if (sel) {
+    sel.outerHTML = '<p class="meta">No capacity series yet.</p>';
+  }
+})();
+</script>
+</div><div class="engine-panel" data-engine="halogen-flash" hidden><div class="card"><h2>Longest context that fits <span class="engine-badge">Halogen Flash</span></h2><p class="meta">Preferred KV <strong>q8_0</strong> (typical sticky setting). Other quants that also reach the same max are noted on the right. TTFT / Prefill are for a full fill at that context.</p><table><thead><tr><th>Model</th><th>KV</th><th class="n"><span class="tip" tabindex="0">Max context<span class="tip-text" role="tooltip">Largest successful context at the preferred KV (q8 when measured).</span></span></th><th class="n"><span class="tip" tabindex="0">Memory<span class="tip-text" role="tooltip">Shared GPU memory at that context.</span></span></th><th class="n"><span class="tip" tabindex="0">TTFT<span class="tip-text" role="tooltip">Seconds from request start to first token at max context (client wall). Lower better.</span></span></th><th class="n"><span class="tip" tabindex="0">Prefill tok/s<span class="tip-text" role="tooltip">Approx fill_tokens / TTFT at that context. Higher better.</span></span></th><th>Also fits</th></tr></thead><tbody><tr><td title="halogen-qwen3.8-flash-next">Qwen3.8-Flash-Next-UD-Q4-K-XL</td><td>native</td><td class="n best">262,144</td><td class="n">—</td><td class="n">—</td><td class="n"><span class="meta" title="Prefill metric looked inconsistent — see full grid">suspect</span></td><td></td></tr></tbody></table></div><div class="card"><h2>TTFT / Prefill vs context</h2><p class="meta">Pick a model. Lower TTFT line = snappier first token as context grows.</p><label class="meta" for="cap-model-halogen-flash">Model </label><select id="cap-model-halogen-flash" class="model-pick"></select><label class="meta" for="cap-y-halogen-flash">Y axis </label><select id="cap-y-halogen-flash" class="model-pick"><option value="prefill_s" selected>TTFT / prompt time (s)</option><option value="prefill_tok_s">Prefill speed (tok/s)</option><option value="gtt_gib">Memory (GiB)</option></select><div class="chart-box"><div class="chart-wrap tall"><canvas id="chart-cap-halogen-flash"></canvas></div><div id="cap-fallback-halogen-flash" class="meta" hidden></div></div></div><details class="panel"><summary>Full context × KV grid &amp; dual instances</summary><p class="meta">Lab detail — every measured cell. Prefer the summary table above for decisions.</p><p class="meta">Ledger cells for Halogen Flash — see capacity/latest/compare.md for the full grid.</p></details>
 <script id="bench-cap-data-chart-cap-halogen-flash" type="application/json">{"capacity": {"halogen-qwen3.8-flash-next": {"native": [{"c": 32768, "gtt_gib": null, "prefill_s": 16.095, "prefill_tok_s": 1832.33, "power_w": null}, {"c": 65536, "gtt_gib": null, "prefill_s": 30.611, "prefill_tok_s": 1926.81, "power_w": null}, {"c": 131072, "gtt_gib": null, "prefill_s": 62.162, "prefill_tok_s": 1897.69, "power_w": null}, {"c": 196608, "gtt_gib": null, "prefill_s": 96.317, "prefill_tok_s": 1837.13, "power_w": null}, {"c": 262144, "gtt_gib": null, "prefill_s": 130.58, "prefill_tok_s": 1806.77, "power_w": null}]}}}</script>
 <script>
 (function () {
@@ -458,8 +583,8 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
     plugins: { legend: { labels: { color: "#c4c7cc" } } },
   };
   const yLabels = {
-    prefill_s: "Prompt time (s)",
-    prefill_tok_s: "Prompt speed (tok/s)",
+    prefill_s: "TTFT / prompt time (s)",
+    prefill_tok_s: "Prefill speed (tok/s)",
     gtt_gib: "Memory (GiB)",
     power_w: "GPU watts",
   };
@@ -540,29 +665,37 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
 <div class="compare-pick">
   <label class="compare-field">
     <span>Model A</span>
-    <select id="compare-a" aria-label="Model A"><option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · halogen-qwen3.8-flash-next</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-UD-Q5-K-XL-VL</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Qwen3.6-35B-A3B-UD-Q5-K-XL-VL</option>
-<option value="llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP">llama.cpp · Qwen3.8-27B-UD-Q4-K-M</option>
-<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B</option></select>
+    <select id="compare-a" aria-label="Model A"><option value="gufo::Qwen3.8 Flash Next">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @16384">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @16384</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @4096">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @512">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @512</option>
+<option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · qwen38-flash-next-w4b</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @16384">Halogen Flash · qwen38-flash-next-w4b @16384</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @4096">Halogen Flash · qwen38-flash-next-w4b @4096</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @512">Halogen Flash · qwen38-flash-next-w4b @512</option>
+<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option>
+<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
+<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL</option>
+<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
+<option value="llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP">llama.cpp · Qwen3.8-27B-UD-Q4-K-M-MTP</option>
+<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option></select>
   </label>
   <label class="compare-field">
     <span>Model B</span>
-    <select id="compare-b" aria-label="Model B"><option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · halogen-qwen3.8-flash-next</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-UD-Q5-K-XL-VL</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B</option>
-<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Qwen3.6-35B-A3B-UD-Q5-K-XL-VL</option>
-<option value="llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP">llama.cpp · Qwen3.8-27B-UD-Q4-K-M</option>
-<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B</option>
-<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B</option></select>
+    <select id="compare-b" aria-label="Model B"><option value="gufo::Qwen3.8 Flash Next">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @16384">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @16384</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @4096">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096</option>
+<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @512">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @512</option>
+<option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · qwen38-flash-next-w4b</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @16384">Halogen Flash · qwen38-flash-next-w4b @16384</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @4096">Halogen Flash · qwen38-flash-next-w4b @4096</option>
+<option value="halogen-flash::qwen38-flash-next-w4b @512">Halogen Flash · qwen38-flash-next-w4b @512</option>
+<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option>
+<option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
+<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL</option>
+<option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
+<option value="llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP">llama.cpp · Qwen3.8-27B-UD-Q4-K-M-MTP</option>
+<option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option></select>
   </label>
 </div>
 <table class="compare-pair"><thead><tr>
@@ -574,7 +707,7 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
 <tbody id="compare-pair-body">
   <tr><td colspan="4" class="meta">Pick two models.</td></tr>
 </tbody></table>
-<script type="application/json" id="compare-catalog">[{"id": "halogen-flash::halogen-qwen3.8-flash-next", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "halogen-qwen3.8-flash-next", "label": "Halogen Flash · halogen-qwen3.8-flash-next", "pp": 387.13, "tg": 17.59, "pass_at_1": 0.6951219512195121, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-Q5_K_XL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B", "pp": 1030.6, "tg": 57.3, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B", "pp": null, "tg": null, "pass_at_1": 0.5993902439024391, "pass_at_10": 0.7378048780487805, "n": null, "max_c": 262144}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-UD-Q5-K-XL-VL", "pp": null, "tg": null, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-Q5_K_XL", "label": "llama.cpp · Qwen3.6-35B-A3B", "pp": 1029.6, "tg": 57.0, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Qwen3.6-35B-A3B", "pp": null, "tg": null, "pass_at_1": 0.6067073170731707, "pass_at_10": 0.7621951219512195, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Qwen3.6-35B-A3B-UD-Q5-K-XL-VL", "pp": null, "tg": null, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.8-27B-UD-Q4_K_M-MTP", "label": "llama.cpp · Qwen3.8-27B-UD-Q4-K-M", "pp": null, "tg": null, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 131072}, {"id": "llama.cpp::Tiel-Coder-35B-A3B-MTP-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Tiel-Coder-35B-A3B-MTP-Q5_K_XL", "label": "llama.cpp · Tiel-Coder-35B-A3B", "pp": 1023.9, "tg": 56.5, "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null}, {"id": "llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Tiel-Coder-35B-A3B", "pp": null, "tg": null, "pass_at_1": 0.6231707317073171, "pass_at_10": 0.7987804878048781, "n": null, "max_c": 262144}]</script>
+<script type="application/json" id="compare-catalog">[{"id": "gufo::Qwen3.8 Flash Next", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8 Flash Next", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL", "pass_at_1": 0.823170731707317, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @16384", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL @16384", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @16384", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 1553.83, "decode_tok_s": 25.93, "ttft_cold_ms": 7528.34, "ttft_warm_ms": 21.75, "itl_p50_ms": 37.29}, {"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @4096", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL @4096", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 1460.13, "decode_tok_s": 25.93, "ttft_cold_ms": 2009.66, "ttft_warm_ms": 17.69, "itl_p50_ms": 37.29}, {"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @512", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL @512", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @512", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 836.57, "decode_tok_s": 25.93, "ttft_cold_ms": 524.62, "ttft_warm_ms": 15.04, "itl_p50_ms": 37.29}, {"id": "halogen-flash::halogen-qwen3.8-flash-next", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "halogen-qwen3.8-flash-next", "label": "Halogen Flash · qwen38-flash-next-w4b", "pass_at_1": 0.6951219512195121, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "halogen-flash::qwen38-flash-next-w4b @16384", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b @16384", "label": "Halogen Flash · qwen38-flash-next-w4b @16384", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 741.43, "decode_tok_s": 25.45, "ttft_cold_ms": 15780.14, "ttft_warm_ms": 81.31, "itl_p50_ms": 30.34}, {"id": "halogen-flash::qwen38-flash-next-w4b @4096", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b @4096", "label": "Halogen Flash · qwen38-flash-next-w4b @4096", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 734.03, "decode_tok_s": 25.45, "ttft_cold_ms": 3995.55, "ttft_warm_ms": 76.66, "itl_p50_ms": 30.34}, {"id": "halogen-flash::qwen38-flash-next-w4b @512", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b @512", "label": "Halogen Flash · qwen38-flash-next-w4b @512", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 70.89, "decode_tok_s": 25.45, "ttft_cold_ms": 6084.82, "ttft_warm_ms": 68.17, "itl_p50_ms": 30.34}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.5993902439024391, "pass_at_10": 0.7378048780487805, "n": null, "max_c": 262144}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.6067073170731707, "pass_at_10": 0.7621951219512195, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL-VL", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.8-27B-UD-Q4_K_M-MTP", "label": "llama.cpp · Qwen3.8-27B-UD-Q4-K-M-MTP", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 131072}, {"id": "llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.6231707317073171, "pass_at_10": 0.7987804878048781, "n": null, "max_c": 262144}]</script>
 <script>
 (function () {
   const catEl = document.getElementById("compare-catalog");
@@ -586,8 +719,8 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   if (!catEl || !selA || !selB || !body) return;
   const catalog = JSON.parse(catEl.textContent || "[]");
   const byId = Object.fromEntries(catalog.map((e) => [e.id, e]));
-  selA.value = "halogen-flash::halogen-qwen3.8-flash-next";
-  selB.value = "halogen-flash::halogen-qwen3.8-flash-next";
+  selA.value = "gufo::Qwen3.8 Flash Next";
+  selB.value = "gufo::Qwen3.8 Flash Next";
 
   function fmtNum(v) {
     if (v === null || v === undefined || v === "") return "—";
@@ -629,8 +762,11 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
       return;
     }
     const rows = [
-      ["Generation tok/s", fmtNum(a.tg), fmtNum(b.tg), delta(a.tg, b.tg)],
-      ["Prompt tok/s", fmtNum(a.pp), fmtNum(b.pp), delta(a.pp, b.pp)],
+      ["Decode tok/s", fmtNum(a.decode_tok_s), fmtNum(b.decode_tok_s), delta(a.decode_tok_s, b.decode_tok_s)],
+      ["Prefill tok/s", fmtNum(a.prefill_tok_s), fmtNum(b.prefill_tok_s), delta(a.prefill_tok_s, b.prefill_tok_s)],
+      ["TTFT warm (ms)", fmtNum(a.ttft_warm_ms), fmtNum(b.ttft_warm_ms), delta(b.ttft_warm_ms, a.ttft_warm_ms)],
+      ["TTFT cold (ms)", fmtNum(a.ttft_cold_ms), fmtNum(b.ttft_cold_ms), delta(b.ttft_cold_ms, a.ttft_cold_ms)],
+      ["ITL p50 (ms)", fmtNum(a.itl_p50_ms), fmtNum(b.itl_p50_ms), delta(b.itl_p50_ms, a.itl_p50_ms)],
       ["HumanEval pass@1", fmtPct(a.pass_at_1), fmtPct(b.pass_at_1), delta(a.pass_at_1, b.pass_at_1)],
       ["HumanEval pass@10", fmtPct(a.pass_at_10), fmtPct(b.pass_at_10), delta(a.pass_at_10, b.pass_at_10)],
       ["Max context", fmtCtx(a.max_c), fmtCtx(b.max_c), delta(a.max_c, b.max_c)],

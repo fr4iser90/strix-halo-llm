@@ -1,15 +1,59 @@
 {
   "engines": {
+    "gufo": {
+      "engine": "gufo",
+      "stamp": "20260924T191458Z",
+      "suite": "http",
+      "scope": "run",
+      "prefill_list": [
+        512,
+        4096,
+        16384
+      ],
+      "decode_tokens": 128,
+      "metrics": [
+        "ttft_cold_ms",
+        "ttft_warm_ms",
+        "prefill_tok_s",
+        "decode_tok_s",
+        "itl_p50_ms"
+      ],
+      "base_url": "http://127.0.0.1:8080",
+      "n_models": 3
+    },
     "halogen-flash": {
       "engine": "halogen-flash",
-      "recovered_from": "llama-bench-20260916T193229Z-halogen-flash-compare.md",
-      "n_models": 1
+      "stamp": "20260924T191219Z",
+      "suite": "http",
+      "scope": "run",
+      "prefill_list": [
+        512,
+        4096,
+        16384
+      ],
+      "decode_tokens": 128,
+      "metrics": [
+        "ttft_cold_ms",
+        "ttft_warm_ms",
+        "prefill_tok_s",
+        "decode_tok_s",
+        "itl_p50_ms"
+      ],
+      "base_url": "http://127.0.0.1:8731",
+      "n_models": 3
     },
     "llama.cpp": {
       "engine": "llama.cpp",
       "recovered_from": "llama-bench-20260914T152703Z-compare.md",
-      "n_models": 3
+      "n_models": 0
     }
   },
-  "engine": "halogen-flash,llama.cpp"
+  "engine": "gufo,halogen-flash,llama.cpp",
+  "metrics": [
+    "ttft_cold_ms",
+    "ttft_warm_ms",
+    "prefill_tok_s",
+    "decode_tok_s",
+    "itl_p50_ms"
+  ]
 }

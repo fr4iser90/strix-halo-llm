@@ -1,8 +1,8 @@
 {
-  "updated": "2026-09-16T19:41:18Z",
+  "updated": "2026-09-24T15:41:00Z",
   "phase": "done",
-  "detail": "full",
-  "profile": "/home/Jarvis/Documents/llama-cpp/tools/bench/matrix/profiles/full.json",
+  "detail": "default",
+  "profile": "/home/Jarvis/Documents/strix-halo-llm/tools/bench/matrix/profiles/default.json",
   "log": [
     {
       "t": "2026-09-13T11:02:46Z",
@@ -538,6 +538,101 @@
       "t": "2026-09-16T19:41:18Z",
       "phase": "done",
       "detail": "full"
+    },
+    {
+      "t": "2026-09-24T12:40:42Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T12:42:16Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T12:54:09Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T12:56:58Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T13:07:02Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T13:11:02Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T13:11:12Z",
+      "phase": "done",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T13:14:28Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T13:14:37Z",
+      "phase": "done",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T13:15:44Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T13:26:07Z",
+      "phase": "done",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T13:49:59Z",
+      "phase": "start",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-24T14:36:54Z",
+      "phase": "done",
+      "detail": "full"
+    },
+    {
+      "t": "2026-09-24T15:12:33Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T15:16:52Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T15:20:32Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T15:24:32Z",
+      "phase": "done",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T15:27:16Z",
+      "phase": "start",
+      "detail": "default"
+    },
+    {
+      "t": "2026-09-24T15:41:00Z",
+      "phase": "done",
+      "detail": "default"
     }
   ],
   "capacity": {

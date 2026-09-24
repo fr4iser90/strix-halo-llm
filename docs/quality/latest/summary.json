@@ -1,6 +1,23 @@
 {
-  "generated": "2026-09-16T19:41:16Z",
+  "generated": "2026-09-24T15:39:59Z",
   "rows": [
+    {
+      "suite": "humaneval",
+      "stamp": "20260924T152804Z",
+      "model": "Qwen3.8 Flash Next",
+      "engine": "gufo",
+      "endpoint": "http://127.0.0.1:8080/v1",
+      "pass_at_1": 0.823170731707317,
+      "pass_at_10": null,
+      "pass_ks": {
+        "pass@1": 0.823170731707317
+      },
+      "n_tasks": 164,
+      "n_samples": 1,
+      "elapsed_s": 715,
+      "generate_s": 713.9,
+      "path": "/home/Jarvis/Documents/strix-halo-llm/output/bench/quality/humaneval/20260924T152804Z/summary.json"
+    },
     {
       "suite": "humaneval",
       "stamp": "20260916T193233Z",
@@ -16,7 +33,7 @@
       "n_samples": 1,
       "elapsed_s": 523,
       "generate_s": 521.1,
-      "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260916T193233Z/summary.json"
+      "path": "/home/Jarvis/Documents/strix-halo-llm/output/bench/quality/humaneval/20260916T193233Z/summary.json"
     },
     {
       "suite": "humaneval",
@@ -34,7 +51,7 @@
       "n_samples": 10,
       "elapsed_s": 1641,
       "generate_s": 1633.6,
-      "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260914T192032Z/summary.json"
+      "path": "/home/Jarvis/Documents/strix-halo-llm/output/bench/quality/humaneval/20260914T192032Z/summary.json"
     },
     {
       "suite": "humaneval",
@@ -52,7 +69,7 @@
       "n_samples": 10,
       "elapsed_s": 1434,
       "generate_s": 1426.0,
-      "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260914T194832Z/summary.json"
+      "path": "/home/Jarvis/Documents/strix-halo-llm/output/bench/quality/humaneval/20260914T194832Z/summary.json"
     },
     {
       "suite": "humaneval",
@@ -70,7 +87,7 @@
       "n_samples": 10,
       "elapsed_s": null,
       "generate_s": null,
-      "path": "/home/Jarvis/Documents/llama-cpp/output/bench/quality/humaneval/20260914T183437Z/summary.json"
+      "path": "/home/Jarvis/Documents/strix-halo-llm/output/bench/quality/humaneval/20260914T183437Z/summary.json"
     }
   ]
 }

@@ -1,0 +1,16 @@
+{
+  "suite": "humaneval",
+  "model": "Qwen3.8 Flash Next",
+  "engine": "gufo",
+  "base_url": "http://127.0.0.1:8080/v1",
+  "stamp": "20260924T152804Z",
+  "n_tasks": 164,
+  "n_samples_per_task": 1,
+  "limit": 0,
+  "metrics": {
+    "pass@1": 0.823170731707317
+  },
+  "generate_s": 713.9,
+  "elapsed_s": 715,
+  "notes": "HumanEval \u2014 https://github.com/openai/human-eval"
+}

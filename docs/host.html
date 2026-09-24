@@ -60,6 +60,10 @@ details.panel { background: #171a21; border: 1px solid #252a35; border-radius: 1
 summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
 .chart-box { background: #12141a; border-radius: 8px; padding: .75rem 1rem 1rem;
   border: 1px solid #252a35; margin: .75rem 0; }
+.charts.two { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+@media (min-width: 900px) {
+  .charts.two { grid-template-columns: 1fr 1fr; }
+}
 .chart-wrap { position: relative; height: 280px; }
 .chart-wrap.tall { height: 320px; }
 .btn { display: inline-block; margin: .3rem .4rem .3rem 0; padding: .45rem .85rem;
@@ -106,20 +110,21 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
 <h1>Host &amp; build</h1>
 <p class="lede">Results only compare fairly on the same machine, driver, and engine build.</p>
 </header>
-<p class="host-line">c5:00.0 Display controller: Advanced Micro Devi… · 124.9 GiB RAM · vulkan · llama.cpp · Halogen Flash · <a href="host.html">Host details</a></p>
-<div class="card" id="hardware"><h2>Host machine <span class="meta"><span class="tip" tabindex="0">Why this matters<span class="tip-text" role="tooltip">Same model numbers only compare fairly on the same machine, driver, and llama.cpp build.</span></span></span></h2><p class="meta">AMD Strix Halo / unified memory: GTT is the GPU-usable UMA pool (not discrete VRAM). Compare benches only across similar GTT/RAM.</p><table><tbody><tr><th>Host</th><td>Jarvis</td></tr><tr><th>OS</th><td>NixOS 26.05 (Yarara)</td></tr><tr><th>Kernel</th><td>7.2.2</td></tr><tr><th>CPU</th><td>AMD RYZEN AI MAX+ 395 w/ Radeon 8060S (32 threads)</td></tr><tr><th>RAM</th><td>124.9 GiB (avail ~69.9 GiB)</td></tr><tr><th>Swap</th><td>18.7 GiB</td></tr><tr><th>Shared GPU memory (GTT)</th><td>100.0 GiB (used ~42.1 GiB)</td></tr><tr><th>Visible VRAM</th><td>512 MiB</td></tr><tr><th>GPU</th><td>c5:00.0 Display controller: Advanced Micro Devices, Inc. [AMD/ATI] Strix Halo [Radeon Graphics / Radeon 8050S Graphics / Radeon 8060S Graphics] (rev c1)</td></tr><tr><th>Inference engine</th><td>llama.cpp</td></tr><tr><th>Inference backend</th><td>vulkan</td></tr><tr><th>Container image</th><td>llama-cpp-vulkan-nix:latest (366f8b040ab0)</td></tr><tr><th>llama.cpp</th><td>qwen4exp/mtp @ d1a92352cbd4</td></tr><tr><th>Probed</th><td>2026-09-16T20:29:39Z</td></tr></tbody></table></div>
+<p class="host-line">c5:00.0 Display controller: Advanced Micro Devi… · 124.9 GiB RAM · vulkan · llama.cpp · gufo · Halogen Flash · <a href="host.html">Host details</a></p>
+<div class="card" id="hardware"><h2>Host machine <span class="meta"><span class="tip" tabindex="0">Why this matters<span class="tip-text" role="tooltip">Same model numbers only compare fairly on the same machine, driver, and llama.cpp build.</span></span></span></h2><p class="meta">AMD Strix Halo / unified memory: GTT is the GPU-usable UMA pool (not discrete VRAM). Compare benches only across similar GTT/RAM.</p><table><tbody><tr><th>Host</th><td>Jarvis</td></tr><tr><th>OS</th><td>NixOS 26.05 (Yarara)</td></tr><tr><th>Kernel</th><td>7.2.2</td></tr><tr><th>CPU</th><td>AMD RYZEN AI MAX+ 395 w/ Radeon 8060S (32 threads)</td></tr><tr><th>RAM</th><td>124.9 GiB (avail ~118.3 GiB)</td></tr><tr><th>Swap</th><td>18.7 GiB</td></tr><tr><th>Shared GPU memory (GTT)</th><td>100.0 GiB (used ~0.0 GiB)</td></tr><tr><th>Visible VRAM</th><td>512 MiB</td></tr><tr><th>GPU</th><td>c5:00.0 Display controller: Advanced Micro Devices, Inc. [AMD/ATI] Strix Halo [Radeon Graphics / Radeon 8050S Graphics / Radeon 8060S Graphics] (rev c1)</td></tr><tr><th>Inference engine</th><td>llama.cpp</td></tr><tr><th>Inference backend</th><td>vulkan</td></tr><tr><th>Container image</th><td>llama-cpp-vulkan-nix:latest (366f8b040ab0)</td></tr><tr><th>llama.cpp</th><td>qwen4exp/mtp @ d1a9235</td></tr><tr><th>Probed</th><td>2026-09-24T19:18:42Z</td></tr></tbody></table></div>
 <div class="card" id="fingerprint">
 <h2>Build fingerprint</h2>
 <p class="meta"><span class="tip" tabindex="0">Comparability<span class="tip-text" role="tooltip">Speed and context numbers only compare fairly when the container image and llama.cpp build match. Stale cells may come from an older image.</span></span></p>
 <table><tbody>
 <tr><th>Current image</th><td><code>366f8b040ab0</code> · llama-cpp-vulkan-nix:latest</td></tr>
-<tr><th>llama.cpp</th><td>qwen4exp/mtp @ <code>d1a92352cbd4</code></td></tr>
-<tr><th>Measured cells</th><td>79 · same build 74 · older build 5</td></tr>
+<tr><th>llama.cpp</th><td>qwen4exp/mtp @ <code>d1a9235</code></td></tr>
+<tr><th>Measured cells</th><td>84 · same build 74 · older build 10</td></tr>
 </tbody></table>
 <h3>Seen in results</h3>
 <table><thead><tr><th>Server version</th><th>Image</th><th class="n">Cells</th><th>vs current</th></tr></thead><tbody>
 <tr><td><code>version: 0.3.0-dev (build 0, commit unknown)</code></td><td><code>sha256:366f8b040ab0…</code></td><td class="n">74</td><td><span class="ok">same build</span></td></tr>
 <tr><td><code>version={&#x27;api&#x27;: &#x27;0.11.1&#x27;, &#x27;engine&#x27;: &#x27;0.11.1&#x27;, &#x27;m</code></td><td><code>halogen-flash</code></td><td class="n">5</td><td><span class="fail">older build?</span></td></tr>
+<tr><td><code>status=ok</code></td><td><code>gufo</code></td><td class="n">5</td><td><span class="fail">older build?</span></td></tr>
 </tbody></table></div>
 
 <footer class="site">Measured benches on this host · comparable only for the same build (see Host)</footer>

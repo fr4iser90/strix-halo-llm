@@ -1,8 +1,8 @@
 # Throughput compare
 
-engine: halogen-flash
+engine: gufo
 
-Halogen Flash HTTP throughput (20260924T191219Z).
+Gufo HTTP throughput (20260924T191458Z).
 
 Definitions:
 
@@ -14,6 +14,6 @@ Definitions:
 
 | model | ttft_cold_ms | ttft_warm_ms | prefill_tok_s | decode_tok_s | itl_p50_ms |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| qwen38-flash-next-w4b @512 | 6084.82 | 68.17 | 70.89 | 25.45 | 30.34 |
-| qwen38-flash-next-w4b @4096 | 3995.55 | 76.66 | 734.03 | 25.45 | 30.34 |
-| qwen38-flash-next-w4b @16384 | 15780.14 | 81.31 | 741.43 | 25.45 | 30.34 |
+| Qwen3.8-Flash-Next-UD-Q4_K_XL @512 | 524.62 | 15.04 | 836.57 | 25.93 | 37.29 |
+| Qwen3.8-Flash-Next-UD-Q4_K_XL @4096 | 2009.66 | 17.69 | 1460.13 | 25.93 | 37.29 |
+| Qwen3.8-Flash-Next-UD-Q4_K_XL @16384 | 7528.34 | 21.75 | 1553.83 | 25.93 | 37.29 |

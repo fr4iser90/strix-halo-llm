@@ -1,13 +1,13 @@
 {
-  "stamp": "20260916T192633Z",
+  "stamp": "20260924T135219Z",
   "tag": "http-kv-ctx",
-  "engine": "halogen-flash",
+  "engine": "gufo",
   "backend": "http",
   "model_list": "",
-  "url_a": "http://127.0.0.1:8731",
+  "url_a": "http://127.0.0.1:8080",
   "kv_list": "native",
   "c_list": "32768,65536,131072,196608,262144",
-  "server_version": "version={'api': '0.11.1', 'engine': '0.11.1', 'match': True} status=ok",
-  "image_id": "halogen-flash",
-  "image_name": "halogen-flash-server"
+  "server_version": "status=ok",
+  "image_id": "gufo",
+  "image_name": "gufo-server"
 }
