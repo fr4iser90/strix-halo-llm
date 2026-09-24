@@ -66,6 +66,8 @@ summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
 }
 .chart-wrap { position: relative; height: 280px; }
 .chart-wrap.tall { height: 320px; }
+.compare-fill-chart { margin-top: 1rem; }
+.compare-fill-chart .chart-wrap { height: 300px; }
 .btn { display: inline-block; margin: .3rem .4rem .3rem 0; padding: .45rem .85rem;
   background: #2a3444; color: #e8eaed; border: none; border-radius: 6px; cursor: pointer;
   font: inherit; }
@@ -287,18 +289,12 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   }
 })();
 </script>
-</div><div class="engine-panel" data-engine="__compare__" hidden><div class="card"><h2>Compare models</h2><p class="meta">Pick any two measured models (any engine). Δ is B relative to A.</p>
+</div><div class="engine-panel" data-engine="__compare__" hidden><div class="card"><h2>Compare models</h2><p class="meta">Pick any two measured models (any engine). Δ is B relative to A. Throughput rows join across fill sizes (@512/@4k/@16k).</p>
 <div class="compare-pick">
   <label class="compare-field">
     <span>Model A</span>
-    <select id="compare-a" aria-label="Model A"><option value="gufo::Qwen3.8 Flash Next">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL</option>
-<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @16384">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @16384</option>
-<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @4096">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096</option>
-<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @512">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @512</option>
-<option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · qwen38-flash-next-w4b</option>
-<option value="halogen-flash::qwen38-flash-next-w4b @16384">Halogen Flash · qwen38-flash-next-w4b @16384</option>
-<option value="halogen-flash::qwen38-flash-next-w4b @4096">Halogen Flash · qwen38-flash-next-w4b @4096</option>
-<option value="halogen-flash::qwen38-flash-next-w4b @512">Halogen Flash · qwen38-flash-next-w4b @512</option>
+    <select id="compare-a" aria-label="Model A"><option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096</option>
+<option value="halogen-flash::qwen38-flash-next-w4b">Halogen Flash · qwen38-flash-next-w4b @4096</option>
 <option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option>
 <option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
 <option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL</option>
@@ -308,14 +304,8 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   </label>
   <label class="compare-field">
     <span>Model B</span>
-    <select id="compare-b" aria-label="Model B"><option value="gufo::Qwen3.8 Flash Next">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL</option>
-<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @16384">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @16384</option>
-<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @4096">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096</option>
-<option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @512">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @512</option>
-<option value="halogen-flash::halogen-qwen3.8-flash-next">Halogen Flash · qwen38-flash-next-w4b</option>
-<option value="halogen-flash::qwen38-flash-next-w4b @16384">Halogen Flash · qwen38-flash-next-w4b @16384</option>
-<option value="halogen-flash::qwen38-flash-next-w4b @4096">Halogen Flash · qwen38-flash-next-w4b @4096</option>
-<option value="halogen-flash::qwen38-flash-next-w4b @512">Halogen Flash · qwen38-flash-next-w4b @512</option>
+    <select id="compare-b" aria-label="Model B"><option value="gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL">gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096</option>
+<option value="halogen-flash::qwen38-flash-next-w4b">Halogen Flash · qwen38-flash-next-w4b @4096</option>
 <option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option>
 <option value="llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL">llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL</option>
 <option value="llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL</option>
@@ -324,6 +314,7 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
 <option value="llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL">llama.cpp · Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL</option></select>
   </label>
 </div>
+<p class="meta" id="compare-fill-note"></p>
 <table class="compare-pair"><thead><tr>
   <th>Metric</th>
   <th class="n" id="compare-head-a">A</th>
@@ -333,7 +324,17 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
 <tbody id="compare-pair-body">
   <tr><td colspan="4" class="meta">Pick two models.</td></tr>
 </tbody></table>
-<script type="application/json" id="compare-catalog">[{"id": "gufo::Qwen3.8 Flash Next", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8 Flash Next", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL", "pass_at_1": 0.823170731707317, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @16384", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL @16384", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @16384", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 1553.83, "decode_tok_s": 25.93, "ttft_cold_ms": 7528.34, "ttft_warm_ms": 21.75, "itl_p50_ms": 37.29}, {"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @4096", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL @4096", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 1460.13, "decode_tok_s": 25.93, "ttft_cold_ms": 2009.66, "ttft_warm_ms": 17.69, "itl_p50_ms": 37.29}, {"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL @512", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL @512", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @512", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 836.57, "decode_tok_s": 25.93, "ttft_cold_ms": 524.62, "ttft_warm_ms": 15.04, "itl_p50_ms": 37.29}, {"id": "halogen-flash::halogen-qwen3.8-flash-next", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "halogen-qwen3.8-flash-next", "label": "Halogen Flash · qwen38-flash-next-w4b", "pass_at_1": 0.6951219512195121, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "halogen-flash::qwen38-flash-next-w4b @16384", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b @16384", "label": "Halogen Flash · qwen38-flash-next-w4b @16384", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 741.43, "decode_tok_s": 25.45, "ttft_cold_ms": 15780.14, "ttft_warm_ms": 81.31, "itl_p50_ms": 30.34}, {"id": "halogen-flash::qwen38-flash-next-w4b @4096", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b @4096", "label": "Halogen Flash · qwen38-flash-next-w4b @4096", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 734.03, "decode_tok_s": 25.45, "ttft_cold_ms": 3995.55, "ttft_warm_ms": 76.66, "itl_p50_ms": 30.34}, {"id": "halogen-flash::qwen38-flash-next-w4b @512", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b @512", "label": "Halogen Flash · qwen38-flash-next-w4b @512", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": null, "prefill_tok_s": 70.89, "decode_tok_s": 25.45, "ttft_cold_ms": 6084.82, "ttft_warm_ms": 68.17, "itl_p50_ms": 30.34}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.5993902439024391, "pass_at_10": 0.7378048780487805, "n": null, "max_c": 262144}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.6067073170731707, "pass_at_10": 0.7621951219512195, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL-VL", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144}, {"id": "llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.8-27B-UD-Q4_K_M-MTP", "label": "llama.cpp · Qwen3.8-27B-UD-Q4-K-M-MTP", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 131072}, {"id": "llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.6231707317073171, "pass_at_10": 0.7987804878048781, "n": null, "max_c": 262144}]</script>
+<div class="charts two compare-charts">
+  <div class="chart-box"><h3>Prefill &amp; Decode</h3>
+    <div class="chart-wrap"><canvas id="compare-chart-speed"></canvas></div></div>
+  <div class="chart-box"><h3>TTFT &amp; ITL</h3>
+    <div class="chart-wrap"><canvas id="compare-chart-latency"></canvas></div></div>
+</div>
+<div class="chart-box compare-fill-chart" id="compare-fill-box" hidden>
+  <h3>TTFT cold by fill size</h3>
+  <div class="chart-wrap"><canvas id="compare-chart-fill"></canvas></div>
+</div>
+<script type="application/json" id="compare-catalog">[{"id": "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL", "engine": "gufo", "engine_label": "gufo", "model": "Qwen3.8-Flash-Next-UD-Q4_K_XL", "label": "gufo · Qwen3.8-Flash-Next-UD-Q4-K-XL @4096", "pass_at_1": 0.823170731707317, "pass_at_10": null, "n": null, "max_c": 262144, "prefill_tok_s": 1460.13, "decode_tok_s": 25.93, "ttft_cold_ms": 2009.66, "ttft_warm_ms": 17.69, "itl_p50_ms": 37.29, "thr_fill": 4096, "fills": {"512": {"prefill_tok_s": 836.57, "decode_tok_s": 25.93, "ttft_cold_ms": 524.62, "ttft_warm_ms": 15.04, "itl_p50_ms": 37.29}, "4096": {"prefill_tok_s": 1460.13, "decode_tok_s": 25.93, "ttft_cold_ms": 2009.66, "ttft_warm_ms": 17.69, "itl_p50_ms": 37.29}, "16384": {"prefill_tok_s": 1553.83, "decode_tok_s": 25.93, "ttft_cold_ms": 7528.34, "ttft_warm_ms": 21.75, "itl_p50_ms": 37.29}}}, {"id": "halogen-flash::qwen38-flash-next-w4b", "engine": "halogen-flash", "engine_label": "Halogen Flash", "model": "qwen38-flash-next-w4b", "label": "Halogen Flash · qwen38-flash-next-w4b @4096", "pass_at_1": 0.6951219512195121, "pass_at_10": null, "n": null, "max_c": 262144, "prefill_tok_s": 734.03, "decode_tok_s": 25.45, "ttft_cold_ms": 3995.55, "ttft_warm_ms": 76.66, "itl_p50_ms": 30.34, "thr_fill": 4096, "fills": {"512": {"prefill_tok_s": 70.89, "decode_tok_s": 25.45, "ttft_cold_ms": 6084.82, "ttft_warm_ms": 68.17, "itl_p50_ms": 30.34}, "4096": {"prefill_tok_s": 734.03, "decode_tok_s": 25.45, "ttft_cold_ms": 3995.55, "ttft_warm_ms": 76.66, "itl_p50_ms": 30.34}, "16384": {"prefill_tok_s": 741.43, "decode_tok_s": 25.45, "ttft_cold_ms": 15780.14, "ttft_warm_ms": 81.31, "itl_p50_ms": 30.34}}}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.5993902439024391, "pass_at_10": 0.7378048780487805, "n": null, "max_c": 262144, "prefill_tok_s": null, "decode_tok_s": null, "ttft_cold_ms": null, "ttft_warm_ms": null, "itl_p50_ms": null, "thr_fill": null, "fills": {}}, {"id": "llama.cpp::Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Cyber-Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL-VL", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144, "prefill_tok_s": null, "decode_tok_s": null, "ttft_cold_ms": null, "ttft_warm_ms": null, "itl_p50_ms": null, "thr_fill": null, "fills": {}}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.6067073170731707, "pass_at_10": 0.7621951219512195, "n": null, "max_c": 262144, "prefill_tok_s": null, "decode_tok_s": null, "ttft_cold_ms": null, "ttft_warm_ms": null, "itl_p50_ms": null, "thr_fill": null, "fills": {}}, {"id": "llama.cpp::Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.6-35B-A3B-MTP-UD-Q5_K_XL-VL", "label": "llama.cpp · Qwen3.6-35B-A3B-MTP-UD-Q5-K-XL-VL", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 262144, "prefill_tok_s": null, "decode_tok_s": null, "ttft_cold_ms": null, "ttft_warm_ms": null, "itl_p50_ms": null, "thr_fill": null, "fills": {}}, {"id": "llama.cpp::Qwen3.8-27B-UD-Q4_K_M-MTP", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Qwen3.8-27B-UD-Q4_K_M-MTP", "label": "llama.cpp · Qwen3.8-27B-UD-Q4-K-M-MTP", "pass_at_1": null, "pass_at_10": null, "n": null, "max_c": 131072, "prefill_tok_s": null, "decode_tok_s": null, "ttft_cold_ms": null, "ttft_warm_ms": null, "itl_p50_ms": null, "thr_fill": null, "fills": {}}, {"id": "llama.cpp::Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "engine": "llama.cpp", "engine_label": "llama.cpp", "model": "Tiel-Coder-35B-A3B-MTP-UD-Q5_K_XL", "label": "llama.cpp · Tiel-Coder-35B-A3B-MTP-UD-Q5-K-XL", "pass_at_1": 0.6231707317073171, "pass_at_10": 0.7987804878048781, "n": null, "max_c": 262144, "prefill_tok_s": null, "decode_tok_s": null, "ttft_cold_ms": null, "ttft_warm_ms": null, "itl_p50_ms": null, "thr_fill": null, "fills": {}}]</script>
 <script>
 (function () {
   const catEl = document.getElementById("compare-catalog");
@@ -342,12 +343,29 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   const body = document.getElementById("compare-pair-body");
   const headA = document.getElementById("compare-head-a");
   const headB = document.getElementById("compare-head-b");
+  const fillNote = document.getElementById("compare-fill-note");
+  const fillBox = document.getElementById("compare-fill-box");
   if (!catEl || !selA || !selB || !body) return;
   const catalog = JSON.parse(catEl.textContent || "[]");
   const byId = Object.fromEntries(catalog.map((e) => [e.id, e]));
-  selA.value = "gufo::Qwen3.8 Flash Next";
-  selB.value = "gufo::Qwen3.8 Flash Next";
+  selA.value = "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL";
+  selB.value = "gufo::Qwen3.8-Flash-Next-UD-Q4_K_XL";
 
+  let chartSpeed = null, chartLat = null, chartFill = null;
+  const tick = { color: "#9aa0a6" };
+  const grid = { color: "#2a2e37" };
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: "#c4c7cc" } } },
+  };
+  const colA = "#5b8def";
+  const colB = "#7ddea5";
+
+  function destroy(ch) {
+    if (ch) try { ch.destroy(); } catch (_) {}
+    return null;
+  }
   function fmtNum(v) {
     if (v === null || v === undefined || v === "") return "—";
     const n = Number(v);
@@ -374,7 +392,110 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   function shortLabel(e) {
     if (!e) return "—";
     const m = (e.model || "").replace(/-UD-Q[\w.]+$/i, "").replace(/-MTP/g, "");
-    return (e.engine_label || e.engine) + " · " + (m.length > 28 ? m.slice(0, 27) + "…" : m);
+    let s = (e.engine_label || e.engine) + " · " + (m.length > 28 ? m.slice(0, 27) + "…" : m);
+    if (e.thr_fill) s += " @" + e.thr_fill;
+    return s;
+  }
+  function numOrNull(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  function updateCharts(a, b) {
+    if (typeof Chart === "undefined") return;
+    const la = shortLabel(a), lb = shortLabel(b);
+    chartSpeed = destroy(chartSpeed);
+    chartLat = destroy(chartLat);
+    chartFill = destroy(chartFill);
+    const cSpeed = document.getElementById("compare-chart-speed");
+    const cLat = document.getElementById("compare-chart-latency");
+    const cFill = document.getElementById("compare-chart-fill");
+    if (cSpeed) {
+      chartSpeed = new Chart(cSpeed, {
+        type: "bar",
+        data: {
+          labels: ["Prefill tok/s", "Decode tok/s"],
+          datasets: [
+            { label: la, data: [numOrNull(a.prefill_tok_s), numOrNull(a.decode_tok_s)], backgroundColor: colA },
+            { label: lb, data: [numOrNull(b.prefill_tok_s), numOrNull(b.decode_tok_s)], backgroundColor: colB },
+          ],
+        },
+        options: {
+          ...common,
+          scales: {
+            x: { ticks: tick, grid },
+            y: { ticks: tick, grid, title: { display: true, text: "tokens / s", color: "#9aa0a6" } },
+          },
+        },
+      });
+    }
+    if (cLat) {
+      chartLat = new Chart(cLat, {
+        type: "bar",
+        data: {
+          labels: ["TTFT cold", "TTFT warm", "ITL p50"],
+          datasets: [
+            { label: la, data: [numOrNull(a.ttft_cold_ms), numOrNull(a.ttft_warm_ms), numOrNull(a.itl_p50_ms)], backgroundColor: colA },
+            { label: lb, data: [numOrNull(b.ttft_cold_ms), numOrNull(b.ttft_warm_ms), numOrNull(b.itl_p50_ms)], backgroundColor: colB },
+          ],
+        },
+        options: {
+          ...common,
+          scales: {
+            x: { ticks: tick, grid },
+            y: { ticks: tick, grid, title: { display: true, text: "milliseconds", color: "#9aa0a6" } },
+          },
+        },
+      });
+    }
+    const fillsA = a.fills || {}, fillsB = b.fills || {};
+    const keys = Array.from(new Set([
+      ...Object.keys(fillsA).map(Number),
+      ...Object.keys(fillsB).map(Number),
+    ].filter((n) => n > 0))).sort((x, y) => x - y);
+    if (fillBox && cFill && keys.length >= 2) {
+      fillBox.hidden = false;
+      chartFill = new Chart(cFill, {
+        type: "line",
+        data: {
+          labels: keys.map((k) => String(k)),
+          datasets: [
+            {
+              label: (a.engine_label || a.engine) + " TTFT cold",
+              data: keys.map((k) => numOrNull((fillsA[String(k)] || {}).ttft_cold_ms)),
+              borderColor: colA, backgroundColor: colA, tension: 0.2,
+            },
+            {
+              label: (b.engine_label || b.engine) + " TTFT cold",
+              data: keys.map((k) => numOrNull((fillsB[String(k)] || {}).ttft_cold_ms)),
+              borderColor: colB, backgroundColor: colB, tension: 0.2,
+            },
+            {
+              label: (a.engine_label || a.engine) + " Prefill",
+              data: keys.map((k) => numOrNull((fillsA[String(k)] || {}).prefill_tok_s)),
+              borderColor: "#8ab4f8", backgroundColor: "#8ab4f8",
+              borderDash: [4, 4], tension: 0.2, yAxisID: "y1",
+            },
+            {
+              label: (b.engine_label || b.engine) + " Prefill",
+              data: keys.map((k) => numOrNull((fillsB[String(k)] || {}).prefill_tok_s)),
+              borderColor: "#a8e6c5", backgroundColor: "#a8e6c5",
+              borderDash: [4, 4], tension: 0.2, yAxisID: "y1",
+            },
+          ],
+        },
+        options: {
+          ...common,
+          scales: {
+            x: { ticks: tick, grid, title: { display: true, text: "fill tokens", color: "#9aa0a6" } },
+            y: { ticks: tick, grid, position: "left", title: { display: true, text: "TTFT cold (ms)", color: "#9aa0a6" } },
+            y1: { ticks: tick, grid: { drawOnChartArea: false }, position: "right",
+              title: { display: true, text: "Prefill tok/s", color: "#9aa0a6" } },
+          },
+        },
+      });
+    } else if (fillBox) {
+      fillBox.hidden = true;
+    }
   }
   function render() {
     const a = byId[selA.value];
@@ -383,6 +504,14 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
     headB.textContent = shortLabel(b);
     headA.title = a ? (a.engine + " / " + a.model) : "";
     headB.title = b ? (b.engine + " / " + b.model) : "";
+    if (fillNote) {
+      const bits = [];
+      if (a && a.thr_fill) bits.push("A thr @" + a.thr_fill);
+      if (b && b.thr_fill) bits.push("B thr @" + b.thr_fill);
+      fillNote.textContent = bits.length
+        ? ("Table/charts use preferred fill (" + bits.join(", ") + "); line chart shows full ladder.")
+        : "";
+    }
     if (!a || !b) {
       body.innerHTML = '<tr><td colspan="4" class="meta">Pick two models.</td></tr>';
       return;
@@ -401,6 +530,7 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
       "<tr><td>" + m + '</td><td class="n">' + av + '</td><td class="n">' + bv +
       '</td><td class="n">' + d + "</td></tr>"
     ).join("");
+    updateCharts(a, b);
     try {
       localStorage.setItem("bench-compare-a", selA.value);
       localStorage.setItem("bench-compare-b", selB.value);
@@ -414,10 +544,16 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
   } catch (_) {}
   selA.addEventListener("change", render);
   selB.addEventListener("change", render);
-  render();
+  window.addEventListener("bench-compare-show", render);
+  // Defer charts until Chart.js + panel may be visible
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", render);
+  } else {
+    render();
+  }
 })();
 </script>
-<p class="meta compare-sub">No identical model names across engines yet (use the pickers above for Flash vs Tiel, etc.).</p></div></div>
+<p class="meta compare-sub">No overlapping models across engines yet (use the pickers above).</p></div></div>
 <p class="links-row">
   <a href="context.html">Context &amp; memory →</a>
   <a href="quality.html">Quality details →</a>
@@ -446,6 +582,9 @@ footer.site { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #252a35
       Object.values(Chart.instances || {}).forEach((c) => {
         try { c.resize(); } catch (e) {}
       });
+    }
+    if (id === "__compare__") {
+      try { window.dispatchEvent(new Event("bench-compare-show")); } catch (e) {}
     }
   }
   tabs.forEach((btn) => btn.addEventListener("click", () => activate(btn.getAttribute("data-engine"))));
