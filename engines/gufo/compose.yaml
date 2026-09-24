@@ -63,6 +63,8 @@ services:
       #   GUFO_DFLASH_MODEL=/models/chat/large/Qwen3.8-27B-DFlash2-Q4_K_M.gguf
       GUFO_SPECULATIVE: ${GUFO_SPECULATIVE:-}
       GUFO_DFLASH_MODEL: ${GUFO_DFLASH_MODEL:-}
+      # Concurrent GPU sessions (like Halogen HALOGEN_KV_SLOTS=4).
+      GUFO_SESSIONS: ${GUFO_SESSIONS:-4}
       # Context window (tokens). Capacity ladder needs this ≥ max CAPACITY_C_LIST.
       GUFO_EXTRA_ARGS: ${GUFO_EXTRA_ARGS:---context 262144}
     volumes:

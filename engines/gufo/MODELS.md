@@ -24,6 +24,7 @@ Default hub smoke / daily stack:
 GUFO_MODELS=$MODELS_ROOT/gguf
 GUFO_MODEL=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
 GUFO_CONTEXT=262144
+GUFO_SESSIONS=4
 GUFO_EXTRA_ARGS=--context 262144
 # optional MTP via GUFO_SPECULATIVE + mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf
 ```

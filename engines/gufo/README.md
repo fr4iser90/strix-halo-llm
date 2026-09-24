@@ -7,6 +7,7 @@ Single-process OpenAI-compatible server (GHCR). Port **8080**.
 # .env — daily default: Flash-Next Q4 @ 262k
 # GUFO_MODELS=$MODELS_ROOT/gguf
 # GUFO_MODEL=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
+# GUFO_SESSIONS=4
 # GUFO_EXTRA_ARGS=--context 262144
 cd engines/gufo
 docker compose --env-file ../../.env up -d

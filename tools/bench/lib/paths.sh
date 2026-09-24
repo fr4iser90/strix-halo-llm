@@ -36,8 +36,9 @@ GUFO_MODELS="${GUFO_MODELS:-$MODELS_DIR}"
 : "${SMOKE_ENGINES:=gufo,piper,whisper}"
 : "${GUFO_MODEL:=/models/chat/large/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf}"
 : "${GUFO_CONTEXT:=262144}"
+: "${GUFO_SESSIONS:=4}"
 : "${GUFO_EXTRA_ARGS:=--context ${GUFO_CONTEXT}}"
-export GUFO_MODEL GUFO_CONTEXT GUFO_EXTRA_ARGS
+export GUFO_MODEL GUFO_CONTEXT GUFO_SESSIONS GUFO_EXTRA_ARGS
 # LLAMA_DAILY_SERVICES: optional override only — restore prefers live snapshot from stop_daily
 
 # Live llama.ini presets next to compose (templates: engines/llama-cpp/presets/ini/)
