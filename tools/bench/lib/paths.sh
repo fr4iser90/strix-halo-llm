@@ -14,12 +14,21 @@ ENGINE_PIPER_DIR="${ENGINE_PIPER_DIR:-$PROJECT_ROOT/engines/piper}"
 ENGINE_WHISPER_DIR="${ENGINE_WHISPER_DIR:-$PROJECT_ROOT/engines/whisper-cpp}"
 
 # Weights parent: gguf/ · hgn/ · stt/ · tts/
-# Clone default: ./models — Jarvis: MODELS_ROOT=$HOME/data/models
-MODELS_ROOT="${MODELS_ROOT:-$PROJECT_ROOT/models}"
-# GGUF tree mounted by llama.cpp / gufo
+# Default without .env: ~/data/models if it exists, else <repo>/models
+if [[ -z "${MODELS_ROOT:-}" ]]; then
+  if [[ -d "${HOME}/data/models" ]]; then
+    MODELS_ROOT="${HOME}/data/models"
+  else
+    MODELS_ROOT="${PROJECT_ROOT}/models"
+  fi
+fi
 MODELS_DIR="${MODELS_DIR:-$MODELS_ROOT/gguf}"
 TTS_MODELS="${TTS_MODELS:-$MODELS_ROOT/tts}"
 STT_MODELS="${STT_MODELS:-$MODELS_ROOT/stt}"
+# Halogen pack (optional until ./stack up halogen)
+HALOGEN_MODELS="${HALOGEN_MODELS:-$MODELS_ROOT/hgn/qwen38flash}"
+# Gufo mounts gguf root
+GUFO_MODELS="${GUFO_MODELS:-$MODELS_DIR}"
 
 # Live llama.ini presets next to compose (templates: engines/llama-cpp/presets/ini/)
 LLAMA_INI_DIR="${LLAMA_INI_DIR:-$ENGINE_LLAMA_DIR}"
@@ -71,6 +80,7 @@ bench_docker_compose() {
 export PROJECT_ROOT ENGINE_LLAMA_DIR ENGINE_HALOGEN_DIR ENGINE_GUFO_DIR
 export ENGINE_PIPER_DIR ENGINE_WHISPER_DIR
 export MODELS_ROOT MODELS_DIR TTS_MODELS STT_MODELS LLAMA_INI_DIR
+export HALOGEN_MODELS GUFO_MODELS
 export VK_COMPOSE ROCM_COMPOSE BENCH_COMPOSE
 export HALOGEN_COMPOSE GUFO_COMPOSE
 export CAPACITY_INI_A CAPACITY_INI_B

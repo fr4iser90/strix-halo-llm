@@ -5,9 +5,21 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Parent of gguf/hgn/stt/tts. Jarvis: MODELS_ROOT=$HOME/data/models
-MODELS_ROOT="${MODELS_ROOT:-$SCRIPT_DIR/models}"
-# GGUF tree mounted by llama.cpp (also used if MODELS_DIR set alone for compat)
+# Load .env if present (optional — defaults work without it)
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/.env"
+  set +a
+fi
+# Parent of gguf/hgn/stt/tts. Default: ~/data/models if present, else ./models
+if [[ -z "${MODELS_ROOT:-}" ]]; then
+  if [[ -d "${HOME}/data/models" ]]; then
+    MODELS_ROOT="${HOME}/data/models"
+  else
+    MODELS_ROOT="$SCRIPT_DIR/models"
+  fi
+fi
 MODELS_DIR="${MODELS_DIR:-$MODELS_ROOT/gguf}"
 CATALOG="${CATALOG:-$SCRIPT_DIR/models.catalog.tsv}"
 INI_DIR="${LLAMA_INI_DIR:-$SCRIPT_DIR/engines/llama-cpp}"
@@ -28,12 +40,14 @@ Commands:
   init-dirs         Create MODELS_ROOT/{gguf,hgn,stt,tts}/…
 
 Environment:
-  MODELS_ROOT       Parent tree (default: ./models) — gguf/ hgn/ stt/ tts/
-  MODELS_DIR        GGUF root for llama (default: $MODELS_ROOT/gguf)
+  MODELS_ROOT       Parent tree — default ~/data/models if that dir exists, else ./models
+  MODELS_DIR        GGUF root (default: \$MODELS_ROOT/gguf)
   LLAMA_INI_DIR     Live models*.ini dir (default: ./engines/llama-cpp)
   CATALOG           Catalog TSV path (default: ./models.catalog.tsv)
   HF_TOKEN          Hugging Face token (gated models)
   HF_HUB_ENABLE_HF_TRANSFER=1   Faster downloads (needs hf_transfer)
+
+No .env required. Optional .env overrides the defaults above.
 
 Catalog format (models.catalog.tsv):
   local_filename<TAB>subdir<TAB>hf_repo<TAB>remote_filename
