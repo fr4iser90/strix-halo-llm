@@ -12,16 +12,16 @@ Compare results only across similar RAM/GTT/backends. [host.json](host.json)
 | OS | NixOS 26.05 (Yarara) |
 | Kernel | 7.2.2 |
 | CPU | AMD RYZEN AI MAX+ 395 w/ Radeon 8060S (32 threads) |
-| RAM | 124.9 GiB (avail ~32.1 GiB) |
+| RAM | 124.9 GiB (avail ~21.0 GiB) |
 | Swap | 18.7 GiB |
-| GTT (UMA) | 100.0 GiB (used ~85.4 GiB) |
+| GTT (UMA) | 100.0 GiB (used ~89.6 GiB) |
 | Visible VRAM | 512 MiB |
 | GPU | c5:00.0 Display controller: Advanced Micro Devices, Inc. [AMD/ATI] Strix Halo [Radeon Graphics / Radeon 8050S Graphics / Radeon 8060S Graphics] (rev c1) |
 | Engine | llama.cpp |
 | Backend | vulkan |
 | Image | llama-cpp-vulkan-nix:latest (`366f8b040ab0`) |
 | llama.cpp | qwen4exp/mtp @ `d1a9235` |
-| Probed | 2026-09-24T19:29:40Z |
+| Probed | 2026-09-25T10:24:54Z |
 
 > AMD Strix Halo / unified memory: GTT is the GPU-usable UMA pool (not discrete VRAM). Compare benches only across similar GTT/RAM.
 
