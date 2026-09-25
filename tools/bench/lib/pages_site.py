@@ -475,7 +475,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
     catalog_json = json.dumps(catalog, ensure_ascii=False).replace("<", "\\u003c")
 
     picker = f"""
-<div class="compare-pick">
+<div class="compare-pick compare-pick-3">
   <label class="compare-field">
     <span>Model A</span>
     <select id="compare-a" aria-label="Model A">{opts_html}</select>
@@ -483,6 +483,10 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
   <label class="compare-field">
     <span>Model B</span>
     <select id="compare-b" aria-label="Model B">{opts_html}</select>
+  </label>
+  <label class="compare-field">
+    <span>Fill size</span>
+    <select id="compare-fill" aria-label="Prefill fill size"></select>
   </label>
 </div>
 <p class="meta" id="compare-fill-note"></p>
@@ -502,7 +506,7 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
     <div class="chart-wrap"><canvas id="compare-chart-latency"></canvas></div></div>
 </div>
 <div class="chart-box compare-fill-chart" id="compare-fill-box" hidden>
-  <h3>TTFT cold by fill size</h3>
+  <h3>TTFT cold &amp; Prefill across fill sizes</h3>
   <div class="chart-wrap"><canvas id="compare-chart-fill"></canvas></div>
 </div>
 <script type="application/json" id="compare-catalog">{catalog_json}</script>
@@ -511,16 +515,26 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
   const catEl = document.getElementById("compare-catalog");
   const selA = document.getElementById("compare-a");
   const selB = document.getElementById("compare-b");
+  const selFill = document.getElementById("compare-fill");
   const body = document.getElementById("compare-pair-body");
   const headA = document.getElementById("compare-head-a");
   const headB = document.getElementById("compare-head-b");
   const fillNote = document.getElementById("compare-fill-note");
   const fillBox = document.getElementById("compare-fill-box");
-  if (!catEl || !selA || !selB || !body) return;
+  if (!catEl || !selA || !selB || !body || !selFill) return;
   const catalog = JSON.parse(catEl.textContent || "[]");
   const byId = Object.fromEntries(catalog.map((e) => [e.id, e]));
   selA.value = {json.dumps(default_a)};
   selB.value = {json.dumps(default_b)};
+  let pendingFill = null;
+  try {{
+    const sa = localStorage.getItem("bench-compare-a");
+    const sb = localStorage.getItem("bench-compare-b");
+    const sf = localStorage.getItem("bench-compare-fill");
+    if (sa && byId[sa]) selA.value = sa;
+    if (sb && byId[sb]) selB.value = sb;
+    if (sf) pendingFill = sf;
+  }} catch (_) {{}}
 
   let chartSpeed = null, chartLat = null, chartFill = null;
   const tick = {{ color: "#9aa0a6" }};
@@ -560,20 +574,85 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
     const d = ((bf - af) / Math.abs(af)) * 100;
     return (d >= 0 ? "+" : "") + d.toFixed(0) + "%";
   }}
-  function shortLabel(e) {{
-    if (!e) return "—";
-    const m = (e.model || "").replace(/-UD-Q[\\w.]+$/i, "").replace(/-MTP/g, "");
-    let s = (e.engine_label || e.engine) + " · " + (m.length > 28 ? m.slice(0, 27) + "…" : m);
-    if (e.thr_fill) s += " @" + e.thr_fill;
-    return s;
-  }}
   function numOrNull(v) {{
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
   }}
-  function updateCharts(a, b) {{
+  function fillKeys(e) {{
+    if (!e || !e.fills) return [];
+    return Object.keys(e.fills).map(Number).filter((n) => n > 0).sort((x, y) => x - y);
+  }}
+  function availableFills(a, b) {{
+    return Array.from(new Set([...fillKeys(a), ...fillKeys(b)])).sort((x, y) => x - y);
+  }}
+  function pickDefaultFill(keys, a, b) {{
+    if (!keys.length) return "";
+    if (keys.includes(4096)) return "4096";
+    const pref = (a && a.thr_fill) || (b && b.thr_fill);
+    if (pref && keys.includes(Number(pref))) return String(pref);
+    return String(keys[keys.length - 1]);
+  }}
+  function syncFillSelect(a, b) {{
+    const keys = availableFills(a, b);
+    const prev = selFill.value;
+    selFill.innerHTML = "";
+    if (!keys.length) {{
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "— no thr fills —";
+      selFill.appendChild(opt);
+      selFill.disabled = true;
+      return;
+    }}
+    selFill.disabled = false;
+    keys.forEach((k) => {{
+      const opt = document.createElement("option");
+      opt.value = String(k);
+      const miss = [];
+      if (a && !(a.fills || {{}})[String(k)]) miss.push("A");
+      if (b && !(b.fills || {{}})[String(k)]) miss.push("B");
+      opt.textContent = miss.length ? (k + " (no " + miss.join("/") + ")") : String(k);
+      selFill.appendChild(opt);
+    }});
+    if (pendingFill && keys.includes(Number(pendingFill))) {{
+      selFill.value = pendingFill;
+      pendingFill = null;
+    }} else if (prev && keys.includes(Number(prev))) {{
+      selFill.value = prev;
+    }} else {{
+      selFill.value = pickDefaultFill(keys, a, b);
+    }}
+  }}
+  function thrAt(e, fill) {{
+    if (!e) return {{}};
+    const f = fill ? (e.fills || {{}})[String(fill)] : null;
+    if (f) {{
+      return {{
+        prefill_tok_s: f.prefill_tok_s,
+        decode_tok_s: f.decode_tok_s != null ? f.decode_tok_s : e.decode_tok_s,
+        ttft_cold_ms: f.ttft_cold_ms,
+        ttft_warm_ms: f.ttft_warm_ms,
+        itl_p50_ms: f.itl_p50_ms != null ? f.itl_p50_ms : e.itl_p50_ms,
+      }};
+    }}
+    return {{
+      prefill_tok_s: e.prefill_tok_s,
+      decode_tok_s: e.decode_tok_s,
+      ttft_cold_ms: e.ttft_cold_ms,
+      ttft_warm_ms: e.ttft_warm_ms,
+      itl_p50_ms: e.itl_p50_ms,
+    }};
+  }}
+  function shortLabel(e, fill) {{
+    if (!e) return "—";
+    const m = (e.model || "").replace(/-UD-Q[\\w.]+$/i, "").replace(/-MTP/g, "");
+    let s = (e.engine_label || e.engine) + " · " + (m.length > 28 ? m.slice(0, 27) + "…" : m);
+    if (fill) s += " @" + fill;
+    return s;
+  }}
+  function updateCharts(a, b, fill, ta, tb) {{
     if (typeof Chart === "undefined") return;
-    const la = shortLabel(a), lb = shortLabel(b);
+    const la = shortLabel(a, fill), lb = shortLabel(b, fill);
     chartSpeed = destroy(chartSpeed);
     chartLat = destroy(chartLat);
     chartFill = destroy(chartFill);
@@ -586,8 +665,8 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
         data: {{
           labels: ["Prefill tok/s", "Decode tok/s"],
           datasets: [
-            {{ label: la, data: [numOrNull(a.prefill_tok_s), numOrNull(a.decode_tok_s)], backgroundColor: colA }},
-            {{ label: lb, data: [numOrNull(b.prefill_tok_s), numOrNull(b.decode_tok_s)], backgroundColor: colB }},
+            {{ label: la, data: [numOrNull(ta.prefill_tok_s), numOrNull(ta.decode_tok_s)], backgroundColor: colA }},
+            {{ label: lb, data: [numOrNull(tb.prefill_tok_s), numOrNull(tb.decode_tok_s)], backgroundColor: colB }},
           ],
         }},
         options: {{
@@ -605,8 +684,8 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
         data: {{
           labels: ["TTFT cold", "TTFT warm", "ITL p50"],
           datasets: [
-            {{ label: la, data: [numOrNull(a.ttft_cold_ms), numOrNull(a.ttft_warm_ms), numOrNull(a.itl_p50_ms)], backgroundColor: colA }},
-            {{ label: lb, data: [numOrNull(b.ttft_cold_ms), numOrNull(b.ttft_warm_ms), numOrNull(b.itl_p50_ms)], backgroundColor: colB }},
+            {{ label: la, data: [numOrNull(ta.ttft_cold_ms), numOrNull(ta.ttft_warm_ms), numOrNull(ta.itl_p50_ms)], backgroundColor: colA }},
+            {{ label: lb, data: [numOrNull(tb.ttft_cold_ms), numOrNull(tb.ttft_warm_ms), numOrNull(tb.itl_p50_ms)], backgroundColor: colB }},
           ],
         }},
         options: {{
@@ -619,12 +698,10 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
       }});
     }}
     const fillsA = a.fills || {{}}, fillsB = b.fills || {{}};
-    const keys = Array.from(new Set([
-      ...Object.keys(fillsA).map(Number),
-      ...Object.keys(fillsB).map(Number),
-    ].filter((n) => n > 0))).sort((x, y) => x - y);
-    if (fillBox && cFill && keys.length >= 2) {{
+    const keys = availableFills(a, b);
+    if (fillBox && cFill && keys.length >= 1) {{
       fillBox.hidden = false;
+      const sel = fill ? Number(fill) : null;
       chartFill = new Chart(cFill, {{
         type: "line",
         data: {{
@@ -634,30 +711,42 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
               label: (a.engine_label || a.engine) + " TTFT cold",
               data: keys.map((k) => numOrNull((fillsA[String(k)] || {{}}).ttft_cold_ms)),
               borderColor: colA, backgroundColor: colA, tension: 0.2,
+              pointRadius: keys.map((k) => (k === sel ? 7 : 3)),
             }},
             {{
               label: (b.engine_label || b.engine) + " TTFT cold",
               data: keys.map((k) => numOrNull((fillsB[String(k)] || {{}}).ttft_cold_ms)),
               borderColor: colB, backgroundColor: colB, tension: 0.2,
+              pointRadius: keys.map((k) => (k === sel ? 7 : 3)),
             }},
             {{
               label: (a.engine_label || a.engine) + " Prefill",
               data: keys.map((k) => numOrNull((fillsA[String(k)] || {{}}).prefill_tok_s)),
               borderColor: "#8ab4f8", backgroundColor: "#8ab4f8",
               borderDash: [4, 4], tension: 0.2, yAxisID: "y1",
+              pointRadius: keys.map((k) => (k === sel ? 7 : 3)),
             }},
             {{
               label: (b.engine_label || b.engine) + " Prefill",
               data: keys.map((k) => numOrNull((fillsB[String(k)] || {{}}).prefill_tok_s)),
               borderColor: "#a8e6c5", backgroundColor: "#a8e6c5",
               borderDash: [4, 4], tension: 0.2, yAxisID: "y1",
+              pointRadius: keys.map((k) => (k === sel ? 7 : 3)),
             }},
           ],
         }},
         options: {{
           ...common,
+          onClick: (evt, elems) => {{
+            if (!elems.length) return;
+            const idx = elems[0].index;
+            if (idx >= 0 && idx < keys.length) {{
+              selFill.value = String(keys[idx]);
+              render();
+            }}
+          }},
           scales: {{
-            x: {{ ticks: tick, grid, title: {{ display: true, text: "fill tokens", color: "#9aa0a6" }} }},
+            x: {{ ticks: tick, grid, title: {{ display: true, text: "fill tokens — click point to select", color: "#9aa0a6" }} }},
             y: {{ ticks: tick, grid, position: "left", title: {{ display: true, text: "TTFT cold (ms)", color: "#9aa0a6" }} }},
             y1: {{ ticks: tick, grid: {{ drawOnChartArea: false }}, position: "right",
               title: {{ display: true, text: "Prefill tok/s", color: "#9aa0a6" }} }},
@@ -671,28 +760,27 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
   function render() {{
     const a = byId[selA.value];
     const b = byId[selB.value];
-    headA.textContent = shortLabel(a);
-    headB.textContent = shortLabel(b);
+    syncFillSelect(a, b);
+    const fill = selFill.value || "";
+    const ta = thrAt(a, fill);
+    const tb = thrAt(b, fill);
+    headA.textContent = shortLabel(a, fill);
+    headB.textContent = shortLabel(b, fill);
     headA.title = a ? (a.engine + " / " + a.model) : "";
     headB.title = b ? (b.engine + " / " + b.model) : "";
-    if (fillNote) {{
-      const bits = [];
-      if (a && a.thr_fill) bits.push("A thr @" + a.thr_fill);
-      if (b && b.thr_fill) bits.push("B thr @" + b.thr_fill);
-      fillNote.textContent = bits.length
-        ? ("Table/charts use preferred fill (" + bits.join(", ") + "); line chart shows full ladder.")
-        : "";
-    }}
+    fillNote.textContent = fill
+      ? ("Selected fill @" + fill + " → table + bar charts. Line chart = full ladder (click a point).")
+      : "No fill ladder for these models yet.";
     if (!a || !b) {{
       body.innerHTML = '<tr><td colspan="4" class="meta">Pick two models.</td></tr>';
       return;
     }}
     const rows = [
-      ["Decode tok/s", fmtNum(a.decode_tok_s), fmtNum(b.decode_tok_s), delta(a.decode_tok_s, b.decode_tok_s)],
-      ["Prefill tok/s", fmtNum(a.prefill_tok_s), fmtNum(b.prefill_tok_s), delta(a.prefill_tok_s, b.prefill_tok_s)],
-      ["TTFT warm (ms)", fmtNum(a.ttft_warm_ms), fmtNum(b.ttft_warm_ms), delta(b.ttft_warm_ms, a.ttft_warm_ms)],
-      ["TTFT cold (ms)", fmtNum(a.ttft_cold_ms), fmtNum(b.ttft_cold_ms), delta(b.ttft_cold_ms, a.ttft_cold_ms)],
-      ["ITL p50 (ms)", fmtNum(a.itl_p50_ms), fmtNum(b.itl_p50_ms), delta(b.itl_p50_ms, a.itl_p50_ms)],
+      ["Decode tok/s", fmtNum(ta.decode_tok_s), fmtNum(tb.decode_tok_s), delta(ta.decode_tok_s, tb.decode_tok_s)],
+      ["Prefill tok/s", fmtNum(ta.prefill_tok_s), fmtNum(tb.prefill_tok_s), delta(ta.prefill_tok_s, tb.prefill_tok_s)],
+      ["TTFT warm (ms)", fmtNum(ta.ttft_warm_ms), fmtNum(tb.ttft_warm_ms), delta(tb.ttft_warm_ms, ta.ttft_warm_ms)],
+      ["TTFT cold (ms)", fmtNum(ta.ttft_cold_ms), fmtNum(tb.ttft_cold_ms), delta(tb.ttft_cold_ms, ta.ttft_cold_ms)],
+      ["ITL p50 (ms)", fmtNum(ta.itl_p50_ms), fmtNum(tb.itl_p50_ms), delta(tb.itl_p50_ms, ta.itl_p50_ms)],
       ["HumanEval pass@1", fmtPct(a.pass_at_1), fmtPct(b.pass_at_1), delta(a.pass_at_1, b.pass_at_1)],
       ["HumanEval pass@10", fmtPct(a.pass_at_10), fmtPct(b.pass_at_10), delta(a.pass_at_10, b.pass_at_10)],
       ["Max context", fmtCtx(a.max_c), fmtCtx(b.max_c), delta(a.max_c, b.max_c)],
@@ -701,22 +789,17 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
       "<tr><td>" + m + '</td><td class="n">' + av + '</td><td class="n">' + bv +
       '</td><td class="n">' + d + "</td></tr>"
     ).join("");
-    updateCharts(a, b);
+    updateCharts(a, b, fill, ta, tb);
     try {{
       localStorage.setItem("bench-compare-a", selA.value);
       localStorage.setItem("bench-compare-b", selB.value);
+      if (fill) localStorage.setItem("bench-compare-fill", fill);
     }} catch (_) {{}}
   }}
-  try {{
-    const sa = localStorage.getItem("bench-compare-a");
-    const sb = localStorage.getItem("bench-compare-b");
-    if (sa && byId[sa]) selA.value = sa;
-    if (sb && byId[sb]) selB.value = sb;
-  }} catch (_) {{}}
   selA.addEventListener("change", render);
   selB.addEventListener("change", render);
+  selFill.addEventListener("change", render);
   window.addEventListener("bench-compare-show", render);
-  // Defer charts until Chart.js + panel may be visible
   if (document.readyState === "loading") {{
     document.addEventListener("DOMContentLoaded", render);
   }} else {{
@@ -729,8 +812,9 @@ def compare_panel_html(by_engine: dict[str, dict], engines: list[str]) -> str:
     return (
         '<div class="engine-panel" data-engine="__compare__" hidden>'
         '<div class="card"><h2>Compare models</h2>'
-        '<p class="meta">Pick any two measured models (any engine). '
-        "Δ is B relative to A. Throughput rows join across fill sizes (@512/@4k/@16k).</p>"
+        '<p class="meta">Pick any two models. Use <strong>Fill size</strong> '
+        "(512 / 4k / 16k / …) to switch table + bar charts. "
+        "Line chart shows the full ladder — click a point to select.</p>"
         f"{picker}"
         f"{overlap_html}"
         "</div></div>"
@@ -821,7 +905,10 @@ summary { cursor: pointer; color: #c4c7cc; font-weight: 600; }
   margin-left: .35rem; vertical-align: middle; }
 .compare-pick { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem;
   margin: 0 0 1rem; }
-@media (max-width: 640px) { .compare-pick { grid-template-columns: 1fr; } }
+.compare-pick-3 { grid-template-columns: 1fr 1fr minmax(7rem, 0.55fr); }
+@media (max-width: 720px) {
+  .compare-pick, .compare-pick-3 { grid-template-columns: 1fr; }
+}
 .compare-field { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem;
   color: #9aa0a6; }
 .compare-field select { appearance: none; width: 100%; padding: .55rem .7rem;
